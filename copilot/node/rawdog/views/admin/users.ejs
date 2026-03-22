@@ -1,0 +1,50 @@
+<%- include('../partials/header') %>
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2><i class="bi bi-people me-2"></i>User Management</h2>
+  <a href="/admin" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Dashboard</a>
+</div>
+<form method="GET" action="/admin/users" class="mb-4">
+  <div class="input-group">
+    <input type="text" name="q" class="form-control" placeholder="Search by username or email…" value="<%= typeof q !== 'undefined' ? q : '' %>" />
+    <button class="btn btn-primary" type="submit">Search</button>
+    <% if (q) { %><a href="/admin/users" class="btn btn-outline-secondary">Clear</a><% } %>
+  </div>
+</form>
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead class="table-dark">
+        <tr>
+          <th>Username</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Notes</th>
+          <th>Registered</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% users.forEach(u => { %>
+          <tr>
+            <td><%= u.username %></td>
+            <td><%= u.email %></td>
+            <td><span class="badge <%= u.role === 'admin' ? 'bg-danger' : 'bg-secondary' %>"><%= u.role %></span></td>
+            <td><%= noteCounts[u.id] || 0 %></td>
+            <td><%= new Date(u.createdAt).toLocaleDateString() %></td>
+            <td>
+              <form method="POST" action="/admin/users/<%= u.id %>/toggle-role" class="d-inline">
+                <button class="btn btn-sm btn-outline-warning" title="Toggle role"><i class="bi bi-arrow-repeat"></i></button>
+              </form>
+              <% if (u.id !== currentUser.id) { %>
+                <form method="POST" action="/admin/users/<%= u.id %>/delete" class="d-inline" onsubmit="return confirm('Delete user <%= u.username %>?')">
+                  <button class="btn btn-sm btn-outline-danger" title="Delete user"><i class="bi bi-trash"></i></button>
+                </form>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<%- include('../partials/footer') %>

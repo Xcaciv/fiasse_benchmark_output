@@ -1,12 +1,11 @@
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace LooseNotes.Models;
 
 /// <summary>
-/// File attachment metadata.
-/// SSEM: Stored filename (on disk) is a GUID-based name; original name is metadata only.
-/// This prevents directory traversal and name-collision attacks.
+/// File attachment linked to a note.
+/// StoredFileName is server-generated (UUID); OriginalFileName is display-only metadata.
+/// Never serve StoredFileName directly to the client (Confidentiality, Integrity).
 /// </summary>
 public class Attachment
 {
@@ -14,18 +13,21 @@ public class Attachment
 
     public int NoteId { get; set; }
 
-    [ForeignKey(nameof(NoteId))]
-    public Note Note { get; set; } = null!;
-
-    /// <summary>Original filename supplied by the uploader – displayed to users but never used for disk I/O.</summary>
-    [Required, MaxLength(260)]
+    /// <summary>
+    /// User-supplied original filename stored as metadata only.
+    /// Sanitized on upload; never used for file system operations.
+    /// </summary>
+    [Required, MaxLength(255)]
     public string OriginalFileName { get; set; } = string.Empty;
 
-    /// <summary>GUID-based filename stored on disk – never derived from user input.</summary>
-    [Required, MaxLength(60)]
+    /// <summary>
+    /// Server-generated UUID filename used for disk storage.
+    /// Keeps storage path opaque to clients (Confidentiality).
+    /// </summary>
+    [Required, MaxLength(100)]
     public string StoredFileName { get; set; } = string.Empty;
 
-    [Required, MaxLength(20)]
+    [Required, MaxLength(100)]
     public string ContentType { get; set; } = string.Empty;
 
     public long FileSizeBytes { get; set; }
@@ -34,6 +36,7 @@ public class Attachment
 
     public string UploadedById { get; set; } = string.Empty;
 
-    [ForeignKey(nameof(UploadedById))]
-    public ApplicationUser UploadedBy { get; set; } = null!;
+    // Navigation
+    public Note? Note { get; set; }
+    public ApplicationUser? UploadedBy { get; set; }
 }

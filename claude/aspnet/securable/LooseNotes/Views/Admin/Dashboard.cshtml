@@ -1,22 +1,21 @@
-@model LooseNotes.ViewModels.Admin.DashboardViewModel
+@model AdminDashboardViewModel
 @{
     ViewData["Title"] = "Admin Dashboard";
 }
-
 <h2>Admin Dashboard</h2>
 
-<div class="row g-4 mb-5">
+<div class="row g-3 mb-4">
     <div class="col-md-4">
-        <div class="card text-bg-primary">
+        <div class="card text-center">
             <div class="card-body">
                 <h5 class="card-title">Total Users</h5>
                 <p class="display-6">@Model.TotalUsers</p>
-                <a asp-action="Users" class="btn btn-light btn-sm">Manage Users</a>
+                <a asp-action="Users" class="btn btn-sm btn-outline-primary">Manage Users</a>
             </div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card text-bg-secondary">
+        <div class="card text-center">
             <div class="card-body">
                 <h5 class="card-title">Total Notes</h5>
                 <p class="display-6">@Model.TotalNotes</p>
@@ -28,44 +27,35 @@
 <h4>Recent Activity</h4>
 @if (!Model.RecentActivity.Any())
 {
-    <p class="text-muted">No activity logged yet.</p>
+    <p class="text-muted">No activity recorded yet.</p>
 }
 else
 {
-    <div class="table-responsive">
-        <table class="table table-sm table-striped">
-            <thead>
+    <table class="table table-sm table-striped">
+        <thead>
+            <tr>
+                <th>Action</th>
+                <th>User</th>
+                <th>Resource</th>
+                <th>Result</th>
+                <th>Time</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Model.RecentActivity)
+            {
                 <tr>
-                    <th>Time (UTC)</th>
-                    <th>Event</th>
-                    <th>User</th>
-                    <th>IP</th>
-                    <th>Result</th>
-                    <th>Details</th>
+                    <td>@item.Action</td>
+                    <td>@(item.UserId ?? "anonymous")</td>
+                    <td>@item.ResourceType/@item.ResourceId</td>
+                    <td>
+                        <span class="badge @(item.Succeeded ? "bg-success" : "bg-danger")">
+                            @(item.Succeeded ? "OK" : "FAIL")
+                        </span>
+                    </td>
+                    <td>@item.OccurredAt.ToString("MMM d HH:mm")</td>
                 </tr>
-            </thead>
-            <tbody>
-                @foreach (var log in Model.RecentActivity)
-                {
-                    <tr>
-                        <td>@log.OccurredAt.ToString("g")</td>
-                        <td>@log.EventType</td>
-                        <td>@log.ActorUserName</td>
-                        <td>@log.IpAddress</td>
-                        <td>
-                            @if (log.Success)
-                            {
-                                <span class="badge bg-success">OK</span>
-                            }
-                            else
-                            {
-                                <span class="badge bg-danger">Fail</span>
-                            }
-                        </td>
-                        <td>@log.Details</td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
+            }
+        </tbody>
+    </table>
 }

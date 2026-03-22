@@ -1,8 +1,9 @@
 @{
     ViewData["Title"] = "Error";
 }
-<div class="text-center">
-    <h1 class="display-4">An error occurred</h1>
-    <p>We're sorry, something went wrong. Please try again later.</p>
+<div class="text-center py-5">
+    <h1 class="display-4">Something went wrong</h1>
+    <p class="lead">An error occurred processing your request. Please try again later.</p>
+    <!-- No internal detail, stack traces, or exception messages shown to users (Confidentiality) -->
     <a asp-controller="Home" asp-action="Index" class="btn btn-primary">Go Home</a>
 </div>

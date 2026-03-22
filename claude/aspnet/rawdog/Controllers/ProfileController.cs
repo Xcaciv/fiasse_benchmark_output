@@ -1,8 +1,8 @@
-using LooseNotes.Models;
-using LooseNotes.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using LooseNotes.Models;
+using LooseNotes.ViewModels;
 
 namespace LooseNotes.Controllers;
 
@@ -31,8 +31,8 @@ public class ProfileController : Controller
 
         return View(new EditProfileViewModel
         {
-            UserName = user.UserName!,
-            Email = user.Email!
+            Username = user.UserName ?? string.Empty,
+            Email = user.Email ?? string.Empty
         });
     }
 
@@ -45,50 +45,36 @@ public class ProfileController : Controller
         var user = await _userManager.GetUserAsync(User);
         if (user == null) return NotFound();
 
-        // Change password if requested
+        user.UserName = model.Username;
+        user.Email = model.Email;
+
+        var updateResult = await _userManager.UpdateAsync(user);
+        if (!updateResult.Succeeded)
+        {
+            foreach (var error in updateResult.Errors)
+                ModelState.AddModelError(string.Empty, error.Description);
+            return View(model);
+        }
+
         if (!string.IsNullOrEmpty(model.NewPassword))
         {
             if (string.IsNullOrEmpty(model.CurrentPassword))
             {
-                ModelState.AddModelError("CurrentPassword", "Current password is required to set a new password.");
+                ModelState.AddModelError(nameof(model.CurrentPassword), "Current password is required to set a new password.");
                 return View(model);
             }
 
-            var pwResult = await _userManager.ChangePasswordAsync(user, model.CurrentPassword, model.NewPassword);
-            if (!pwResult.Succeeded)
+            var passResult = await _userManager.ChangePasswordAsync(user, model.CurrentPassword, model.NewPassword);
+            if (!passResult.Succeeded)
             {
-                foreach (var err in pwResult.Errors)
-                    ModelState.AddModelError(string.Empty, err.Description);
-                return View(model);
-            }
-        }
-
-        // Update username/email
-        if (user.UserName != model.UserName)
-        {
-            var setNameResult = await _userManager.SetUserNameAsync(user, model.UserName);
-            if (!setNameResult.Succeeded)
-            {
-                foreach (var err in setNameResult.Errors)
-                    ModelState.AddModelError(string.Empty, err.Description);
-                return View(model);
-            }
-        }
-
-        if (user.Email != model.Email)
-        {
-            var setEmailResult = await _userManager.SetEmailAsync(user, model.Email);
-            if (!setEmailResult.Succeeded)
-            {
-                foreach (var err in setEmailResult.Errors)
-                    ModelState.AddModelError(string.Empty, err.Description);
+                foreach (var error in passResult.Errors)
+                    ModelState.AddModelError(string.Empty, error.Description);
                 return View(model);
             }
         }
 
         await _signInManager.RefreshSignInAsync(user);
-        _logger.LogInformation("User {UserId} updated their profile.", user.Id);
-
+        _logger.LogInformation("Profile updated for user: {UserId}", user.Id);
         TempData["Success"] = "Profile updated successfully.";
         return RedirectToAction(nameof(Edit));
     }

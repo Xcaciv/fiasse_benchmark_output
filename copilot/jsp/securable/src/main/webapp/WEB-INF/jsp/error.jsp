@@ -1,11 +1,32 @@
-<%@ include file="/WEB-INF/jsp/fragments/header.jspf" %>
-<section class="card" style="max-width:700px; margin:0 auto; text-align:center;">
-    <h1>Something went wrong</h1>
-    <p class="muted">The request could not be completed securely.</p>
-    <p>Status code: <strong>${requestScope['javax.servlet.error.status_code']}</strong></p>
-    <p class="muted">Request: <c:out value="${requestScope['javax.servlet.error.request_uri']}" /></p>
-    <div class="actions" style="justify-content:center;">
-        <a class="btn primary" href="${pageContext.request.contextPath}/">Return home</a>
+<%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" isErrorPage="true" %>
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Error - Loose Notes</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container mt-5 text-center">
+    <div class="display-1 text-muted">
+        ${requestScope['javax.servlet.error.status_code'] != null
+            ? requestScope['javax.servlet.error.status_code'] : '500'}
     </div>
-</section>
-<%@ include file="/WEB-INF/jsp/fragments/footer.jspf" %>
+    <h2 class="mb-3">Something went wrong</h2>
+    <%-- Error message shown without stack traces (Confidentiality: no internals leaked) --%>
+    <c:choose>
+        <c:when test="${requestScope['javax.servlet.error.status_code'] == 403}">
+            <p class="text-muted">You don't have permission to access this resource.</p>
+        </c:when>
+        <c:when test="${requestScope['javax.servlet.error.status_code'] == 404}">
+            <p class="text-muted">The requested page could not be found.</p>
+        </c:when>
+        <c:otherwise>
+            <p class="text-muted">An unexpected error occurred. Please try again later.</p>
+        </c:otherwise>
+    </c:choose>
+    <a href="${pageContext.request.contextPath}/notes" class="btn btn-primary">Go Home</a>
+</div>
+</body>
+</html>

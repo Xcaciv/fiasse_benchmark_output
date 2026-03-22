@@ -1,146 +1,132 @@
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.EntityFrameworkCore;
 using LooseNotes.Data;
-using LooseNotes.Services;
+using LooseNotes.Models;
+using LooseNotes.Services.Interfaces;
 using LooseNotes.ViewModels.Admin;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace LooseNotes.Controllers;
 
+/// <summary>
+/// Admin-only actions. All routes protected with Role="Admin" (Authenticity).
+/// Admin actions are fully audited (Accountability).
+/// </summary>
 [Authorize(Roles = "Admin")]
-public sealed class AdminController : Controller
+[Route("[controller]/[action]")]
+public class AdminController : Controller
 {
-    private readonly ApplicationDbContext _dbContext;
-    private readonly IActivityLogService _activityLogService;
+    private readonly ApplicationDbContext _db;
+    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IAuditService _auditService;
+    private readonly ILogger<AdminController> _logger;
 
-    public AdminController(ApplicationDbContext dbContext, IActivityLogService activityLogService)
+    public AdminController(
+        ApplicationDbContext db,
+        UserManager<ApplicationUser> userManager,
+        IAuditService auditService,
+        ILogger<AdminController> logger)
     {
-        _dbContext = dbContext;
-        _activityLogService = activityLogService;
+        _db = db;
+        _userManager = userManager;
+        _auditService = auditService;
+        _logger = logger;
     }
 
-    [HttpGet]
-    public async Task<IActionResult> Dashboard(CancellationToken cancellationToken)
+    [HttpGet("/Admin")]
+    public async Task<IActionResult> Index()
     {
-        var recentActivity = await (
-            from activity in _dbContext.ActivityLogs.AsNoTracking()
-            join user in _dbContext.Users.AsNoTracking() on activity.ActorUserId equals user.Id into users
-            from actor in users.DefaultIfEmpty()
-            orderby activity.CreatedAtUtc descending
-            select new ActivityLogItemViewModel
-            {
-                CreatedAtUtc = activity.CreatedAtUtc,
-                ActionType = activity.ActionType,
-                Description = activity.Description,
-                ActorUserName = actor != null ? actor.UserName : null
-            })
-            .Take(25)
-            .ToListAsync(cancellationToken);
+        _logger.LogInformation("Admin/Index accessed by {UserId}", _userManager.GetUserId(User));
 
-        var model = new DashboardViewModel
-        {
-            TotalUserCount = await _dbContext.Users.CountAsync(cancellationToken),
-            TotalNoteCount = await _dbContext.Notes.CountAsync(cancellationToken),
-            RecentActivity = recentActivity
-        };
-
-        return View(model);
-    }
-
-    [HttpGet]
-    public async Task<IActionResult> Users(string? query, CancellationToken cancellationToken)
-    {
-        var normalizedQuery = query?.Trim();
-        var usersQuery = _dbContext.Users.AsNoTracking();
-        if (!string.IsNullOrWhiteSpace(normalizedQuery))
-        {
-            var pattern = $"%{normalizedQuery}%";
-            usersQuery = usersQuery.Where(x => EF.Functions.Like(x.UserName!, pattern) || EF.Functions.Like(x.Email!, pattern));
-        }
-
-        var users = await usersQuery
-            .OrderBy(x => x.UserName)
-            .Select(x => new UserListItemViewModel
-            {
-                Id = x.Id,
-                UserName = x.UserName ?? string.Empty,
-                Email = x.Email ?? string.Empty,
-                RegisteredAtUtc = x.RegisteredAtUtc,
-                NoteCount = x.OwnedNotes.Count
-            })
-            .ToListAsync(cancellationToken);
-
-        return View(new UsersViewModel { Query = normalizedQuery, Users = users });
-    }
-
-    [HttpGet]
-    public async Task<IActionResult> Reassign(int id, CancellationToken cancellationToken)
-    {
-        var note = await _dbContext.Notes
+        var userCount = await _db.Users.CountAsync();
+        var noteCount = await _db.Notes.CountAsync();
+        var recentActivity = await _db.ActivityLogs
             .AsNoTracking()
-            .Include(x => x.Owner)
-            .SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
-        if (note is null)
+            .OrderByDescending(a => a.Timestamp)
+            .Take(50)
+            .ToListAsync();
+
+        return View(new AdminDashboardViewModel
         {
-            return NotFound();
+            TotalUsers = userCount,
+            TotalNotes = noteCount,
+            RecentActivity = recentActivity
+        });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Users(string? q)
+    {
+        _logger.LogInformation("Admin/Users accessed by {UserId}", _userManager.GetUserId(User));
+
+        IQueryable<ApplicationUser> query = _db.Users.AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var lower = q.ToLower();
+            query = query.Where(u =>
+                u.UserName!.ToLower().Contains(lower) ||
+                u.Email!.ToLower().Contains(lower));
         }
 
-        return View(await BuildReassignViewModelAsync(note.Id, note.Title, note.Owner.UserName ?? "Unknown", cancellationToken));
+        var users = await query.OrderBy(u => u.UserName).ToListAsync();
+        return View(new UserListViewModel { Users = users, SearchQuery = q });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> ReassignNote(int noteId)
+    {
+        var note = await _db.Notes.AsNoTracking()
+            .Include(n => n.User)
+            .FirstOrDefaultAsync(n => n.Id == noteId);
+
+        if (note is null) return NotFound();
+
+        var users = await _db.Users.AsNoTracking()
+            .OrderBy(u => u.UserName)
+            .ToListAsync();
+
+        return View(new ReassignNoteViewModel
+        {
+            NoteId = noteId,
+            NoteTitle = note.Title,
+            CurrentOwnerName = note.User?.UserName ?? "(unknown)",
+            AvailableUsers = users
+        });
     }
 
     [HttpPost]
-    public async Task<IActionResult> Reassign(ReassignOwnerViewModel model, CancellationToken cancellationToken)
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ReassignNote(ReassignNoteViewModel model)
     {
-        var note = await _dbContext.Notes
-            .Include(x => x.Owner)
-            .SingleOrDefaultAsync(x => x.Id == model.NoteId, cancellationToken);
-        if (note is null)
-        {
-            return NotFound();
-        }
+        // Trust boundary: validate that target user exists before reassignment (Integrity)
+        _logger.LogInformation("Admin reassigning note {NoteId} to user {NewOwner}", model.NoteId, model.NewOwnerId);
 
-        if (!ModelState.IsValid)
-        {
-            return View(await BuildReassignViewModelAsync(note.Id, note.Title, note.Owner.UserName ?? "Unknown", cancellationToken, model.NewOwnerId));
-        }
+        if (!ModelState.IsValid) return await ReassignNote(model.NoteId);
 
-        var newOwner = await _dbContext.Users.SingleOrDefaultAsync(x => x.Id == model.NewOwnerId, cancellationToken);
+        var note = await _db.Notes.FirstOrDefaultAsync(n => n.Id == model.NoteId);
+        if (note is null) return NotFound();
+
+        var newOwner = await _userManager.FindByIdAsync(model.NewOwnerId);
         if (newOwner is null)
         {
-            ModelState.AddModelError(nameof(model.NewOwnerId), "Select a valid user.");
-            return View(await BuildReassignViewModelAsync(note.Id, note.Title, note.Owner.UserName ?? "Unknown", cancellationToken, model.NewOwnerId));
+            ModelState.AddModelError(nameof(model.NewOwnerId), "User not found.");
+            return await ReassignNote(model.NoteId);
         }
 
-        note.OwnerId = newOwner.Id;
-        note.UpdatedAtUtc = DateTime.UtcNow;
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        var adminId = _userManager.GetUserId(User)!;
+        var oldOwnerId = note.UserId;
+        note.UserId = model.NewOwnerId;
+        await _db.SaveChangesAsync();
 
-        await _activityLogService.LogAsync("admin.note_reassigned", $"Note '{note.Title}' was reassigned to '{newOwner.UserName}'.", User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, HttpContext.Connection.RemoteIpAddress?.ToString(), cancellationToken);
-        TempData["StatusMessage"] = "Note ownership was reassigned.";
-        return RedirectToAction(nameof(Dashboard));
+        await _auditService.LogAsync("NoteReassigned", adminId,
+            $"NoteId={model.NoteId} From={oldOwnerId} To={model.NewOwnerId}", GetClientIp());
+
+        TempData["SuccessMessage"] = "Note reassigned successfully.";
+        return RedirectToAction(nameof(Index));
     }
 
-    private async Task<ReassignOwnerViewModel> BuildReassignViewModelAsync(int noteId, string title, string currentOwnerUserName, CancellationToken cancellationToken, string? selectedUserId = null)
-    {
-        var users = await _dbContext.Users
-            .AsNoTracking()
-            .OrderBy(x => x.UserName)
-            .Select(x => new SelectListItem
-            {
-                Value = x.Id,
-                Text = $"{x.UserName} ({x.Email})",
-                Selected = x.Id == selectedUserId
-            })
-            .ToListAsync(cancellationToken);
-
-        return new ReassignOwnerViewModel
-        {
-            NoteId = noteId,
-            NoteTitle = title,
-            CurrentOwnerUserName = currentOwnerUserName,
-            NewOwnerId = selectedUserId ?? string.Empty,
-            Users = users
-        };
-    }
+    private string? GetClientIp() =>
+        HttpContext.Connection.RemoteIpAddress?.ToString();
 }

@@ -1,46 +1,41 @@
-@model IReadOnlyList<NoteCardViewModel>
+@model NoteListViewModel
 @{
-    ViewData["Title"] = "My notes";
+    ViewData["Title"] = "My Notes";
 }
-
-<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
-    <div>
-        <h1 class="mb-1">My notes</h1>
-        <p class="text-muted mb-0">Create, edit, share, and manage your private or public notes.</p>
-    </div>
-    <a class="btn btn-primary" asp-action="Create">Create note</a>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>My Notes</h2>
+    <a asp-action="Create" class="btn btn-primary">+ New Note</a>
 </div>
 
-@if (Model.Count == 0)
+@if (!Model.Notes.Any())
 {
-    <div class="card shadow-sm">
-        <div class="card-body p-4 text-center">
-            <p class="mb-3">You do not have any notes yet.</p>
-            <a class="btn btn-primary" asp-action="Create">Create your first note</a>
-        </div>
+    <div class="text-center text-muted py-5">
+        <p>You haven't created any notes yet.</p>
+        <a asp-action="Create" class="btn btn-outline-primary">Create Your First Note</a>
     </div>
 }
 else
 {
     <div class="row g-3">
-        @foreach (var note in Model)
+        @foreach (var note in Model.Notes)
         {
-            <div class="col-md-6 col-xl-4">
-                <div class="card shadow-sm h-100">
-                    <div class="card-body d-flex flex-column">
-                        <div class="d-flex justify-content-between gap-3 mb-2">
-                            <h2 class="h5 mb-0">@note.Title</h2>
-                            <span class="badge @(note.IsPublic ? "text-bg-success" : "text-bg-secondary")">@(note.IsPublic ? "Public" : "Private")</span>
-                        </div>
-                        <p class="text-muted small">Updated @note.UpdatedAtUtc.ToLocalTime().ToString("g")</p>
-                        <p class="flex-grow-1">@note.Excerpt</p>
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <span class="badge text-bg-warning">@note.AverageRating.ToString("0.0")</span>
-                                <span class="badge text-bg-light">@note.RatingCount ratings</span>
-                            </div>
-                            <a class="btn btn-outline-primary btn-sm" asp-action="Details" asp-route-id="@note.Id">Open</a>
-                        </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <a asp-action="Details" asp-route-id="@note.Id" class="text-decoration-none">
+                                @note.Title
+                            </a>
+                        </h5>
+                        <p class="card-text text-muted small">
+                            @(note.Content.Length > 100 ? note.Content[..100] + "…" : note.Content)
+                        </p>
+                    </div>
+                    <div class="card-footer d-flex justify-content-between align-items-center">
+                        <small class="text-muted">@note.UpdatedAt.ToString("MMM d, yyyy")</small>
+                        <span class="badge @(note.IsPublic ? "bg-success" : "bg-secondary")">
+                            @(note.IsPublic ? "Public" : "Private")
+                        </span>
                     </div>
                 </div>
             </div>

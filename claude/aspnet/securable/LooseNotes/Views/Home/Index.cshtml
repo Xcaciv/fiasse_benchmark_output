@@ -1,47 +1,31 @@
 @{
     ViewData["Title"] = "Welcome";
 }
-
-<div class="py-5 text-center">
-    <h1 class="display-5 fw-bold">Loose Notes</h1>
-    <p class="col-lg-6 mx-auto lead">
-        Create, share, and discover notes. Keep your ideas private or share them with the world.
-    </p>
+<div class="text-center py-5">
+    <h1 class="display-4">Loose Notes</h1>
+    <p class="lead">Capture, organize, and share your notes with the world.</p>
     @if (User.Identity?.IsAuthenticated == true)
     {
-        <a asp-controller="Notes" asp-action="Create" class="btn btn-primary btn-lg me-2">New Note</a>
-        <a asp-controller="Notes" asp-action="Index" class="btn btn-outline-secondary btn-lg">My Notes</a>
+        <a asp-controller="Notes" asp-action="Index" class="btn btn-primary btn-lg me-2">My Notes</a>
+        <a asp-controller="Notes" asp-action="Create" class="btn btn-success btn-lg">New Note</a>
     }
     else
     {
         <a asp-controller="Account" asp-action="Register" class="btn btn-primary btn-lg me-2">Get Started</a>
-        <a asp-controller="Account" asp-action="Login" class="btn btn-outline-secondary btn-lg">Log In</a>
+        <a asp-controller="Account" asp-action="Login" class="btn btn-outline-primary btn-lg">Log In</a>
     }
 </div>
-
-<div class="row row-cols-1 row-cols-md-3 g-4 mt-2">
-    <div class="col">
-        <div class="card h-100 shadow-sm">
-            <div class="card-body">
-                <h5 class="card-title">Create &amp; Organise</h5>
-                <p class="card-text">Write notes with rich content. Keep them private or publish them publicly.</p>
-            </div>
-        </div>
+<div class="row mt-4 text-center">
+    <div class="col-md-4">
+        <h4>Create</h4>
+        <p>Write notes with titles and rich content. Keep them private or share with the world.</p>
     </div>
-    <div class="col">
-        <div class="card h-100 shadow-sm">
-            <div class="card-body">
-                <h5 class="card-title">Share Securely</h5>
-                <p class="card-text">Generate revocable share links so anyone with the link can view your note.</p>
-            </div>
-        </div>
+    <div class="col-md-4">
+        <h4>Share</h4>
+        <p>Generate shareable links for any note. Revoke access at any time.</p>
     </div>
-    <div class="col">
-        <div class="card h-100 shadow-sm">
-            <div class="card-body">
-                <h5 class="card-title">Discover &amp; Rate</h5>
-                <p class="card-text">Search public notes, leave ratings, and see what's trending on the Top Rated page.</p>
-            </div>
-        </div>
+    <div class="col-md-4">
+        <h4>Discover</h4>
+        <p>Search public notes or browse the top-rated collection.</p>
     </div>
 </div>

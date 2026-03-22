@@ -1,0 +1,39 @@
+/* Loose Notes - Custom Styles */
+
+body {
+  background-color: #f8f9fa;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main.container {
+  flex: 1;
+}
+
+pre {
+  background: transparent;
+}
+
+.card {
+  border: none;
+  border-radius: 0.5rem;
+}
+
+.list-group-item {
+  border-left: none;
+  border-right: none;
+}
+
+.navbar-brand {
+  font-size: 1.3rem;
+}
+
+textarea.form-control {
+  resize: vertical;
+  min-height: 200px;
+}
+
+.note-content {
+  line-height: 1.7;
+}

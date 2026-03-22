@@ -1,13 +1,15 @@
-using LooseNotes.Models;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using LooseNotes.Models;
 
 namespace LooseNotes.Data;
 
 public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 {
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
-        : base(options) { }
+        : base(options)
+    {
+    }
 
     public DbSet<Note> Notes { get; set; }
     public DbSet<Attachment> Attachments { get; set; }
@@ -20,19 +22,16 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 
         builder.Entity<Note>(entity =>
         {
-            entity.HasIndex(n => n.OwnerId);
+            entity.HasIndex(n => n.UserId);
             entity.HasIndex(n => n.IsPublic);
-            entity.Property(n => n.Title).HasMaxLength(300).IsRequired();
-            entity.Property(n => n.Content).IsRequired();
-            entity.HasOne(n => n.Owner)
+            entity.HasOne(n => n.User)
                   .WithMany(u => u.Notes)
-                  .HasForeignKey(n => n.OwnerId)
+                  .HasForeignKey(n => n.UserId)
                   .OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<Attachment>(entity =>
         {
-            entity.HasIndex(a => a.NoteId);
             entity.HasOne(a => a.Note)
                   .WithMany(n => n.Attachments)
                   .HasForeignKey(a => a.NoteId)

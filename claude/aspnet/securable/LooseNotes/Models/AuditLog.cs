@@ -3,30 +3,36 @@ using System.ComponentModel.DataAnnotations;
 namespace LooseNotes.Models;
 
 /// <summary>
-/// Persistent audit trail for security-relevant events.
-/// SSEM: Captures who did what, when, and on which resource – no secrets stored here.
+/// Append-only structured audit record for security-sensitive actions.
+/// No sensitive data (passwords, tokens, PII beyond UserId) stored here (Accountability).
 /// </summary>
 public class AuditLog
 {
     public long Id { get; set; }
 
-    /// <summary>Null for anonymous events (e.g. failed login with unknown username).</summary>
-    [MaxLength(450)]
-    public string? ActorId { get; set; }
-
-    [MaxLength(256)]
-    public string? ActorUserName { get; set; }
+    /// <summary>Null for anonymous/unauthenticated actions (e.g., failed login attempt).</summary>
+    public string? UserId { get; set; }
 
     [Required, MaxLength(100)]
-    public string EventType { get; set; } = string.Empty;
+    public string Action { get; set; } = string.Empty;
 
-    [MaxLength(2000)]
-    public string? Details { get; set; }
-
+    /// <summary>Resource type affected, e.g. "Note", "Attachment", "User".</summary>
     [MaxLength(50)]
+    public string? ResourceType { get; set; }
+
+    /// <summary>String representation of the resource primary key.</summary>
+    [MaxLength(100)]
+    public string? ResourceId { get; set; }
+
+    /// <summary>
+    /// Additional context as JSON. Must not contain secrets or PII.
+    /// </summary>
+    [MaxLength(2000)]
+    public string? MetadataJson { get; set; }
+
     public string? IpAddress { get; set; }
 
     public DateTime OccurredAt { get; set; } = DateTime.UtcNow;
 
-    public bool Success { get; set; }
+    public bool Succeeded { get; set; } = true;
 }

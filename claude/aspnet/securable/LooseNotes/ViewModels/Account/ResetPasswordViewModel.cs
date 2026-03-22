@@ -4,22 +4,21 @@ namespace LooseNotes.ViewModels.Account;
 
 public class ResetPasswordViewModel
 {
-    [Required]
-    public string UserId { get; set; } = string.Empty;
+    [Required, EmailAddress, MaxLength(256)]
+    public string Email { get; set; } = string.Empty;
 
-    /// <summary>Time-limited token issued by Identity – validated server-side before use.</summary>
+    /// <summary>
+    /// Server-issued token from password reset email.
+    /// Validated by Identity before accepting the new password (Authenticity).
+    /// </summary>
     [Required]
     public string Token { get; set; } = string.Empty;
 
-    [Required]
-    [StringLength(100, MinimumLength = 10)]
-    [DataType(DataType.Password)]
+    [Required, DataType(DataType.Password), MinLength(8), MaxLength(128)]
     [Display(Name = "New Password")]
-    public string NewPassword { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
 
-    [Required]
-    [DataType(DataType.Password)]
-    [Display(Name = "Confirm New Password")]
-    [Compare(nameof(NewPassword), ErrorMessage = "Passwords do not match.")]
+    [Required, DataType(DataType.Password), Compare(nameof(Password))]
+    [Display(Name = "Confirm Password")]
     public string ConfirmPassword { get; set; } = string.Empty;
 }

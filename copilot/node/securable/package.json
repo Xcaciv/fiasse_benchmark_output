@@ -1,37 +1,36 @@
 {
   "name": "loose-notes",
   "version": "1.0.0",
-  "description": "Secure-by-default multi-user note taking application built with Express.js and SQLite.",
-  "main": "app.js",
+  "description": "Multi-user note-taking platform",
+  "main": "src/server.js",
   "scripts": {
-    "start": "node app.js",
-    "dev": "node --watch app.js",
-    "seed:admin": "node scripts/seed-admin.js",
-    "test": "node --test"
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
   },
-  "keywords": [
-    "express",
-    "sqlite",
-    "notes",
-    "security"
-  ],
-  "author": "",
-  "license": "MIT",
   "dependencies": {
-    "better-sqlite3": "^12.2.0",
-    "bootstrap": "^5.3.8",
-    "dotenv": "^17.2.3",
+    "bcryptjs": "^2.4.3",
+    "connect-flash": "^0.1.1",
+    "connect-session-sequelize": "^7.1.7",
+    "csurf": "^1.11.0",
     "ejs": "^3.1.10",
-    "express": "^5.1.0",
+    "express": "^4.19.2",
     "express-ejs-layouts": "^2.5.1",
-    "express-session": "^1.18.2",
-    "express-validator": "^7.3.0",
-    "helmet": "^8.1.0",
-    "multer": "^2.0.2",
-    "nodemailer": "^7.0.10",
-    "winston": "^3.18.3"
+    "express-rate-limit": "^7.3.1",
+    "express-session": "^1.18.0",
+    "express-validator": "^7.1.0",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^6.9.14",
+    "passport": "^0.7.0",
+    "passport-local": "^1.0.0",
+    "sanitize-html": "^2.13.0",
+    "sequelize": "^6.37.3",
+    "sqlite3": "^5.1.7",
+    "uuid": "^10.0.0",
+    "winston": "^3.13.0"
   },
   "devDependencies": {
-    "supertest": "^7.1.4"
+    "nodemon": "^3.1.4"
   }
 }

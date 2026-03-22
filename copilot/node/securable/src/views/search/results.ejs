@@ -1,0 +1,24 @@
+<h2>Search Results</h2>
+<form method="GET" action="/search" class="mb-4">
+  <div class="input-group">
+    <input type="text" name="q" class="form-control" value="<%= query %>" placeholder="Search notes..." maxlength="200">
+    <button type="submit" class="btn btn-primary">Search</button>
+  </div>
+</form>
+<% if (!notes || notes.length === 0) { %>
+  <p class="text-muted">No results found for "<%= query %>".</p>
+<% } else { %>
+  <p class="text-muted"><%= notes.length %> result(s) for "<%= query %>"</p>
+  <div class="list-group">
+    <% notes.forEach(note => { %>
+      <a href="/notes/<%= note.id %>" class="list-group-item list-group-item-action">
+        <div class="d-flex justify-content-between">
+          <h5 class="mb-1"><%= note.title %></h5>
+          <span class="badge <%= note.isPublic ? 'bg-success' : 'bg-secondary' %>"><%= note.isPublic ? 'Public' : 'Private' %></span>
+        </div>
+        <p class="mb-1 text-muted"><%= note.excerpt %>...</p>
+        <small>By <%= note.User ? note.User.username : 'Unknown' %></small>
+      </a>
+    <% }) %>
+  </div>
+<% } %>

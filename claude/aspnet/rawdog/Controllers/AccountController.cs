@@ -1,10 +1,9 @@
-using LooseNotes.Data;
-using LooseNotes.Models;
-using LooseNotes.Services;
-using LooseNotes.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using LooseNotes.Models;
+using LooseNotes.Services;
+using LooseNotes.ViewModels;
 
 namespace LooseNotes.Controllers;
 
@@ -28,7 +27,7 @@ public class AccountController : Controller
     }
 
     [HttpGet]
-    public IActionResult Register() => User.Identity?.IsAuthenticated == true ? RedirectToAction("Index", "Notes") : View();
+    public IActionResult Register() => View();
 
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -36,19 +35,13 @@ public class AccountController : Controller
     {
         if (!ModelState.IsValid) return View(model);
 
-        var user = new ApplicationUser
-        {
-            UserName = model.UserName,
-            Email = model.Email,
-            EmailConfirmed = true
-        };
-
+        var user = new ApplicationUser { UserName = model.Username, Email = model.Email };
         var result = await _userManager.CreateAsync(user, model.Password);
         if (result.Succeeded)
         {
-            await _userManager.AddToRoleAsync(user, SeedData.UserRole);
+            await _userManager.AddToRoleAsync(user, "User");
             await _signInManager.SignInAsync(user, isPersistent: false);
-            _logger.LogInformation("New user registered: {UserName}", user.UserName);
+            _logger.LogInformation("New user registered: {Username}", model.Username);
             return RedirectToAction("Index", "Notes");
         }
 
@@ -62,7 +55,7 @@ public class AccountController : Controller
     public IActionResult Login(string? returnUrl = null)
     {
         ViewData["ReturnUrl"] = returnUrl;
-        return User.Identity?.IsAuthenticated == true ? RedirectToLocal(returnUrl) : View();
+        return View();
     }
 
     [HttpPost]
@@ -72,47 +65,26 @@ public class AccountController : Controller
         ViewData["ReturnUrl"] = returnUrl;
         if (!ModelState.IsValid) return View(model);
 
-        // Support login by username or email
-        var user = await _userManager.FindByNameAsync(model.UserName)
-                   ?? await _userManager.FindByEmailAsync(model.UserName);
-
-        if (user == null)
-        {
-            ModelState.AddModelError(string.Empty, "Invalid username or password.");
-            _logger.LogWarning("Failed login attempt for: {UserName}", model.UserName);
-            return View(model);
-        }
-
-        var result = await _signInManager.PasswordSignInAsync(user, model.Password, model.RememberMe, lockoutOnFailure: true);
-
+        var result = await _signInManager.PasswordSignInAsync(model.Username, model.Password, model.RememberMe, lockoutOnFailure: false);
         if (result.Succeeded)
         {
-            _logger.LogInformation("User logged in: {UserName}", user.UserName);
-            return RedirectToLocal(returnUrl);
+            _logger.LogInformation("User logged in: {Username}", model.Username);
+            return LocalRedirect(returnUrl ?? Url.Action("Index", "Notes")!);
         }
 
-        if (result.IsLockedOut)
-        {
-            _logger.LogWarning("User locked out: {UserName}", user.UserName);
-            ModelState.AddModelError(string.Empty, "Account locked. Try again in 15 minutes.");
-        }
-        else
-        {
-            _logger.LogWarning("Failed login attempt for: {UserName}", user.UserName);
-            ModelState.AddModelError(string.Empty, "Invalid username or password.");
-        }
-
+        _logger.LogWarning("Failed login attempt for: {Username}", model.Username);
+        ModelState.AddModelError(string.Empty, "Invalid username or password.");
         return View(model);
     }
 
     [HttpPost]
-    [Authorize]
     [ValidateAntiForgeryToken]
+    [Authorize]
     public async Task<IActionResult> Logout()
     {
-        var userName = User.Identity?.Name;
+        var username = User.Identity?.Name;
         await _signInManager.SignOutAsync();
-        _logger.LogInformation("User logged out: {UserName}", userName);
+        _logger.LogInformation("User logged out: {Username}", username);
         return RedirectToAction("Index", "Home");
     }
 
@@ -126,13 +98,13 @@ public class AccountController : Controller
         if (!ModelState.IsValid) return View(model);
 
         var user = await _userManager.FindByEmailAsync(model.Email);
-        // Don't reveal whether the user exists
         if (user != null)
         {
             var token = await _userManager.GeneratePasswordResetTokenAsync(user);
             var resetLink = Url.Action("ResetPassword", "Account",
-                new { token, email = user.Email }, Request.Scheme)!;
-            await _emailService.SendPasswordResetEmailAsync(user.Email!, resetLink);
+                new { token, email = model.Email }, Request.Scheme)!;
+            await _emailService.SendPasswordResetEmailAsync(model.Email, resetLink);
+            _logger.LogInformation("Password reset requested for: {Email}", model.Email);
         }
 
         return RedirectToAction(nameof(ForgotPasswordConfirmation));
@@ -156,12 +128,13 @@ public class AccountController : Controller
         if (!ModelState.IsValid) return View(model);
 
         var user = await _userManager.FindByEmailAsync(model.Email);
-        if (user == null) return RedirectToAction(nameof(ResetPasswordConfirmation));
+        if (user == null)
+            return RedirectToAction(nameof(ResetPasswordConfirmation));
 
         var result = await _userManager.ResetPasswordAsync(user, model.Token, model.Password);
         if (result.Succeeded)
         {
-            _logger.LogInformation("Password reset for: {Email}", model.Email);
+            _logger.LogInformation("Password reset succeeded for: {Email}", model.Email);
             return RedirectToAction(nameof(ResetPasswordConfirmation));
         }
 
@@ -176,11 +149,4 @@ public class AccountController : Controller
 
     [HttpGet]
     public IActionResult AccessDenied() => View();
-
-    private IActionResult RedirectToLocal(string? returnUrl)
-    {
-        if (Url.IsLocalUrl(returnUrl))
-            return Redirect(returnUrl);
-        return RedirectToAction("Index", "Notes");
-    }
 }

@@ -1,100 +1,95 @@
+using LooseNotes.Configuration;
+using Microsoft.Extensions.Options;
+
 namespace LooseNotes.Services;
 
 /// <summary>
-/// Stores uploaded files in a configurable directory on the local file system.
-///
-/// SSEM / FIASSE security measures applied:
-///  - Stored filename is always a GUID – never derived from user-supplied input.
-///  - Allowed extensions are white-listed from configuration (deny by default).
-///  - File size is bounded by configuration.
-///  - Upload directory is created if it doesn't exist; not inside wwwroot (not web-accessible directly).
-///  - Path.Combine + GetFullPath + StartsWith guards against directory traversal.
+/// Local file-system implementation of <see cref="IFileStorageService"/>.
+/// Trust boundary: validates extension and size before writing.
+/// Stored filenames are UUIDs — no client-supplied path component ever reaches disk (Integrity).
 /// </summary>
 public class LocalFileStorageService : IFileStorageService
 {
-    private readonly string _uploadRoot;
-    private readonly long _maxFileSizeBytes;
-    private readonly HashSet<string> _allowedExtensions;
+    private readonly FileStorageOptions _options;
     private readonly ILogger<LocalFileStorageService> _logger;
 
-    public LocalFileStorageService(IConfiguration config, IWebHostEnvironment env,
+    public LocalFileStorageService(
+        IOptions<FileStorageOptions> options,
         ILogger<LocalFileStorageService> logger)
     {
+        _options = options.Value;
         _logger = logger;
-
-        var uploadPath = config["FileStorage:UploadPath"] ?? "uploads";
-        // Store uploads outside wwwroot to prevent direct web access
-        _uploadRoot = Path.IsPathRooted(uploadPath)
-            ? uploadPath
-            : Path.Combine(env.ContentRootPath, uploadPath);
-
-        _maxFileSizeBytes = config.GetValue<long>("FileStorage:MaxFileSizeBytes", 10_485_760); // 10 MB
-
-        var extensions = config.GetSection("FileStorage:AllowedExtensions").Get<string[]>()
-            ?? new[] { ".pdf", ".doc", ".docx", ".txt", ".png", ".jpg", ".jpeg" };
-        _allowedExtensions = new HashSet<string>(extensions, StringComparer.OrdinalIgnoreCase);
-
-        Directory.CreateDirectory(_uploadRoot);
+        EnsureUploadDirectoryExists();
     }
 
-    public async Task<string> SaveAsync(IFormFile file)
+    public async Task<string> SaveAsync(IFormFile file, CancellationToken cancellationToken = default)
     {
-        // Validate extension (white-list)
-        var ext = Path.GetExtension(file.FileName);
-        if (string.IsNullOrEmpty(ext) || !_allowedExtensions.Contains(ext))
-            throw new InvalidOperationException($"File type '{ext}' is not allowed.");
+        ValidateFile(file);
 
-        // Validate size
-        if (file.Length > _maxFileSizeBytes)
-            throw new InvalidOperationException(
-                $"File exceeds the maximum allowed size of {_maxFileSizeBytes / 1_048_576} MB.");
+        var storedName = $"{Guid.NewGuid():N}{Path.GetExtension(file.FileName).ToLowerInvariant()}";
+        var fullPath = BuildSafePath(storedName);
 
-        // Generate a collision-free stored name (never user-supplied)
-        var storedName = $"{Guid.NewGuid():N}{ext.ToLowerInvariant()}";
-        var destPath = BuildSafePath(storedName);
+        await using var destination = new FileStream(fullPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        await file.CopyToAsync(destination, cancellationToken);
 
-        await using var dest = new FileStream(destPath, FileMode.CreateNew, FileAccess.Write);
-        await file.CopyToAsync(dest);
-
-        _logger.LogInformation("Stored uploaded file as {StoredName} (original: {OriginalName}, {Bytes} bytes)",
-            storedName, file.FileName, file.Length);
-
+        _logger.LogInformation("Stored attachment storedName={StoredName} size={Size}", storedName, file.Length);
         return storedName;
     }
 
-    public string? GetPhysicalPath(string storedFileName)
+    public Task<Stream?> OpenReadAsync(string storedFileName, CancellationToken cancellationToken = default)
     {
-        // Defensive: ensure the resolved path stays within the upload root
-        var path = BuildSafePath(storedFileName);
-        return File.Exists(path) ? path : null;
+        // Reject any path traversal attempts (Integrity, hard shell)
+        var safeName = Path.GetFileName(storedFileName);
+        if (string.IsNullOrWhiteSpace(safeName) || safeName != storedFileName)
+            return Task.FromResult<Stream?>(null);
+
+        var fullPath = BuildSafePath(safeName);
+        if (!File.Exists(fullPath))
+            return Task.FromResult<Stream?>(null);
+
+        Stream stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        return Task.FromResult<Stream?>(stream);
     }
 
-    public Task DeleteAsync(string storedFileName)
+    public Task DeleteAsync(string storedFileName, CancellationToken cancellationToken = default)
     {
-        var path = BuildSafePath(storedFileName);
-        if (File.Exists(path))
-        {
-            File.Delete(path);
-            _logger.LogInformation("Deleted stored file {StoredName}", storedFileName);
-        }
+        var safeName = Path.GetFileName(storedFileName);
+        if (string.IsNullOrWhiteSpace(safeName))
+            return Task.CompletedTask;
+
+        var fullPath = BuildSafePath(safeName);
+        if (File.Exists(fullPath))
+            File.Delete(fullPath);
+
         return Task.CompletedTask;
     }
 
+    // ── Private helpers ──────────────────────────────────────────────────────
+
     /// <summary>
-    /// Builds an absolute path and validates it is inside the upload root.
-    /// Throws if the resolved path escapes the root (directory traversal guard).
+    /// Validates extension (allow-list) and size before accepting the file (Integrity).
+    /// Trust boundary enforcement: canonicalize extension → validate against allow-list.
     /// </summary>
-    private string BuildSafePath(string storedFileName)
+    private void ValidateFile(IFormFile file)
     {
-        // storedFileName should be a GUID-based name; strip any path components
-        var safeName = Path.GetFileName(storedFileName);
-        if (string.IsNullOrEmpty(safeName))
-            throw new InvalidOperationException("Invalid stored filename.");
+        if (file.Length == 0)
+            throw new InvalidOperationException("File is empty.");
 
-        var full = Path.GetFullPath(Path.Combine(_uploadRoot, safeName));
-        if (!full.StartsWith(Path.GetFullPath(_uploadRoot), StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("Attempted path traversal detected.");
+        if (file.Length > _options.MaxFileSizeBytes)
+            throw new InvalidOperationException($"File exceeds maximum size of {_options.MaxFileSizeBytes / 1048576} MB.");
 
-        return full;
+        // Canonicalize: extract extension from filename, lowercase
+        var extension = Path.GetExtension(file.FileName)?.ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(extension) || !_options.AllowedExtensions.Contains(extension))
+            throw new InvalidOperationException($"File type '{extension}' is not permitted.");
+    }
+
+    private string BuildSafePath(string storedName)
+        => Path.Combine(_options.UploadPath, storedName);
+
+    private void EnsureUploadDirectoryExists()
+    {
+        if (!Directory.Exists(_options.UploadPath))
+            Directory.CreateDirectory(_options.UploadPath);
     }
 }

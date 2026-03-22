@@ -1,11 +1,10 @@
-using LooseNotes.Data;
-using LooseNotes.Models;
-using LooseNotes.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using LooseNotes.Data;
+using LooseNotes.Models;
+using LooseNotes.ViewModels;
 
 namespace LooseNotes.Controllers;
 
@@ -26,108 +25,99 @@ public class AdminController : Controller
         _logger = logger;
     }
 
-    // GET: Admin/Index - Dashboard
     public async Task<IActionResult> Index()
     {
-        var totalUsers = await _db.Users.CountAsync();
-        var totalNotes = await _db.Notes.CountAsync();
-        var totalPublicNotes = await _db.Notes.CountAsync(n => n.IsPublic);
-        var totalRatings = await _db.Ratings.CountAsync();
-
         var vm = new AdminDashboardViewModel
         {
-            TotalUsers = totalUsers,
-            TotalNotes = totalNotes,
-            TotalPublicNotes = totalPublicNotes,
-            TotalRatings = totalRatings
+            TotalUsers = await _db.Users.CountAsync(),
+            TotalNotes = await _db.Notes.CountAsync(),
+            RecentActivity = new List<ActivityLogEntry>()
         };
-
         return View(vm);
     }
 
-    // GET: Admin/Users
+    [HttpGet]
     public async Task<IActionResult> Users(string? q)
     {
-        var usersQuery = _db.Users.AsQueryable();
+        var query = _db.Users.AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(q))
         {
-            var lower = q.ToLower();
-            usersQuery = usersQuery.Where(u =>
-                u.UserName!.ToLower().Contains(lower) ||
-                u.Email!.ToLower().Contains(lower));
+            var lowerQ = q.ToLower();
+            query = query.Where(u => u.UserName!.ToLower().Contains(lowerQ) || u.Email!.ToLower().Contains(lowerQ));
         }
 
-        var users = await usersQuery
-            .Include(u => u.Notes)
-            .OrderBy(u => u.UserName)
-            .ToListAsync();
+        var users = await query.ToListAsync();
+        var items = new List<AdminUserItemViewModel>();
 
-        var items = new List<AdminUserItem>();
-        foreach (var u in users)
+        foreach (var user in users)
         {
-            var roles = await _userManager.GetRolesAsync(u);
-            items.Add(new AdminUserItem
+            var noteCount = await _db.Notes.CountAsync(n => n.UserId == user.Id);
+            var isAdmin = await _userManager.IsInRoleAsync(user, "Admin");
+            items.Add(new AdminUserItemViewModel
             {
-                Id = u.Id,
-                UserName = u.UserName!,
-                Email = u.Email!,
-                CreatedAt = u.CreatedAt,
-                NoteCount = u.Notes.Count,
-                Roles = roles.ToList()
+                Id = user.Id,
+                Username = user.UserName ?? string.Empty,
+                Email = user.Email ?? string.Empty,
+                CreatedAt = user.CreatedAt,
+                NoteCount = noteCount,
+                IsAdmin = isAdmin
             });
         }
 
-        return View(new AdminUserListViewModel { SearchQuery = q, Users = items });
+        return View(new AdminUsersViewModel { SearchQuery = q, Users = items });
     }
 
-    // GET: Admin/ReassignNote/5
-    public async Task<IActionResult> ReassignNote(int id)
+    [HttpGet]
+    public async Task<IActionResult> ReassignNote(int noteId)
     {
-        var note = await _db.Notes.Include(n => n.Owner).FirstOrDefaultAsync(n => n.Id == id);
+        var note = await _db.Notes.Include(n => n.User).FirstOrDefaultAsync(n => n.Id == noteId);
         if (note == null) return NotFound();
 
-        var users = await _db.Users.OrderBy(u => u.UserName).ToListAsync();
+        var allUsers = await _db.Users.ToListAsync();
+        var users = new List<AdminUserItemViewModel>();
+        foreach (var u in allUsers)
+        {
+            users.Add(new AdminUserItemViewModel
+            {
+                Id = u.Id,
+                Username = u.UserName ?? string.Empty,
+                Email = u.Email ?? string.Empty
+            });
+        }
 
         return View(new ReassignNoteViewModel
         {
-            NoteId = note.Id,
+            NoteId = noteId,
             NoteTitle = note.Title,
-            CurrentOwnerId = note.OwnerId,
-            CurrentOwnerName = note.Owner?.UserName ?? "",
-            Users = new SelectList(users, "Id", "UserName", note.OwnerId)
+            CurrentOwner = note.User?.UserName ?? string.Empty,
+            Users = users
         });
     }
 
-    // POST: Admin/ReassignNote
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ReassignNote(ReassignNoteViewModel model)
     {
-        var note = await _db.Notes.FindAsync(model.NoteId);
+        if (!ModelState.IsValid) return View(model);
+
+        var note = await _db.Notes.FirstOrDefaultAsync(n => n.Id == model.NoteId);
         if (note == null) return NotFound();
 
         var newOwner = await _userManager.FindByIdAsync(model.NewOwnerId);
         if (newOwner == null)
         {
-            ModelState.AddModelError("NewOwnerId", "Selected user not found.");
-            var users = await _db.Users.OrderBy(u => u.UserName).ToListAsync();
-            model.Users = new SelectList(users, "Id", "UserName");
+            ModelState.AddModelError(string.Empty, "User not found.");
             return View(model);
         }
 
-        var adminId = _userManager.GetUserId(User);
-        var oldOwnerId = note.OwnerId;
-
-        note.OwnerId = model.NewOwnerId;
-        note.UpdatedAt = DateTime.UtcNow;
+        var oldOwner = note.UserId;
+        note.UserId = model.NewOwnerId;
         await _db.SaveChangesAsync();
 
-        _logger.LogInformation(
-            "Admin {AdminId} reassigned note {NoteId} from user {OldOwner} to {NewOwner}",
-            adminId, note.Id, oldOwnerId, model.NewOwnerId);
+        _logger.LogInformation("Admin {Admin} reassigned note {NoteId} from {OldOwner} to {NewOwner}",
+            User.Identity?.Name, model.NoteId, oldOwner, model.NewOwnerId);
 
-        TempData["Success"] = $"Note '{note.Title}' reassigned to {newOwner.UserName}.";
-        return RedirectToAction(nameof(Users));
+        return RedirectToAction(nameof(Index));
     }
 }

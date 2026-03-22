@@ -4,7 +4,11 @@ using LooseNotes.Models;
 
 namespace LooseNotes.Data;
 
-public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
+/// <summary>
+/// Primary EF Core context. Inherits Identity tables.
+/// Indexes defined here to keep schema decisions centralized (Modifiability).
+/// </summary>
+public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 {
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
         : base(options)
@@ -20,70 +24,56 @@ public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        ConfigureNoteEntity(builder);
+        ConfigureRatingEntity(builder);
+        ConfigureShareLinkEntity(builder);
+        ConfigureActivityLogEntity(builder);
+    }
 
-        builder.Entity<ApplicationUser>(entity =>
+    private static void ConfigureNoteEntity(ModelBuilder builder)
+    {
+        builder.Entity<Note>(e =>
         {
-            entity.Property(x => x.RegisteredAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            e.HasIndex(n => n.UserId);
+            e.HasIndex(n => n.IsPublic);
+            e.HasIndex(n => n.Title);
+            e.HasOne(n => n.User)
+             .WithMany(u => u.Notes)
+             .HasForeignKey(n => n.UserId)
+             .OnDelete(DeleteBehavior.Cascade);
         });
+    }
 
-        builder.Entity<Note>(entity =>
+    private static void ConfigureRatingEntity(ModelBuilder builder)
+    {
+        builder.Entity<Rating>(e =>
         {
-            entity.HasIndex(x => x.OwnerId);
-            entity.HasIndex(x => x.Title);
-            entity.HasIndex(x => new { x.IsPublic, x.CreatedAtUtc });
-            entity.Property(x => x.Title).HasMaxLength(120);
-            entity.Property(x => x.Content).HasMaxLength(20000);
-            entity.HasOne(x => x.Owner)
-                .WithMany(x => x.OwnedNotes)
-                .HasForeignKey(x => x.OwnerId)
-                .OnDelete(DeleteBehavior.Cascade);
+            // Enforce one rating per user per note at DB level (Integrity)
+            e.HasIndex(r => new { r.NoteId, r.UserId }).IsUnique();
+            e.HasOne(r => r.User)
+             .WithMany(u => u.Ratings)
+             .HasForeignKey(r => r.UserId)
+             .OnDelete(DeleteBehavior.Cascade);
         });
+    }
 
-        builder.Entity<Attachment>(entity =>
+    private static void ConfigureShareLinkEntity(ModelBuilder builder)
+    {
+        builder.Entity<ShareLink>(e =>
         {
-            entity.HasIndex(x => x.NoteId);
-            entity.Property(x => x.StoredFileName).HasMaxLength(260);
-            entity.Property(x => x.OriginalFileName).HasMaxLength(260);
-            entity.Property(x => x.ContentType).HasMaxLength(256);
-            entity.HasOne(x => x.Note)
-                .WithMany(x => x.Attachments)
-                .HasForeignKey(x => x.NoteId)
-                .OnDelete(DeleteBehavior.Cascade);
+            // Token must be unique across all share links (Authenticity)
+            e.HasIndex(s => s.Token).IsUnique();
         });
+    }
 
-        builder.Entity<Rating>(entity =>
+    private static void ConfigureActivityLogEntity(ModelBuilder builder)
+    {
+        builder.Entity<ActivityLog>(e =>
         {
-            entity.HasIndex(x => new { x.NoteId, x.UserId }).IsUnique();
-            entity.HasIndex(x => x.CreatedAtUtc);
-            entity.Property(x => x.Comment).HasMaxLength(1000);
-            entity.HasOne(x => x.Note)
-                .WithMany(x => x.Ratings)
-                .HasForeignKey(x => x.NoteId)
-                .OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(x => x.User)
-                .WithMany(x => x.Ratings)
-                .HasForeignKey(x => x.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
-
-        builder.Entity<ShareLink>(entity =>
-        {
-            entity.HasIndex(x => x.NoteId);
-            entity.HasIndex(x => x.TokenHash).IsUnique();
-            entity.Property(x => x.TokenHash).HasMaxLength(128);
-            entity.Property(x => x.ProtectedToken).HasMaxLength(1024);
-            entity.HasOne(x => x.Note)
-                .WithMany(x => x.ShareLinks)
-                .HasForeignKey(x => x.NoteId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        builder.Entity<ActivityLog>(entity =>
-        {
-            entity.HasIndex(x => x.CreatedAtUtc);
-            entity.Property(x => x.ActionType).HasMaxLength(64);
-            entity.Property(x => x.Description).HasMaxLength(512);
-            entity.Property(x => x.IpAddress).HasMaxLength(64);
+            e.HasOne(a => a.User)
+             .WithMany(u => u.ActivityLogs)
+             .HasForeignKey(a => a.UserId)
+             .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

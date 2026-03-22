@@ -9,30 +9,34 @@ using LooseNotes.Models;
 namespace LooseNotes.Controllers;
 
 /// <summary>
-/// Serves file downloads and handles deletion.
-///
-/// SSEM controls:
-///  - Download is gated by note visibility check (same rules as Notes/Details).
-///  - Physical path is resolved by service using only the stored (GUID) filename.
-///  - Content-Disposition forces download; filename comes from sanitised metadata.
-///  - X-Content-Type-Options: nosniff prevents MIME sniffing (set globally in middleware).
+/// Handles attachment downloads and deletions.
+/// Download enforces note access rules; deletion requires ownership (Authenticity).
+/// Stored filenames are never exposed to clients; access is via attachment ID (Confidentiality).
 /// </summary>
+[Authorize]
 public class AttachmentsController : Controller
 {
     private readonly ApplicationDbContext _db;
     private readonly IFileStorageService _fileStorage;
     private readonly UserManager<ApplicationUser> _userManager;
-    private readonly IAuditService _audit;
+    private readonly IAuditService _auditService;
 
-    public AttachmentsController(ApplicationDbContext db, IFileStorageService fileStorage,
-        UserManager<ApplicationUser> userManager, IAuditService audit)
+    public AttachmentsController(
+        ApplicationDbContext db,
+        IFileStorageService fileStorage,
+        UserManager<ApplicationUser> userManager,
+        IAuditService auditService)
     {
         _db = db;
         _fileStorage = fileStorage;
         _userManager = userManager;
-        _audit = audit;
+        _auditService = auditService;
     }
 
+    /// <summary>
+    /// Download attachment by ID.
+    /// Checks note access rules before serving file stream (Authenticity).
+    /// </summary>
     [HttpGet]
     [AllowAnonymous]
     public async Task<IActionResult> Download(int id)
@@ -43,26 +47,19 @@ public class AttachmentsController : Controller
 
         if (attachment is null) return NotFound();
 
-        var note = attachment.Note;
         var userId = _userManager.GetUserId(User);
-        var isOwner = userId == note.OwnerId;
-        var isAdmin = User.IsInRole(Data.DbInitializer.AdminRole);
+        if (!CanAccessNote(attachment.Note!, userId))
+            return userId is null ? Challenge() : Forbid();
 
-        if (!note.IsPublic && !isOwner && !isAdmin)
-            return User.Identity?.IsAuthenticated == true ? Forbid() : Challenge();
+        var stream = await _fileStorage.OpenReadAsync(attachment.StoredFileName);
+        if (stream is null) return NotFound();
 
-        var physPath = _fileStorage.GetPhysicalPath(attachment.StoredFileName);
-        if (physPath is null) return NotFound();
-
-        // Sanitise the original filename for Content-Disposition header
-        var safeDisplayName = SanitizeFileName(attachment.OriginalFileName);
-
-        return PhysicalFile(physPath, attachment.ContentType,
-            fileDownloadName: safeDisplayName);
+        // Content-Disposition: attachment prevents inline execution in browsers (Integrity)
+        return File(stream, attachment.ContentType,
+            fileDownloadName: attachment.OriginalFileName);
     }
 
-    [HttpPost]
-    [Authorize]
+    [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(int id)
     {
         var attachment = await _db.Attachments
@@ -71,29 +68,26 @@ public class AttachmentsController : Controller
 
         if (attachment is null) return NotFound();
 
-        var note = attachment.Note;
-        var userId = _userManager.GetUserId(User);
-        var isOwner = userId == note.OwnerId;
-        var isAdmin = User.IsInRole(Data.DbInitializer.AdminRole);
+        var userId = _userManager.GetUserId(User)!;
+        var isAdmin = User.IsInRole(Data.DbInitializer.AdminRoleName);
 
-        if (!isOwner && !isAdmin) return Forbid();
+        // Only note owner or admin may delete attachments (Authenticity)
+        if (attachment.Note!.OwnerId != userId && !isAdmin)
+            return Forbid();
 
+        var noteId = attachment.NoteId;
         await _fileStorage.DeleteAsync(attachment.StoredFileName);
         _db.Attachments.Remove(attachment);
         await _db.SaveChangesAsync();
 
-        await _audit.LogAsync("AttachmentDeleted", true,
-            $"AttachmentId={id} NoteId={note.Id}", userId, User.Identity?.Name);
+        await _auditService.RecordAsync("AttachmentDeleted", userId: userId,
+            resourceType: "Attachment", resourceId: id.ToString());
 
-        return RedirectToAction("Details", "Notes", new { id = note.Id });
+        return RedirectToAction("Details", "Notes", new { id = noteId });
     }
 
-    /// <summary>Strip path characters and null bytes from display filename.</summary>
-    private static string SanitizeFileName(string raw)
-    {
-        var name = Path.GetFileName(raw);
-        // Remove null bytes and control characters
-        name = new string(name.Where(c => c >= 0x20).ToArray());
-        return string.IsNullOrWhiteSpace(name) ? "download" : name;
-    }
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    private static bool CanAccessNote(Note note, string? userId)
+        => note.IsPublic || note.OwnerId == userId;
 }

@@ -2,20 +2,27 @@ using System.ComponentModel.DataAnnotations;
 
 namespace LooseNotes.Models;
 
-public sealed class ActivityLog
+/// <summary>
+/// Immutable audit record. Written by IAuditService; never updated or deleted.
+/// UserId nullable to support unauthenticated events (Accountability).
+/// </summary>
+public class ActivityLog
 {
     public int Id { get; set; }
 
-    [StringLength(64)]
-    public string ActionType { get; set; } = string.Empty;
+    /// <summary>Nullable — allows logging anonymous/pre-auth events.</summary>
+    public string? UserId { get; set; }
+    public ApplicationUser? User { get; set; }
 
-    [StringLength(512)]
-    public string Description { get; set; } = string.Empty;
+    [Required]
+    [MaxLength(100)]
+    public string Action { get; set; } = string.Empty;
 
-    public string? ActorUserId { get; set; }
+    [MaxLength(500)]
+    public string? Detail { get; set; }
 
-    [StringLength(64)]
+    public DateTime Timestamp { get; set; }
+
+    [MaxLength(45)]
     public string? IpAddress { get; set; }
-
-    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 }

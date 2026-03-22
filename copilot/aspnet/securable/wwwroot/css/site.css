@@ -1,56 +1,19 @@
-html {
-  font-size: 14px;
-}
-
-@media (min-width: 768px) {
-  html {
-    font-size: 16px;
-  }
-}
-
 body {
-  min-height: 100vh;
-  background: #f5f7fb;
+    background-color: #f8f9fa;
 }
 
-.hero-card {
-  background: linear-gradient(135deg, #1f4f8f, #3d7bdc);
-  color: #fff;
+.navbar-brand {
+    font-weight: 700;
+    font-size: 1.4rem;
 }
 
-.metric-card {
-  background: #fff;
-  border-radius: 1rem;
-  padding: 1.5rem;
-  box-shadow: 0 0.5rem 1.5rem rgba(15, 23, 42, 0.08);
+pre {
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
 }
 
-.metric-value {
-  font-size: 2rem;
-  font-weight: 700;
-}
-
-.metric-label {
-  color: #5b6470;
-}
-
-.note-card,
 .card {
-  border-radius: 1rem;
-}
-
-.note-content {
-  white-space: pre-wrap;
-  line-height: 1.6;
-}
-
-.btn,
-.form-control,
-.form-select,
-.form-check-input {
-  box-shadow: none !important;
-}
-
-footer {
-  background: #fff;
+    border-radius: 0.5rem;
 }

@@ -1,186 +1,202 @@
+using System.Threading.RateLimiting;
+using LooseNotes.Configuration;
 using LooseNotes.Data;
 using LooseNotes.Models;
 using LooseNotes.Services;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
-using Serilog.Events;
 
-// Configure Serilog early so startup errors are captured.
-// SSEM: Never log passwords, tokens, or PII in structured logs.
+// ── Bootstrap Serilog early so startup errors are captured ────────────────────
 Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Information()
-    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
-    .MinimumLevel.Override("Microsoft.Hosting.Lifetime", LogEventLevel.Information)
     .WriteTo.Console()
-    .WriteTo.File("logs/loosenotes-.log", rollingInterval: RollingInterval.Day,
-        retainedFileCountLimit: 30)
     .CreateBootstrapLogger();
 
 try
 {
-    Log.Information("Starting LooseNotes application");
-
     var builder = WebApplication.CreateBuilder(args);
 
-    // Use Serilog for all host logging
+    // ── Structured logging (Accountability, Transparency) ─────────────────────
     builder.Host.UseSerilog((ctx, services, cfg) =>
         cfg.ReadFrom.Configuration(ctx.Configuration)
-           .ReadFrom.Services(services)
-           .Enrich.FromLogContext()
-           .WriteTo.Console()
-           .WriteTo.File("logs/loosenotes-.log", rollingInterval: RollingInterval.Day,
-               retainedFileCountLimit: 30));
+           .ReadFrom.Services(services));
 
-    // -----------------------------------------------------------------------
-    // Database
-    // -----------------------------------------------------------------------
-    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-        ?? "Data Source=loosenotes.db";
-
-    builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseSqlite(connectionString));
-
-    // -----------------------------------------------------------------------
-    // Identity  (FIASSE: strong password policy, lockout, hashing via PBKDF2)
-    // -----------------------------------------------------------------------
-    builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
-    {
-        // Password policy
-        options.Password.RequiredLength = 10;
-        options.Password.RequireDigit = true;
-        options.Password.RequireLowercase = true;
-        options.Password.RequireUppercase = true;
-        options.Password.RequireNonAlphanumeric = true;
-
-        // Account lockout – fail-safe: lock after 5 bad attempts for 15 min
-        options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
-        options.Lockout.MaxFailedAccessAttempts = 5;
-        options.Lockout.AllowedForNewUsers = true;
-
-        // Require unique email
-        options.User.RequireUniqueEmail = true;
-
-        // Sign-in
-        options.SignIn.RequireConfirmedAccount = false; // simplified for demo
-    })
-    .AddEntityFrameworkStores<ApplicationDbContext>()
-    .AddDefaultTokenProviders();
-
-    // Cookie security (SSEM: HttpOnly, Secure, SameSite=Lax)
-    builder.Services.ConfigureApplicationCookie(options =>
-    {
-        options.Cookie.HttpOnly = true;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-        options.Cookie.SameSite = SameSiteMode.Lax;
-        options.ExpireTimeSpan = TimeSpan.FromHours(2);
-        options.SlidingExpiration = true;
-        options.LoginPath = "/Account/Login";
-        options.LogoutPath = "/Account/Logout";
-        options.AccessDeniedPath = "/Account/AccessDenied";
-    });
-
-    // -----------------------------------------------------------------------
-    // Anti-forgery (CSRF protection on all state-changing requests)
-    // -----------------------------------------------------------------------
-    builder.Services.AddAntiforgery(options =>
-    {
-        options.Cookie.HttpOnly = true;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-        options.Cookie.SameSite = SameSiteMode.Strict;
-        options.HeaderName = "X-CSRF-TOKEN";
-    });
-
-    // -----------------------------------------------------------------------
-    // MVC + Razor
-    // -----------------------------------------------------------------------
-    builder.Services.AddControllersWithViews(options =>
-    {
-        // Global anti-forgery filter so every POST is validated
-        options.Filters.Add(new Microsoft.AspNetCore.Mvc.AutoValidateAntiforgeryTokenAttribute());
-    });
-
-    // -----------------------------------------------------------------------
-    // Application services
-    // -----------------------------------------------------------------------
-    builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
-    builder.Services.AddTransient<IEmailService, LoggingEmailService>();
-    builder.Services.AddScoped<IAuditService, AuditService>();
-
-    // -----------------------------------------------------------------------
-    // HTTP security headers middleware (added via middleware below)
-    // -----------------------------------------------------------------------
+    ConfigureServices(builder);
 
     var app = builder.Build();
 
-    // -----------------------------------------------------------------------
-    // Seed database roles and admin user
-    // -----------------------------------------------------------------------
-    using (var scope = app.Services.CreateScope())
-    {
-        var services = scope.ServiceProvider;
-        try
-        {
-            await DbInitializer.SeedAsync(services);
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "An error occurred while seeding the database");
-        }
-    }
+    ConfigureMiddleware(app);
 
-    // -----------------------------------------------------------------------
-    // Middleware pipeline
-    // -----------------------------------------------------------------------
-    if (!app.Environment.IsDevelopment())
-    {
-        app.UseExceptionHandler("/Home/Error");
-        app.UseHsts();
-    }
+    // ── Database initialization (idempotent) ──────────────────────────────────
+    await DbInitializer.InitializeAsync(app.Services, app.Configuration,
+        app.Services.GetRequiredService<ILogger<Program>>());
 
-    app.UseHttpsRedirection();
-
-    // Security headers (SSEM: defence-in-depth)
-    app.Use(async (ctx, next) =>
-    {
-        ctx.Response.Headers["X-Content-Type-Options"] = "nosniff";
-        ctx.Response.Headers["X-Frame-Options"] = "DENY";
-        ctx.Response.Headers["X-XSS-Protection"] = "1; mode=block";
-        ctx.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
-        ctx.Response.Headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
-        ctx.Response.Headers["Content-Security-Policy"] =
-            "default-src 'self'; " +
-            "script-src 'self' https://cdn.jsdelivr.net; " +
-            "style-src 'self' https://cdn.jsdelivr.net; " +
-            "img-src 'self' data:; " +
-            "font-src 'self' https://cdn.jsdelivr.net; " +
-            "frame-ancestors 'none';";
-        await next();
-    });
-
-    app.UseStaticFiles();
-    app.UseRouting();
-
-    app.UseSerilogRequestLogging(options =>
-    {
-        // Suppress health-check noise, do NOT log query strings (may contain tokens)
-        options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
-    });
-
-    app.UseAuthentication();
-    app.UseAuthorization();
-
-    app.MapControllerRoute(
-        name: "default",
-        pattern: "{controller=Home}/{action=Index}/{id?}");
-
-    await app.RunAsync();
+    app.Run();
 }
 catch (Exception ex)
 {
-    Log.Fatal(ex, "Application terminated unexpectedly");
+    Log.Fatal(ex, "Application startup failed");
+    throw;
 }
 finally
 {
     Log.CloseAndFlush();
+}
+
+// ── Service registration ───────────────────────────────────────────────────────
+
+static void ConfigureServices(WebApplicationBuilder builder)
+{
+    var services = builder.Services;
+    var config = builder.Configuration;
+
+    // Strongly-typed config (Modifiability — no magic strings in services)
+    services.Configure<FileStorageOptions>(config.GetSection(FileStorageOptions.SectionName));
+    services.Configure<SecurityOptions>(config.GetSection(SecurityOptions.SectionName));
+    services.Configure<RateLimitingOptions>(config.GetSection(RateLimitingOptions.SectionName));
+
+    // EF Core (all queries parameterized by ORM — Integrity)
+    services.AddDbContext<ApplicationDbContext>(opts =>
+        opts.UseSqlite(config.GetConnectionString("DefaultConnection")));
+
+    // ASP.NET Core Identity (Authenticity)
+    services.AddIdentity<ApplicationUser, IdentityRole>(opts =>
+    {
+        // Password policy — enforce minimum complexity (Authenticity)
+        opts.Password.RequireDigit = true;
+        opts.Password.RequireLowercase = true;
+        opts.Password.RequireUppercase = true;
+        opts.Password.RequireNonAlphanumeric = false;
+        opts.Password.RequiredLength = 8;
+
+        // Account lockout after N failures (Availability, defense-in-depth)
+        opts.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
+        opts.Lockout.MaxFailedAccessAttempts = 5;
+        opts.Lockout.AllowedForNewUsers = true;
+
+        // Require unique email (Integrity)
+        opts.User.RequireUniqueEmail = true;
+    })
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddDefaultTokenProviders();
+
+    // Cookie settings (Authenticity, Confidentiality)
+    services.ConfigureApplicationCookie(opts =>
+    {
+        opts.LoginPath = "/Account/Login";
+        opts.LogoutPath = "/Account/Logout";
+        opts.AccessDeniedPath = "/Account/AccessDenied";
+        opts.ExpireTimeSpan = TimeSpan.FromHours(8);
+        opts.SlidingExpiration = true;
+        // HttpOnly and Secure prevent JS access and force HTTPS in production
+        opts.Cookie.HttpOnly = true;
+        opts.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        opts.Cookie.SameSite = SameSiteMode.Lax;
+        opts.Cookie.Name = "LN_Auth";
+    });
+
+    // Application services (Modifiability — all injected via interface)
+    services.AddScoped<IAuditService, AuditService>();
+    services.AddScoped<IFileStorageService, LocalFileStorageService>();
+    services.AddScoped<IEmailService, LoggingEmailService>();
+    services.AddScoped<IShareTokenService, ShareTokenService>();
+
+    // Rate limiting (Availability)
+    ConfigureRateLimiting(services, builder.Configuration);
+
+    // Antiforgery (Integrity — CSRF protection on all state-changing forms)
+    services.AddAntiforgery(opts =>
+    {
+        opts.Cookie.HttpOnly = true;
+        opts.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        opts.Cookie.Name = "LN_XSRF";
+    });
+
+    // MVC
+    services.AddControllersWithViews();
+}
+
+// ── Rate limiter configuration ─────────────────────────────────────────────────
+
+static void ConfigureRateLimiting(IServiceCollection services, IConfiguration config)
+{
+    var rlOpts = config.GetSection(RateLimitingOptions.SectionName).Get<RateLimitingOptions>()
+                 ?? new RateLimitingOptions();
+
+    services.AddRateLimiter(opts =>
+    {
+        opts.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+        // Per-IP fixed-window limiter for login (Availability)
+        opts.AddFixedWindowLimiter("login", limiter =>
+        {
+            limiter.Window = TimeSpan.FromSeconds(rlOpts.LoginWindowSeconds);
+            limiter.PermitLimit = rlOpts.LoginMaxAttempts;
+            limiter.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+            limiter.QueueLimit = 0;
+        });
+
+        // Per-IP fixed-window limiter for registration
+        opts.AddFixedWindowLimiter("register", limiter =>
+        {
+            limiter.Window = TimeSpan.FromSeconds(rlOpts.RegisterWindowSeconds);
+            limiter.PermitLimit = rlOpts.RegisterMaxAttempts;
+            limiter.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+            limiter.QueueLimit = 0;
+        });
+    });
+}
+
+// ── Middleware pipeline ────────────────────────────────────────────────────────
+
+static void ConfigureMiddleware(WebApplication app)
+{
+    if (!app.Environment.IsDevelopment())
+    {
+        // Generic error page — no stack traces to end users (Confidentiality)
+        app.UseExceptionHandler("/Home/Error");
+        // HSTS: instruct browsers to use HTTPS only (Confidentiality in transit)
+        app.UseHsts();
+    }
+
+    // Add security headers to all responses
+    app.Use(async (ctx, next) =>
+    {
+        ctx.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+        ctx.Response.Headers.Append("X-Frame-Options", "DENY");
+        ctx.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
+        ctx.Response.Headers.Append("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+        await next();
+    });
+
+    app.UseHttpsRedirection();
+    app.UseStaticFiles();
+
+    app.UseRouting();
+    app.UseRateLimiter();
+
+    app.UseAuthentication();
+    app.UseAuthorization();
+
+    // Serilog request logging (Accountability, Transparency)
+    app.UseSerilogRequestLogging(opts =>
+    {
+        opts.EnrichDiagnosticContext = (diagCtx, httpCtx) =>
+        {
+            diagCtx.Set("UserId", httpCtx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "anon");
+            diagCtx.Set("IP", httpCtx.Connection.RemoteIpAddress?.ToString() ?? "unknown");
+        };
+    });
+
+    // Conventional route
+    app.MapControllerRoute(
+        name: "default",
+        pattern: "{controller=Home}/{action=Index}/{id?}");
+
+    // Share link route (Share/View uses token in segment — no path traversal risk)
+    app.MapControllerRoute(
+        name: "share",
+        pattern: "share/{token}",
+        defaults: new { controller = "Share", action = "View" });
 }

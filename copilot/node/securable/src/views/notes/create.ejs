@@ -1,0 +1,19 @@
+<h2>Create Note</h2>
+<%- include('../partials/errors', { errors }) %>
+<form method="POST" action="/notes">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <div class="mb-3">
+    <label class="form-label">Title</label>
+    <input type="text" name="title" class="form-control" maxlength="255" required>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Content</label>
+    <textarea name="content" class="form-control" rows="10" required></textarea>
+  </div>
+  <div class="mb-3 form-check">
+    <input type="checkbox" name="isPublic" class="form-check-input" id="isPublic">
+    <label class="form-check-label" for="isPublic">Make Public</label>
+  </div>
+  <button type="submit" class="btn btn-primary">Create Note</button>
+  <a href="/notes" class="btn btn-secondary ms-2">Cancel</a>
+</form>

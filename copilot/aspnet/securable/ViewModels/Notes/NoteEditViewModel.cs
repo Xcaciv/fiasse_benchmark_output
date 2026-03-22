@@ -1,26 +1,24 @@
 using System.ComponentModel.DataAnnotations;
-using Microsoft.AspNetCore.Http;
 
 namespace LooseNotes.ViewModels.Notes;
 
-public sealed class NoteEditViewModel
+public class NoteEditViewModel
 {
-    public int? Id { get; set; }
+    public int Id { get; set; }
 
-    [Required]
-    [StringLength(120)]
+    [Required(ErrorMessage = "Title is required.")]
+    [MaxLength(200, ErrorMessage = "Title cannot exceed 200 characters.")]
+    [Display(Name = "Title")]
     public string Title { get; set; } = string.Empty;
 
-    [Required]
-    [StringLength(20000)]
+    [Required(ErrorMessage = "Content is required.")]
+    [MaxLength(10000, ErrorMessage = "Content cannot exceed 10,000 characters.")]
+    [Display(Name = "Content")]
     public string Content { get; set; } = string.Empty;
 
-    [Display(Name = "Public note")]
+    [Display(Name = "Make Public")]
     public bool IsPublic { get; set; }
 
-    [Display(Name = "Attachments")]
-    public List<IFormFile> NewAttachments { get; set; } = new();
-
-    public IReadOnlyList<AttachmentDisplayViewModel> ExistingAttachments { get; set; } = Array.Empty<AttachmentDisplayViewModel>();
-    public List<int> RemoveAttachmentIds { get; set; } = new();
+    [Display(Name = "New Attachments")]
+    public IFormFileCollection? NewAttachments { get; set; }
 }

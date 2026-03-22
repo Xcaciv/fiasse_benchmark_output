@@ -1,81 +1,38 @@
-using System.Diagnostics;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using LooseNotes.Data;
 using LooseNotes.Models;
-using LooseNotes.ViewModels.Home;
-using LooseNotes.ViewModels.Notes;
 
 namespace LooseNotes.Controllers;
 
-public sealed class HomeController : Controller
+/// <summary>
+/// Landing page. Redirects authenticated users to their notes dashboard.
+/// </summary>
+[Route("[controller]/[action]")]
+public class HomeController : Controller
 {
-    private readonly ApplicationDbContext _dbContext;
+    private readonly UserManager<ApplicationUser> _userManager;
 
-    public HomeController(ApplicationDbContext dbContext)
+    public HomeController(UserManager<ApplicationUser> userManager)
     {
-        _dbContext = dbContext;
+        _userManager = userManager;
     }
 
-    [HttpGet]
-    public async Task<IActionResult> Index(CancellationToken cancellationToken)
+    [HttpGet("/")]
+    [AllowAnonymous]
+    public IActionResult Index()
     {
-        var model = new HomeIndexViewModel
+        if (User.Identity?.IsAuthenticated == true)
         {
-            PublicNoteCount = await _dbContext.Notes.CountAsync(x => x.IsPublic, cancellationToken),
-            UserCount = await _dbContext.Users.CountAsync(cancellationToken),
-            RecentPublicNotes = await _dbContext.Notes
-                .AsNoTracking()
-                .Where(x => x.IsPublic)
-                .OrderByDescending(x => x.CreatedAtUtc)
-                .Take(5)
-                .Select(x => new NoteCardViewModel
-                {
-                    Id = x.Id,
-                    Title = x.Title,
-                    Excerpt = x.Content.Length > 200 ? x.Content.Substring(0, 200) + "..." : x.Content,
-                    OwnerUserName = x.Owner.UserName ?? "Unknown",
-                    CreatedAtUtc = x.CreatedAtUtc,
-                    UpdatedAtUtc = x.UpdatedAtUtc,
-                    IsPublic = x.IsPublic,
-                    AverageRating = x.Ratings.Any() ? x.Ratings.Average(r => r.Value) : 0,
-                    RatingCount = x.Ratings.Count
-                })
-                .ToListAsync(cancellationToken),
-            TopRatedNotes = await _dbContext.Notes
-                .AsNoTracking()
-                .Where(x => x.IsPublic && x.Ratings.Count >= 3)
-                .OrderByDescending(x => x.Ratings.Average(r => r.Value))
-                .ThenByDescending(x => x.Ratings.Count)
-                .Take(5)
-                .Select(x => new NoteCardViewModel
-                {
-                    Id = x.Id,
-                    Title = x.Title,
-                    Excerpt = x.Content.Length > 200 ? x.Content.Substring(0, 200) + "..." : x.Content,
-                    OwnerUserName = x.Owner.UserName ?? "Unknown",
-                    CreatedAtUtc = x.CreatedAtUtc,
-                    UpdatedAtUtc = x.UpdatedAtUtc,
-                    IsPublic = x.IsPublic,
-                    AverageRating = x.Ratings.Average(r => r.Value),
-                    RatingCount = x.Ratings.Count
-                })
-                .ToListAsync(cancellationToken)
-        };
-
-        return View(model);
-    }
-
-    [HttpGet]
-    public IActionResult AccessDenied()
-    {
+            return RedirectToAction("Index", "Notes");
+        }
         return View();
     }
 
-    [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
     [HttpGet]
+    [AllowAnonymous]
     public IActionResult Error()
     {
-        return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
+        return View();
     }
 }

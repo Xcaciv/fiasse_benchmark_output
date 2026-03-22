@@ -1,0 +1,27 @@
+<h2>Admin Dashboard</h2>
+<div class="row mb-4">
+  <div class="col-md-3">
+    <div class="card text-white bg-primary">
+      <div class="card-body"><h5>Total Users</h5><h2><%= totalUsers %></h2></div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-white bg-success">
+      <div class="card-body"><h5>Total Notes</h5><h2><%= totalNotes %></h2></div>
+    </div>
+  </div>
+</div>
+<h4>Recent Users</h4>
+<table class="table table-striped">
+  <thead><tr><th>Username</th><th>Email</th><th>Registered</th></tr></thead>
+  <tbody>
+    <% recentUsers.forEach(u => { %>
+      <tr>
+        <td><%= u.username %></td>
+        <td><%= u.email %></td>
+        <td><%= new Date(u.createdAt).toLocaleDateString() %></td>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>
+<a href="/admin/users" class="btn btn-outline-primary">View All Users</a>

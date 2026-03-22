@@ -4,8 +4,8 @@ using LooseNotes.Models;
 namespace LooseNotes.Services;
 
 /// <summary>
-/// Writes security-relevant events to the AuditLog table.
-/// SSEM: Passwords, raw tokens, and full PII are never passed to this service.
+/// Persists audit entries to the database.
+/// Structured logging companion writes to Serilog (dual sink: DB + log file).
 /// </summary>
 public class AuditService : IAuditService
 {
@@ -18,30 +18,45 @@ public class AuditService : IAuditService
         _logger = logger;
     }
 
-    public async Task LogAsync(string eventType, bool success, string? details = null,
-        string? actorId = null, string? actorUserName = null, string? ipAddress = null)
+    /// <summary>
+    /// Records an audit event. Non-throwing — failures are logged but not propagated
+    /// to prevent audit path from disrupting the primary request (Resilience).
+    /// </summary>
+    public async Task RecordAsync(
+        string action,
+        string? userId = null,
+        string? resourceType = null,
+        string? resourceId = null,
+        bool succeeded = true,
+        string? metadataJson = null,
+        string? ipAddress = null)
     {
-        var entry = new AuditLog
-        {
-            EventType = eventType,
-            Success = success,
-            Details = details,
-            ActorId = actorId,
-            ActorUserName = actorUserName,
-            IpAddress = ipAddress,
-            OccurredAt = DateTime.UtcNow
-        };
-
-        _db.AuditLogs.Add(entry);
+        // Structured log first — fastest path and survives DB failures (Availability)
+        _logger.LogInformation(
+            "AUDIT action={Action} userId={UserId} resource={ResourceType}/{ResourceId} succeeded={Succeeded}",
+            action, userId ?? "anonymous", resourceType, resourceId, succeeded);
 
         try
         {
+            var entry = new AuditLog
+            {
+                Action = action,
+                UserId = userId,
+                ResourceType = resourceType,
+                ResourceId = resourceId,
+                Succeeded = succeeded,
+                MetadataJson = metadataJson,
+                IpAddress = ipAddress,
+                OccurredAt = DateTime.UtcNow
+            };
+
+            _db.AuditLogs.Add(entry);
             await _db.SaveChangesAsync();
         }
         catch (Exception ex)
         {
-            // Audit failure must not crash the main request
-            _logger.LogError(ex, "Failed to persist audit log entry for event {EventType}", eventType);
+            // Audit write failure must not block the primary operation (Resilience, Availability)
+            _logger.LogError(ex, "Failed to persist audit entry for action={Action}", action);
         }
     }
 }

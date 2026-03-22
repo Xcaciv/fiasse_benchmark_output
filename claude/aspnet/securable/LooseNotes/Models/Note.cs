@@ -1,11 +1,10 @@
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace LooseNotes.Models;
 
 /// <summary>
-/// Core note entity.
-/// FIASSE: Fail-safe default – IsPublic defaults to false (private).
+/// Core note entity. Visibility controls public/private access.
+/// OwnerId is server-assigned on creation (Derived Integrity Principle).
 /// </summary>
 public class Note
 {
@@ -17,20 +16,20 @@ public class Note
     [Required]
     public string Content { get; set; } = string.Empty;
 
-    /// <summary>Fail-safe default: notes are private until explicitly made public.</summary>
+    /// <summary>
+    /// Server-assigned on creation; never accepted from client input.
+    /// Trust boundary: controller sets this from ClaimsPrincipal, not form data.
+    /// </summary>
+    public string OwnerId { get; set; } = string.Empty;
+
     public bool IsPublic { get; set; } = false;
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    // Owner
-    [Required]
-    public string OwnerId { get; set; } = string.Empty;
-
-    [ForeignKey(nameof(OwnerId))]
-    public ApplicationUser Owner { get; set; } = null!;
-
     // Navigation
+    public ApplicationUser? Owner { get; set; }
     public ICollection<Attachment> Attachments { get; set; } = new List<Attachment>();
     public ICollection<Rating> Ratings { get; set; } = new List<Rating>();
     public ICollection<ShareLink> ShareLinks { get; set; } = new List<ShareLink>();

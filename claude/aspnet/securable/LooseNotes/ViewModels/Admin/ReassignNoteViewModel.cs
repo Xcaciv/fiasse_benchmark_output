@@ -6,17 +6,12 @@ public class ReassignNoteViewModel
 {
     public int NoteId { get; set; }
     public string NoteTitle { get; set; } = string.Empty;
-    public string CurrentOwnerId { get; set; } = string.Empty;
-    public string CurrentOwnerName { get; set; } = string.Empty;
+    public string CurrentOwnerDisplayName { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Please select a new owner.")]
-    public string NewOwnerId { get; set; } = string.Empty;
+    [Display(Name = "New Owner")]
+    public string NewOwnerEmail { get; set; } = string.Empty;
 
-    public IReadOnlyList<UserOption> AllUsers { get; set; } = Array.Empty<UserOption>();
-}
-
-public class UserOption
-{
-    public string Id { get; set; } = string.Empty;
-    public string UserName { get; set; } = string.Empty;
+    /// <summary>All user emails available for the dropdown selection.</summary>
+    public IReadOnlyList<string> AvailableUserEmails { get; set; } = Array.Empty<string>();
 }

@@ -1,4 +1,13 @@
-﻿// Please see documentation at https://learn.microsoft.com/aspnet/core/client-side/bundling-and-minification
-// for details on configuring this project to bundle and minify static web assets.
+// Client-side enhancements for LooseNotes
+// All security validation is performed server-side (Integrity).
+// This file contains only UX convenience code.
 
-// Write your JavaScript code.
+document.addEventListener('DOMContentLoaded', function () {
+    // Auto-dismiss alerts after 5 seconds
+    document.querySelectorAll('.alert-dismissible').forEach(function (alert) {
+        setTimeout(function () {
+            var bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
+            if (bsAlert) bsAlert.close();
+        }, 5000);
+    });
+});

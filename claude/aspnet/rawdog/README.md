@@ -1,109 +1,85 @@
 # Loose Notes
 
-A multi-user note-taking web application built with ASP.NET Core MVC, Entity Framework Core, and ASP.NET Core Identity.
+A multi-user note-taking web application built with ASP.NET Core MVC.
 
 ## Features
 
-- User registration, login, and password reset
-- Create, edit, delete, and search notes (public/private)
+- User registration and authentication (ASP.NET Core Identity)
+- Create, edit, delete private/public notes
 - File attachments (PDF, DOC, DOCX, TXT, PNG, JPG, JPEG)
-- Note sharing via unique share links
-- 1–5 star ratings with comments
-- Top Rated notes page
-- Admin dashboard with user management and note reassignment
+- Note sharing via generated share links
+- 1–5 star ratings with optional comments
+- Full-text note search
+- Top-rated notes page
+- Admin dashboard (user list, note reassignment)
+- Password reset (logged to console in dev)
 
 ## Prerequisites
 
 - [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8)
 
-No additional database software is needed — the app uses SQLite by default.
-
-## Setup and Run
-
-### 1. Restore packages
+## Setup & Run
 
 ```bash
+# Restore packages
 dotnet restore
-```
 
-### 2. Apply database migrations
-
-```bash
-dotnet ef database update
-```
-
-> If `dotnet ef` is not installed: `dotnet tool install --global dotnet-ef`
-
-Alternatively, the app will apply migrations automatically on startup.
-
-### 3. Run the application
-
-```bash
+# Run the application (applies migrations and seeds admin user automatically)
 dotnet run
 ```
 
-Then open your browser at `https://localhost:5001` (or the URL shown in the terminal).
+The app will be available at `https://localhost:5001` (or the port shown in the console).
 
-## Default Admin Account
+### Default Admin Account
 
-On first run, a default admin account is seeded:
+| Field    | Value              |
+|----------|--------------------|
+| Username | `admin`            |
+| Password | `Admin@123456`     |
 
-| Field    | Value                    |
-|----------|--------------------------|
-| Username | `admin`                  |
-| Email    | `admin@loosenotes.local` |
-| Password | `Admin1234!`             |
-
-**Change this password immediately after your first login.**
+Change this password immediately after first login.
 
 ## Configuration
 
-Edit `appsettings.json` to adjust:
+Edit `appsettings.json` to change:
 
-| Setting | Description | Default |
-|---|---|---|
-| `ConnectionStrings:DefaultConnection` | SQLite connection string | `Data Source=loosenotes.db` |
-| `FileStorage:UploadPath` | Directory for uploaded files | `wwwroot/uploads` |
-| `FileStorage:MaxFileSizeBytes` | Max upload size in bytes | `10485760` (10 MB) |
-| `FileStorage:AllowedExtensions` | Allowed file extensions | pdf, doc, docx, txt, png, jpg, jpeg |
+| Key                             | Default              | Description                  |
+|---------------------------------|----------------------|------------------------------|
+| `ConnectionStrings:DefaultConnection` | `Data Source=loosenotes.db` | SQLite connection string |
+| `FileStorage:UploadPath`        | `wwwroot/uploads`    | Uploaded file directory      |
 
-### Email (Password Reset)
+## Database
 
-By default, password reset emails are **logged to the console** rather than sent. To enable real email delivery, replace `LoggingEmailService` in `Services/` with an SMTP or SendGrid implementation and register it in `Program.cs`.
+The app uses SQLite by default. To switch to SQL Server or PostgreSQL:
 
-### Using a Different Database
+1. Install the appropriate EF Core provider package.
+2. Update `Program.cs` to use `UseSqlServer(...)` or `UseNpgsql(...)`.
+3. Update the connection string in `appsettings.json`.
+4. Run `dotnet ef database update` (or let the app auto-migrate on startup).
 
-To use SQL Server instead of SQLite:
+## Email (Password Reset)
 
-1. Replace the SQLite NuGet package with `Microsoft.EntityFrameworkCore.SqlServer`
-2. Update `Program.cs`: change `UseSqlite` to `UseSqlServer`
-3. Update the connection string in `appsettings.json`
+Password reset links are written to the application log in development. To send real emails, implement `IEmailService` with an SMTP or transactional email provider and register it in `Program.cs`.
 
 ## Project Structure
 
 ```
 LooseNotes/
 ├── Controllers/        # MVC controllers
-├── Data/               # DbContext and seed data
+├── Data/               # EF Core DbContext and seed data
+├── Migrations/         # EF Core migrations
 ├── Models/             # Entity models
 ├── Services/           # File storage and email services
-├── ViewModels/         # View models
+├── ViewModels/         # View-specific models
 ├── Views/              # Razor views
-│   ├── Account/        # Auth views
-│   ├── Admin/          # Admin views
-│   ├── Notes/          # Note CRUD views
-│   ├── Profile/        # Profile edit
-│   ├── Share/          # Shared note view
-│   └── Shared/         # Layout and partials
-└── wwwroot/
-    └── uploads/        # Uploaded files (auto-created)
-```
-
-## Running Migrations (Development)
-
-If you change the models:
-
-```bash
-dotnet ef migrations add <MigrationName>
-dotnet ef database update
+│   ├── Account/
+│   ├── Admin/
+│   ├── Home/
+│   ├── Notes/
+│   ├── Profile/
+│   ├── Share/
+│   └── Shared/
+├── wwwroot/uploads/    # Uploaded files (created at runtime)
+├── appsettings.json
+└── Program.cs
 ```

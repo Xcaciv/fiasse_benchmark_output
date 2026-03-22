@@ -4,6 +4,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LooseNotes.Data;
 
+/// <summary>
+/// EF Core database context. All queries go through parameterized LINQ/EF (Integrity).
+/// Indexes placed on high-frequency filter fields to support Availability.
+/// </summary>
 public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 {
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
@@ -19,57 +23,82 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
         base.OnModelCreating(builder);
 
-        // Notes
-        builder.Entity<Note>(e =>
-        {
-            e.HasIndex(n => n.OwnerId);
-            e.HasIndex(n => n.IsPublic);
-            e.HasIndex(n => n.CreatedAt);
-            e.HasOne(n => n.Owner)
-             .WithMany(u => u.Notes)
-             .HasForeignKey(n => n.OwnerId)
-             .OnDelete(DeleteBehavior.Cascade);
-        });
+        ConfigureNoteEntity(builder);
+        ConfigureAttachmentEntity(builder);
+        ConfigureRatingEntity(builder);
+        ConfigureShareLinkEntity(builder);
+        ConfigureAuditLogEntity(builder);
+    }
 
-        // Attachments
-        builder.Entity<Attachment>(e =>
+    private static void ConfigureNoteEntity(ModelBuilder builder)
+    {
+        builder.Entity<Note>(entity =>
         {
-            e.HasOne(a => a.Note)
-             .WithMany(n => n.Attachments)
-             .HasForeignKey(a => a.NoteId)
-             .OnDelete(DeleteBehavior.Cascade);
-        });
+            entity.HasIndex(n => n.OwnerId);
+            // Compound index to optimize "owned notes + public notes" search query
+            entity.HasIndex(n => new { n.OwnerId, n.IsPublic });
 
-        // Ratings – one rating per user per note
-        builder.Entity<Rating>(e =>
-        {
-            e.HasIndex(r => new { r.NoteId, r.RaterId }).IsUnique();
-            e.HasOne(r => r.Note)
-             .WithMany(n => n.Ratings)
-             .HasForeignKey(r => r.NoteId)
-             .OnDelete(DeleteBehavior.Cascade);
-            e.HasOne(r => r.Rater)
-             .WithMany(u => u.Ratings)
-             .HasForeignKey(r => r.RaterId)
-             .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(n => n.Owner)
+                  .WithMany(u => u.Notes)
+                  .HasForeignKey(n => n.OwnerId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
+    }
 
-        // ShareLinks
-        builder.Entity<ShareLink>(e =>
+    private static void ConfigureAttachmentEntity(ModelBuilder builder)
+    {
+        builder.Entity<Attachment>(entity =>
         {
-            e.HasIndex(s => s.Token).IsUnique();
-            e.HasOne(s => s.Note)
-             .WithMany(n => n.ShareLinks)
-             .HasForeignKey(s => s.NoteId)
-             .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(a => a.NoteId);
+            entity.HasIndex(a => a.StoredFileName).IsUnique();
+
+            entity.HasOne(a => a.Note)
+                  .WithMany(n => n.Attachments)
+                  .HasForeignKey(a => a.NoteId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
+    }
 
-        // AuditLog
-        builder.Entity<AuditLog>(e =>
+    private static void ConfigureRatingEntity(ModelBuilder builder)
+    {
+        builder.Entity<Rating>(entity =>
         {
-            e.HasIndex(a => a.OccurredAt);
-            e.HasIndex(a => a.ActorId);
-            e.HasIndex(a => a.EventType);
+            // Enforce one rating per user per note at DB level (Integrity)
+            entity.HasIndex(r => new { r.NoteId, r.RaterId }).IsUnique();
+
+            entity.HasOne(r => r.Note)
+                  .WithMany(n => n.Ratings)
+                  .HasForeignKey(r => r.NoteId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(r => r.Rater)
+                  .WithMany(u => u.Ratings)
+                  .HasForeignKey(r => r.RaterId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+    }
+
+    private static void ConfigureShareLinkEntity(ModelBuilder builder)
+    {
+        builder.Entity<ShareLink>(entity =>
+        {
+            entity.HasIndex(s => s.Token).IsUnique();
+            entity.HasIndex(s => s.NoteId);
+
+            entity.HasOne(s => s.Note)
+                  .WithMany(n => n.ShareLinks)
+                  .HasForeignKey(s => s.NoteId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    private static void ConfigureAuditLogEntity(ModelBuilder builder)
+    {
+        builder.Entity<AuditLog>(entity =>
+        {
+            entity.HasIndex(a => a.UserId);
+            entity.HasIndex(a => a.OccurredAt);
+            entity.HasIndex(a => a.Action);
         });
     }
 }

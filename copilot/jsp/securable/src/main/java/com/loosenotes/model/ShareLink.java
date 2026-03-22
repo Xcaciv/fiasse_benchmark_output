@@ -1,21 +1,24 @@
 package com.loosenotes.model;
 
-public class ShareLink {
+import java.time.LocalDateTime;
+
+/** Immutable domain model for a share link token. */
+public final class ShareLink {
+
     private final long id;
     private final long noteId;
-    private final String createdAt;
-    private final String revokedAt;
+    private final String token;
+    private final LocalDateTime createdAt;
 
-    public ShareLink(long id, long noteId, String createdAt, String revokedAt) {
-        this.id = id;
-        this.noteId = noteId;
+    public ShareLink(long id, long noteId, String token, LocalDateTime createdAt) {
+        this.id        = id;
+        this.noteId    = noteId;
+        this.token     = token;
         this.createdAt = createdAt;
-        this.revokedAt = revokedAt;
     }
 
-    public long getId() { return id; }
-    public long getNoteId() { return noteId; }
-    public String getCreatedAt() { return createdAt; }
-    public String getRevokedAt() { return revokedAt; }
-    public boolean isActive() { return revokedAt == null || revokedAt.isBlank(); }
+    public long getId()               { return id; }
+    public long getNoteId()           { return noteId; }
+    public String getToken()          { return token; }
+    public LocalDateTime getCreatedAt(){ return createdAt; }
 }

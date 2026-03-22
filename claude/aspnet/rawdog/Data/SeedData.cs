@@ -1,39 +1,39 @@
-using LooseNotes.Models;
 using Microsoft.AspNetCore.Identity;
+using LooseNotes.Models;
 
 namespace LooseNotes.Data;
 
 public static class SeedData
 {
-    public const string AdminRole = "Admin";
-    public const string UserRole = "User";
-
     public static async Task InitializeAsync(IServiceProvider serviceProvider)
     {
         var roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole>>();
         var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
-        // Create roles
-        foreach (var role in new[] { AdminRole, UserRole })
+        // Ensure roles exist
+        string[] roles = ["Admin", "User"];
+        foreach (var role in roles)
         {
             if (!await roleManager.RoleExistsAsync(role))
+            {
                 await roleManager.CreateAsync(new IdentityRole(role));
+            }
         }
 
-        // Create default admin user if none exists
-        const string adminEmail = "admin@loosenotes.local";
-        if (await userManager.FindByEmailAsync(adminEmail) == null)
+        // Create default admin if none exists
+        var admins = await userManager.GetUsersInRoleAsync("Admin");
+        if (admins.Count == 0)
         {
-            var admin = new ApplicationUser
+            var adminUser = new ApplicationUser
             {
                 UserName = "admin",
-                Email = adminEmail,
+                Email = "admin@loosenotes.local",
                 EmailConfirmed = true
             };
-            var result = await userManager.CreateAsync(admin, "Admin1234!");
+            var result = await userManager.CreateAsync(adminUser, "Admin@123456");
             if (result.Succeeded)
             {
-                await userManager.AddToRolesAsync(admin, new[] { AdminRole, UserRole });
+                await userManager.AddToRoleAsync(adminUser, "Admin");
             }
         }
     }

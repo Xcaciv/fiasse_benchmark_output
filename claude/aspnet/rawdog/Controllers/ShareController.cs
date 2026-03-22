@@ -1,7 +1,6 @@
-using LooseNotes.Data;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using LooseNotes.Data;
 
 namespace LooseNotes.Controllers;
 
@@ -14,20 +13,24 @@ public class ShareController : Controller
         _db = db;
     }
 
-    // GET: Share/{token}
-    [AllowAnonymous]
-    public new async Task<IActionResult> View(string token)
+    [HttpGet]
+    [ActionName("View")]
+    public async Task<IActionResult> ViewNote(string token)
     {
-        var link = await _db.ShareLinks
-            .Include(s => s.Note).ThenInclude(n => n.Owner)
-            .Include(s => s.Note).ThenInclude(n => n.Attachments)
-            .Include(s => s.Note).ThenInclude(n => n.Ratings).ThenInclude(r => r.User)
-            .FirstOrDefaultAsync(s => s.Token == token && s.IsActive);
+        if (string.IsNullOrWhiteSpace(token)) return NotFound();
 
-        if (link == null) return NotFound("This share link is invalid or has been revoked.");
+        var shareLink = await _db.ShareLinks
+            .Include(s => s.Note)
+                .ThenInclude(n => n!.User)
+            .Include(s => s.Note)
+                .ThenInclude(n => n!.Attachments)
+            .Include(s => s.Note)
+                .ThenInclude(n => n!.Ratings)
+                    .ThenInclude(r => r.User)
+            .FirstOrDefaultAsync(s => s.Token == token);
 
-        ViewData["SharedView"] = true;
-        ViewData["ShareToken"] = token;
-        return View(link.Note);
+        if (shareLink?.Note == null) return NotFound();
+
+        return View(shareLink.Note);
     }
 }

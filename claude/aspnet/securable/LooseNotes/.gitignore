@@ -1,18 +1,25 @@
-## .NET
+## .NET / ASP.NET Core gitignore
+
+# Build outputs
 bin/
 obj/
-*.user
-*.suo
-.vs/
-TestResults/
 
-## Application data – never commit
-loosenotes.db
-loosenotes.db-shm
-loosenotes.db-wal
+# Database files — never commit
+*.db
+*.db-shm
+*.db-wal
+
+# Upload directory — user data, not source
 uploads/
+
+# Log files
 logs/
 
-## Secrets
-appsettings.*.local.json
-secrets.json
+# User secrets (Confidentiality — secrets must not be committed)
+**/secrets.json
+appsettings.Production.json
+
+# IDE
+.vs/
+.vscode/
+*.user

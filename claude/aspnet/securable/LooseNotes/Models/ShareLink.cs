@@ -1,11 +1,11 @@
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace LooseNotes.Models;
 
 /// <summary>
-/// Unforgeable share link for a note.
-/// SSEM: Token is a cryptographically random GUID (128-bit entropy) – not sequential IDs.
+/// Opaque share token for unauthenticated note access.
+/// Token is server-generated (cryptographically random); never client-supplied.
+/// Revocable by owner; soft-deleted via IsActive flag.
 /// </summary>
 public class ShareLink
 {
@@ -13,14 +13,17 @@ public class ShareLink
 
     public int NoteId { get; set; }
 
-    [ForeignKey(nameof(NoteId))]
-    public Note Note { get; set; } = null!;
-
-    /// <summary>Cryptographically random token used in the share URL.</summary>
+    /// <summary>
+    /// Base64url-encoded cryptographically random token (32 bytes = 256 bits).
+    /// Generated server-side only (Derived Integrity Principle).
+    /// </summary>
     [Required, MaxLength(64)]
     public string Token { get; set; } = string.Empty;
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    public bool IsRevoked { get; set; } = false;
+    public bool IsActive { get; set; } = true;
+
+    // Navigation
+    public Note? Note { get; set; }
 }

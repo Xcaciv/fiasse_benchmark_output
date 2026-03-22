@@ -1,42 +1,56 @@
 package com.loosenotes.model;
 
-public class Note {
+import java.time.LocalDateTime;
+
+/** Immutable domain model representing a note. */
+public final class Note {
+
+    public enum Visibility { PUBLIC, PRIVATE }
+
     private final long id;
-    private final long ownerId;
-    private final String ownerUsername;
+    private final long userId;
     private final String title;
     private final String content;
-    private final boolean publicNote;
-    private final String createdAt;
-    private final String updatedAt;
-    private final double averageRating;
-    private final int ratingCount;
-    private final String excerpt;
+    private final Visibility visibility;
+    private final LocalDateTime createdAt;
+    private final LocalDateTime updatedAt;
+    /** Populated via JOIN when needed; not persisted here */
+    private final String authorUsername;
 
-    public Note(long id, long ownerId, String ownerUsername, String title, String content, boolean publicNote,
-                String createdAt, String updatedAt, double averageRating, int ratingCount, String excerpt) {
-        this.id = id;
-        this.ownerId = ownerId;
-        this.ownerUsername = ownerUsername;
-        this.title = title;
-        this.content = content;
-        this.publicNote = publicNote;
-        this.createdAt = createdAt;
-        this.updatedAt = updatedAt;
-        this.averageRating = averageRating;
-        this.ratingCount = ratingCount;
-        this.excerpt = excerpt;
+    public Note(long id, long userId, String title, String content,
+                Visibility visibility, LocalDateTime createdAt,
+                LocalDateTime updatedAt, String authorUsername) {
+        this.id             = id;
+        this.userId         = userId;
+        this.title          = title;
+        this.content        = content;
+        this.visibility     = visibility;
+        this.createdAt      = createdAt;
+        this.updatedAt      = updatedAt;
+        this.authorUsername = authorUsername;
     }
 
-    public long getId() { return id; }
-    public long getOwnerId() { return ownerId; }
-    public String getOwnerUsername() { return ownerUsername; }
-    public String getTitle() { return title; }
-    public String getContent() { return content; }
-    public boolean isPublicNote() { return publicNote; }
-    public String getCreatedAt() { return createdAt; }
-    public String getUpdatedAt() { return updatedAt; }
-    public double getAverageRating() { return averageRating; }
-    public int getRatingCount() { return ratingCount; }
-    public String getExcerpt() { return excerpt; }
+    public long getId()                  { return id; }
+    public long getUserId()              { return userId; }
+    public String getTitle()             { return title; }
+    public String getContent()           { return content; }
+    public Visibility getVisibility()    { return visibility; }
+    public LocalDateTime getCreatedAt()  { return createdAt; }
+    public LocalDateTime getUpdatedAt()  { return updatedAt; }
+    public String getAuthorUsername()    { return authorUsername; }
+
+    public boolean isPublic() {
+        return Visibility.PUBLIC.equals(visibility);
+    }
+
+    /** Returns first 200 characters as excerpt for search results. */
+    public String getExcerpt() {
+        if (content == null || content.isEmpty()) return "";
+        return content.length() > 200 ? content.substring(0, 200) + "…" : content;
+    }
+
+    @Override
+    public String toString() {
+        return "Note{id=" + id + ", userId=" + userId + ", title='" + title + "'}";
+    }
 }

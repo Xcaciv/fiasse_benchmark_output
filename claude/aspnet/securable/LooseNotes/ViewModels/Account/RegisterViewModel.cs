@@ -2,25 +2,22 @@ using System.ComponentModel.DataAnnotations;
 
 namespace LooseNotes.ViewModels.Account;
 
+/// <summary>
+/// Input model for new user registration.
+/// DisplayName is user-facing only; Email becomes the Identity username.
+/// </summary>
 public class RegisterViewModel
 {
-    [Required, MaxLength(100)]
-    [Display(Name = "Username")]
-    public string UserName { get; set; } = string.Empty;
+    [Required, MaxLength(100), Display(Name = "Display Name")]
+    public string DisplayName { get; set; } = string.Empty;
 
     [Required, EmailAddress, MaxLength(256)]
-    [Display(Name = "Email Address")]
     public string Email { get; set; } = string.Empty;
 
-    [Required]
-    [StringLength(100, MinimumLength = 10)]
-    [DataType(DataType.Password)]
-    [Display(Name = "Password")]
+    [Required, DataType(DataType.Password), MinLength(8), MaxLength(128)]
     public string Password { get; set; } = string.Empty;
 
-    [Required]
-    [DataType(DataType.Password)]
+    [Required, DataType(DataType.Password), Compare(nameof(Password))]
     [Display(Name = "Confirm Password")]
-    [Compare(nameof(Password), ErrorMessage = "Passwords do not match.")]
     public string ConfirmPassword { get; set; } = string.Empty;
 }

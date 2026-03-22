@@ -2,27 +2,32 @@ using System.ComponentModel.DataAnnotations;
 
 namespace LooseNotes.Models;
 
-public sealed class Note
+/// <summary>
+/// Represents a user-authored note. IsPublic=false by default (Confidentiality).
+/// Ownership enforced at service layer before any mutation (Integrity).
+/// </summary>
+public class Note
 {
     public int Id { get; set; }
 
     [Required]
-    [StringLength(120)]
+    [MaxLength(200)]
     public string Title { get; set; } = string.Empty;
 
     [Required]
-    [StringLength(20000)]
+    [MaxLength(10000)]
     public string Content { get; set; } = string.Empty;
 
-    public bool IsPublic { get; set; }
+    /// <summary>False by default — notes are private until explicitly made public.</summary>
+    public bool IsPublic { get; set; } = false;
 
-    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
-    public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
 
     [Required]
-    public string OwnerId { get; set; } = string.Empty;
-    public ApplicationUser Owner { get; set; } = null!;
+    public string UserId { get; set; } = string.Empty;
 
+    public ApplicationUser? User { get; set; }
     public ICollection<Attachment> Attachments { get; set; } = new List<Attachment>();
     public ICollection<Rating> Ratings { get; set; } = new List<Rating>();
     public ICollection<ShareLink> ShareLinks { get; set; } = new List<ShareLink>();

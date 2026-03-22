@@ -1,41 +1,95 @@
-using System.Security.Cryptography;
-using System.Text;
-using Microsoft.AspNetCore.DataProtection;
+using LooseNotes.Data;
+using LooseNotes.Models;
+using LooseNotes.Services.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace LooseNotes.Services;
 
-public sealed class ShareLinkService : IShareLinkService
+/// <summary>
+/// Share link lifecycle: create, revoke, resolve.
+/// Token uniqueness enforced by DB unique index (Authenticity).
+/// </summary>
+public class ShareLinkService : IShareLinkService
 {
-    private readonly IDataProtector _protector;
+    private readonly ApplicationDbContext _db;
+    private readonly ILogger<ShareLinkService> _logger;
 
-    public ShareLinkService(IDataProtectionProvider dataProtectionProvider)
+    public ShareLinkService(ApplicationDbContext db, ILogger<ShareLinkService> logger)
     {
-        _protector = dataProtectionProvider.CreateProtector("LooseNotes.ShareLinks.v1");
+        _db = db;
+        _logger = logger;
     }
 
-    public ShareTokenPayload CreateTokenPayload()
+    /// <inheritdoc />
+    public async Task<ShareLink> CreateShareLinkAsync(int noteId, string userId)
     {
-        var bytes = RandomNumberGenerator.GetBytes(32);
-        var token = Base64UrlEncode(bytes);
-        return new ShareTokenPayload(token, HashToken(token), _protector.Protect(token));
+        ArgumentNullException.ThrowIfNull(userId);
+
+        var note = await _db.Notes.AsNoTracking()
+            .FirstOrDefaultAsync(n => n.Id == noteId && n.UserId == userId);
+
+        if (note is null)
+        {
+            throw new InvalidOperationException("Note not found or access denied.");
+        }
+
+        var link = new ShareLink
+        {
+            NoteId = noteId,
+            Token = Guid.NewGuid().ToString("N"),
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _db.ShareLinks.Add(link);
+        await _db.SaveChangesAsync();
+
+        _logger.LogInformation("Share link created for note {NoteId} by user {UserId}", noteId, userId);
+        return link;
     }
 
-    public string HashToken(string token)
+    /// <inheritdoc />
+    public async Task<bool> RevokeShareLinkAsync(int noteId, string userId)
     {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
-        return Convert.ToHexString(hash);
+        ArgumentNullException.ThrowIfNull(userId);
+
+        var links = await _db.ShareLinks
+            .Where(s => s.NoteId == noteId && !s.IsRevoked)
+            .Include(s => s.Note)
+            .ToListAsync();
+
+        var ownedLinks = links.Where(s => s.Note?.UserId == userId).ToList();
+
+        if (!ownedLinks.Any()) return false;
+
+        foreach (var link in ownedLinks)
+        {
+            link.IsRevoked = true;
+        }
+
+        await _db.SaveChangesAsync();
+
+        _logger.LogInformation("Revoked {Count} share link(s) for note {NoteId}", ownedLinks.Count, noteId);
+        return true;
     }
 
-    public string RevealToken(string protectedToken)
+    /// <inheritdoc />
+    public async Task<Note?> GetNoteByShareTokenAsync(string token)
     {
-        return _protector.Unprotect(protectedToken);
-    }
+        ArgumentNullException.ThrowIfNull(token);
 
-    private static string Base64UrlEncode(byte[] bytes)
-    {
-        return Convert.ToBase64String(bytes)
-            .TrimEnd('=')
-            .Replace('+', '-')
-            .Replace('/', '_');
+        // Trust boundary: validate token format before hitting DB
+        if (token.Length > 64) return null;
+
+        var now = DateTime.UtcNow;
+        var shareLink = await _db.ShareLinks
+            .AsNoTracking()
+            .Include(s => s.Note)
+                .ThenInclude(n => n!.Attachments)
+            .FirstOrDefaultAsync(s =>
+                s.Token == token &&
+                !s.IsRevoked &&
+                (s.ExpiresAt == null || s.ExpiresAt > now));
+
+        return shareLink?.Note;
     }
 }

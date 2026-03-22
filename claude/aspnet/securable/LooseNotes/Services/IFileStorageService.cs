@@ -1,20 +1,26 @@
 namespace LooseNotes.Services;
 
+/// <summary>
+/// Abstraction over file storage (local FS or cloud).
+/// Injectable for testability — implementations swappable without controller changes.
+/// </summary>
 public interface IFileStorageService
 {
     /// <summary>
-    /// Validates and stores the uploaded file.
-    /// Returns the generated stored filename (GUID-based, never user-supplied).
-    /// Throws InvalidOperationException if the file is rejected.
+    /// Validates and persists the upload stream.
+    /// Returns the server-assigned stored filename (UUID-based).
+    /// Throws <see cref="InvalidOperationException"/> for invalid content or extension.
     /// </summary>
-    Task<string> SaveAsync(IFormFile file);
+    Task<string> SaveAsync(IFormFile file, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Returns the absolute path for a stored file, or null if the file doesn't exist.
-    /// SSEM: Path is constructed from config root + stored name only – no user input in path.
+    /// Opens a read stream for the stored file.
+    /// Returns null if the file does not exist.
     /// </summary>
-    string? GetPhysicalPath(string storedFileName);
+    Task<Stream?> OpenReadAsync(string storedFileName, CancellationToken cancellationToken = default);
 
-    /// <summary>Deletes a stored file by its stored filename.</summary>
-    Task DeleteAsync(string storedFileName);
+    /// <summary>
+    /// Permanently removes a stored file. No-ops if file is absent.
+    /// </summary>
+    Task DeleteAsync(string storedFileName, CancellationToken cancellationToken = default);
 }

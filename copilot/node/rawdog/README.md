@@ -1,122 +1,73 @@
 # Loose Notes
 
-Loose Notes is a complete Express.js web application for creating, sharing, searching, and rating notes. It includes user accounts, password reset flow, file attachments, public/private visibility, share links, profile management, and an admin dashboard for oversight and note ownership reassignment.
+A multi-user note-taking platform built with Node.js, Express.js, SQLite, and Bootstrap 5.
 
-## Features
+## Prerequisites
+- Node.js 18+
+- npm
 
-- User registration, login, logout, and session-based authentication
-- Password reset flow with 1-hour tokens and local development email outbox
-- Create, edit, view, and delete notes with public/private visibility
-- File attachments with type and size validation
-- Share links for notes, including regeneration and revocation
-- Search across owned notes and public notes
-- Ratings with 1-5 stars and optional comments
-- Top Rated page for public notes with at least 3 ratings
-- User profile editing for username, email, and password
-- Admin dashboard with totals, user search, activity log, and note reassignment
-
-## Tech Stack
-
-- Node.js
-- Express.js
-- EJS templates
-- SQLite
-- Signed cookie-based authentication sessions
-- Multer for file uploads
-
-## Getting Started
-
-### 1. Install dependencies
+## Installation
 
 ```bash
+# 1. Install dependencies
 npm install
+
+# 2. Copy example env file
+cp .env.example .env
+# (Edit .env to configure session secret, SMTP, etc.)
 ```
 
-### 2. Configure environment variables
-
-Copy `.env.example` to `.env` and adjust values if needed.
-
-PowerShell:
-
-```powershell
-Copy-Item .env.example .env
-```
-
-Key settings:
-
-- `PORT`: Port to run the app on
-- `SESSION_SECRET`: Session signing secret
-- `BASE_URL`: Public base URL used in generated share and reset links
-- `DEFAULT_ADMIN_USERNAME`, `DEFAULT_ADMIN_EMAIL`, `DEFAULT_ADMIN_PASSWORD`: Initial admin account credentials
-
-### 3. Run the application
+## Running
 
 ```bash
+# Start the server
+node app.js
+# or
 npm start
 ```
 
-Then open `http://localhost:3000`.
+The app will be available at http://localhost:3000
 
-## Default Admin Account
+## Default Admin Credentials
 
-On first start, Loose Notes ensures there is at least one admin user. By default:
+On first run, a default admin account is created:
 
-- Username: `admin`
-- Email: `admin@example.com`
-- Password: `Admin123!`
+- **Email:** admin@example.com
+- **Password:** admin123
+- **Username:** admin
 
-Change these values in `.env` before first launch for safer local use.
+> **Important:** Change the admin password after first login!
 
-## Project Structure
+## Features
 
-```text
-src/
-  app.js
-  server.js
-  config.js
-  db.js
-  lib/
-  middleware/
-  routes/
-  views/
-public/
-  css/
-data/
-uploads/
-```
+- **REQ-001:** User Registration — username, email, password
+- **REQ-002:** User Login/Logout — Passport.js local strategy, cookie session
+- **REQ-003:** Password Reset — token-based, logged to console (configurable via SMTP)
+- **REQ-004:** Note Creation — title, content, private by default
+- **REQ-005:** File Attachments — pdf, doc, docx, txt, png, jpg, jpeg (max 10MB)
+- **REQ-006:** Note Editing — owner/admin only, full update
+- **REQ-007:** Note Deletion — owner/admin, deletes files from disk
+- **REQ-008:** Note Sharing — UUID share links, public access without auth
+- **REQ-009:** Public/Private Visibility — toggle on create/edit
+- **REQ-010:** Note Rating — 1–5 stars + comment, one per user per note
+- **REQ-011:** Rating Management — owner sees all ratings with average
+- **REQ-012:** Note Search — case-insensitive, title + content, owned + public
+- **REQ-013:** Admin Dashboard — user/note counts, recent activity, user management
+- **REQ-014:** User Profile Management — update username, email, password
+- **REQ-015:** Top Rated Notes — public notes with ≥3 ratings, sorted by avg
+- **REQ-016:** Note Ownership Reassignment — admin can reassign notes to other users
 
-## Notes About Password Reset Email
+## Environment Variables
 
-For local development, password reset messages are written as JSON files into `data/outbox/` instead of being sent through SMTP. Each file contains the reset link and message content so the flow can be tested end to end without external services.
+See `.env.example` for all available configuration options.
 
-## File Upload Rules
+| Variable | Description | Default |
+|---|---|---|
+| `PORT` | HTTP port | `3000` |
+| `SESSION_SECRET` | Session signing secret | (insecure default) |
+| `SMTP_HOST` | SMTP server host | (none, logs to console) |
+| `APP_URL` | Base URL for reset links | `http://localhost:3000` |
 
-- Allowed formats: `PDF`, `DOC`, `DOCX`, `TXT`, `PNG`, `JPG`, `JPEG`
-- Maximum size per file: `10 MB`
-- Uploaded files are stored in the local `uploads/` directory with generated filenames
+## Logs
 
-## Data Storage
-
-- Application data is stored in `data/loose-notes.sqlite`
-- Uploaded files are stored in `uploads/`
-
-## Security Notes
-
-- Passwords are hashed with bcrypt
-- Session cookies are HTTP-only
-- State-changing forms require a CSRF token
-- Access checks protect private notes, editing, deletion, downloads, and admin features
-
-## Running in Development
-
-```bash
-npm run dev
-```
-
-## Cleanup
-
-To reset local data, stop the app and delete:
-
-- `data/loose-notes.sqlite`
-- files inside `data/outbox/`
-- uploaded files inside `uploads/` except `.gitkeep`
+Application logs (auth events, admin actions) are written to `logs/app.log`.

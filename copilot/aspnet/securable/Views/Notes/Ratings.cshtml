@@ -1,47 +1,42 @@
-@model RatingListViewModel
+@model RateNoteViewModel
 @{
-    ViewData["Title"] = "Ratings";
+    ViewData["Title"] = Model.ExistingRatingId.HasValue ? "Edit Rating" : "Rate Note";
 }
+<div class="row justify-content-center">
+    <div class="col-md-5">
+        <h2 class="mb-2">@(Model.ExistingRatingId.HasValue ? "Edit Your Rating" : "Rate Note")</h2>
+        <p class="text-muted mb-4">@Model.NoteTitle</p>
 
-<div class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-4">
-    <div>
-        <h1 class="mb-1">Ratings for @Model.NoteTitle</h1>
-        <p class="text-muted mb-0">Average: @Model.AverageRating.ToString("0.0") / 5 · Total ratings: @Model.RatingCount</p>
-    </div>
-    <a asp-action="Details" asp-route-id="@Model.NoteId" class="btn btn-outline-secondary align-self-start">Back to note</a>
-</div>
+        <form asp-action="RateNote" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="NoteId" />
+            <input type="hidden" asp-for="ExistingRatingId" />
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
 
-@if (Model.Ratings.Count == 0)
-{
-    <div class="card shadow-sm">
-        <div class="card-body p-4 text-center text-muted">This note has not been rated yet.</div>
-    </div>
-}
-else
-{
-    <div class="card shadow-sm">
-        <div class="table-responsive">
-            <table class="table table-striped align-middle mb-0">
-                <thead>
-                    <tr>
-                        <th>User</th>
-                        <th>Rating</th>
-                        <th>Comment</th>
-                        <th>Updated</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var rating in Model.Ratings)
+            <div class="mb-3">
+                <label asp-for="Stars" class="form-label">Stars (1–5)</label>
+                <select asp-for="Stars" class="form-select">
+                    <option value="">Select…</option>
+                    @for (int i = 1; i <= 5; i++)
                     {
-                        <tr>
-                            <td>@rating.UserName</td>
-                            <td>@rating.Value / 5</td>
-                            <td>@rating.Comment</td>
-                            <td>@rating.CreatedAtUtc.ToLocalTime().ToString("g")</td>
-                        </tr>
+                        <option value="@i">@i ⭐</option>
                     }
-                </tbody>
-            </table>
-        </div>
+                </select>
+                <span asp-validation-for="Stars" class="text-danger small"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="Comment" class="form-label"></label>
+                <textarea asp-for="Comment" class="form-control" rows="3" maxlength="500"></textarea>
+                <span asp-validation-for="Comment" class="text-danger small"></span>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    @(Model.ExistingRatingId.HasValue ? "Update Rating" : "Submit Rating")
+                </button>
+                <a asp-controller="Notes" asp-action="Details" asp-route-id="@Model.NoteId"
+                   class="btn btn-outline-secondary">Cancel</a>
+            </div>
+        </form>
     </div>
-}
+</div>
+@section Scripts { @{ await Html.RenderPartialAsync("_ValidationScripts"); } }

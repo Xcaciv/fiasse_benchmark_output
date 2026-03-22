@@ -1,13 +1,13 @@
-// Loose Notes – minimal client JS
-// No inline event handlers; all interactions are form-based (server-driven) to avoid XSS surface.
+// Loose Notes — site-wide JS
+// No inline scripts; all behaviour is unobtrusive and non-eval (CSP-compatible).
 
-(function () {
-    'use strict';
-    // Auto-dismiss success alerts after 5 seconds
-    document.querySelectorAll('.alert-success').forEach(function (el) {
+// Auto-dismiss alerts after 5 seconds
+document.addEventListener('DOMContentLoaded', function () {
+    var alerts = document.querySelectorAll('.alert-dismissible');
+    alerts.forEach(function (alert) {
         setTimeout(function () {
-            var bsAlert = bootstrap.Alert.getOrCreateInstance(el);
-            bsAlert.close();
+            var bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
+            if (bsAlert) bsAlert.close();
         }, 5000);
     });
-}());
+});

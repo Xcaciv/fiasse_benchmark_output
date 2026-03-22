@@ -1,56 +1,84 @@
-# Loose Notes Web Application
+# LooseNotes
 
-Loose Notes is an ASP.NET Core MVC application for secure, multi-user note taking. It supports ASP.NET Core Identity authentication, note creation and editing, controlled public/private visibility, local attachment storage, share links, ratings, search, profile management, and admin reassignment tools.
+A securable ASP.NET Core 8 MVC note-taking application, built with FIASSE/SSEM engineering constraints throughout.
 
-## Setup and run
+## Prerequisites
 
-1. Install the .NET 8 SDK.
-2. From the project directory, restore and build the app:
-   ```powershell
-   dotnet restore
-   dotnet build
-   ```
-3. Optionally configure a bootstrap admin account in `appsettings.json` or with environment variables:
-   ```powershell
-   $env:BootstrapAdmin__UserName = "admin"
-   $env:BootstrapAdmin__Email = "admin@example.com"
-   $env:BootstrapAdmin__Password = "ChangeMe123!"
-   ```
-4. Run the application:
-   ```powershell
-   dotnet run
-   ```
-5. Open the URL shown in the console.
-6. Password reset emails are written to `App_Data\outbox` as HTML files.
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- No additional tools required (SQLite is embedded)
 
-## Notes on storage and security
+## Setup
 
-- SQLite is used by default with the database file at `App_Data\loosenotes.db`.
-- Attachments are stored outside `wwwroot` in `App_Data\attachments` and are only served through controller actions after authorization checks or share-link validation.
-- Share links are generated from cryptographically random tokens. The database stores a token hash for lookup and a protected token value so active links can be shown again in the UI.
-- All state-changing MVC form posts are protected by automatic anti-forgery validation.
+```bash
+# 1. Clone / navigate to the project directory
+cd path/to/securable
 
-## Feature coverage
+# 2. Restore NuGet packages
+dotnet restore
 
-The generated application includes the following PRD features:
+# 3. Create the database and apply migrations
+dotnet ef database update
 
-- User registration, login, logout, password reset, and profile management using ASP.NET Core Identity.
-- Note creation, editing, deletion, public/private visibility, search, and top-rated pages.
-- Multiple attachments per note with type and size validation.
-- Share-link generation, regeneration, revocation, and anonymous shared-note access.
-- Ratings with 1-5 stars plus optional comments, including owner/admin ratings views.
-- Admin dashboard with user search, counts, recent activity, and note ownership reassignment.
+# 4. Run the application
+dotnet run
+```
 
-## SSEM attribute coverage summary
+The app starts at `https://localhost:5001` (or `http://localhost:5000`).
 
-This implementation addresses nine core security attributes as follows:
+## Default Admin Credentials
 
-1. **Authentication**: ASP.NET Core Identity manages registration, sign-in, cookie sessions, password hashing, lockout, and password reset tokens.
-2. **Authorization**: Controller actions enforce `[Authorize]`, role checks, and ownership checks before edit, delete, sharing, and admin operations.
-3. **Confidentiality**: Private notes remain owner/admin-only, attachments are stored outside the web root, and share links use high-entropy tokens.
-4. **Integrity**: EF Core relationships, validation attributes, anti-forgery protection, and constrained file handling help prevent tampering.
-5. **Availability**: The app uses lightweight SQLite persistence, bounded file uploads, and predictable local storage paths to keep the service operational.
-6. **Accountability**: Authentication, note, sharing, and admin events are written to the `ActivityLogs` table for traceability.
-7. **Auditability**: The admin dashboard surfaces recent activity and user/note counts so privileged users can review important actions.
-8. **Privacy**: Search filters exclude private notes owned by other users, and logs intentionally avoid secrets such as passwords or reset tokens.
-9. **Resilience**: Secure defaults, input validation, lockout settings, and explicit revocation of share links reduce common misuse and abuse cases.
+The admin user is seeded automatically on first startup.
+
+**Set the admin password via environment variable (recommended):**
+
+```bash
+# Linux / macOS
+export ADMIN_PASSWORD="MyStr0ng!Pass"
+dotnet run
+
+# Windows PowerShell
+$env:ADMIN_PASSWORD = "MyStr0ng!Pass"
+dotnet run
+```
+
+If `ADMIN_PASSWORD` is not set, a random password is generated and printed to the console at startup (`[STARTUP] Generated admin password: ...`). This is intentionally visible only in the console — it is **not** written to structured log sinks.
+
+Default admin username: `admin` (configurable via `Identity:DefaultAdminUsername` in `appsettings.json`)
+
+## Project Structure
+
+```
+LooseNotes/
+├── Controllers/         # MVC controllers — auth, notes, admin, share, ratings, attachments
+├── Data/                # EF Core DbContext (IdentityDbContext<ApplicationUser>)
+├── Models/              # Domain models (Note, Attachment, Rating, ShareLink, ActivityLog)
+├── Services/
+│   ├── Interfaces/      # INoteService, IFileStorageService, IShareLinkService, IAuditService, IEmailService
+│   └── *.cs             # Implementations (all injected via DI)
+├── ViewModels/          # Per-feature view models (Account/, Notes/, Admin/)
+├── Views/               # Razor views organized by controller
+├── wwwroot/             # Static assets (CSS, JS)
+└── Uploads/             # File attachments (created at runtime, outside wwwroot)
+```
+
+## SSEM Attribute Coverage
+
+| Attribute | Implementation |
+|---|---|
+| **Analyzability** | Methods ≤30 LoC, helper methods extracted, cyclomatic complexity <10, trust-boundary comments |
+| **Modifiability** | All services behind interfaces, registered with DI, no static mutable state |
+| **Testability** | All public interfaces are `interface`-typed and injectable/mockable; no `new` in business logic |
+| **Confidentiality** | Passwords/tokens never logged; error views show friendly messages; files stored outside wwwroot; anti-email-enumeration in ForgotPassword |
+| **Accountability** | Structured audit log (`ActivityLog`) for: registration, login, logout, password reset, note CRUD, admin actions |
+| **Authenticity** | ASP.NET Core Identity with lockout; anti-forgery tokens on all POST forms; `[Authorize]` and `[Authorize(Roles="Admin")]`; share tokens are opaque GUIDs |
+| **Availability** | Rate limiting (100 req/min per IP); file size limits (10 MB); result set caps (search: 100, top-rated: 20); audit failures don't crash callers |
+| **Integrity** | Data Annotations validation at every trust boundary; EF Core parameterized queries; ownership verified before every mutation; allowed file extension whitelist |
+| **Resilience** | Specific exception handling (`IOException`, `DbUpdateException`, `ArgumentException`); `ArgumentNullException.ThrowIfNull` throughout; seed failures don't crash startup |
+
+## Security Notes
+
+- Files are stored in `Uploads/` (outside `wwwroot`) and served only through `AttachmentsController`, enforcing access control on every download
+- Share tokens use `Guid.NewGuid().ToString("N")` (32 opaque hex characters)
+- Cookie auth: `HttpOnly=true`, `Secure=Always`, `SameSite=Strict`, sliding 30-min expiration
+- Identity: min 8 chars, requires digit + uppercase + special char; 5-attempt lockout for 15 min
+- Admin password sourced from `ADMIN_PASSWORD` env var — never hardcoded in source or config

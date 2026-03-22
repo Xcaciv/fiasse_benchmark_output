@@ -1,47 +1,40 @@
-@model LooseNotes.Models.Note
+@model Note
 @{
     ViewData["Title"] = Model.Title;
     Layout = "_Layout";
 }
-
-<div class="alert alert-secondary mb-3">
-    <small>You are viewing this note via a share link. <a asp-controller="Account" asp-action="Login">Log in</a> to rate or leave a comment.</small>
-</div>
-
-<div class="d-flex justify-content-between align-items-start mb-3">
-    <div>
-        <h2>@Model.Title</h2>
-        <p class="text-muted small">
-            By @Model.Owner.UserName &bull;
-            @Model.CreatedAt.ToString("g") UTC
-            @if (Model.Ratings.Any())
-            {
-                <span>&bull; &#9733; @Model.Ratings.Average(r => r.Stars).ToString("0.1") (@Model.Ratings.Count ratings)</span>
-            }
-        </p>
-    </div>
+<div class="alert alert-info d-flex align-items-center mb-4" role="alert">
+    <span>You are viewing a shared note.</span>
+    @if (User.Identity?.IsAuthenticated != true)
+    {
+        <a asp-controller="Account" asp-action="Login" class="btn btn-sm btn-outline-primary ms-auto">Log In</a>
+    }
 </div>
 
 <div class="card mb-4">
+    <div class="card-header">
+        <h3 class="mb-0">@Model.Title</h3>
+    </div>
     <div class="card-body">
-        <pre style="white-space: pre-wrap; font-family: inherit;">@Model.Content</pre>
+        <p class="text-muted small">By @Model.Owner?.DisplayName &nbsp;|&nbsp;
+           @Model.CreatedAt.ToString("MMM d, yyyy")</p>
+        <div style="white-space: pre-wrap;">@Model.Content</div>
     </div>
 </div>
 
 @if (Model.Attachments.Any())
 {
-    <section>
-        <h4>Attachments</h4>
-        <ul class="list-group">
+    <div class="card">
+        <div class="card-header"><h5 class="mb-0">Attachments</h5></div>
+        <ul class="list-group list-group-flush">
             @foreach (var att in Model.Attachments)
             {
-                <li class="list-group-item d-flex justify-content-between align-items-center">
+                <li class="list-group-item">
                     <a asp-controller="Attachments" asp-action="Download" asp-route-id="@att.Id">
                         @att.OriginalFileName
                     </a>
-                    <span class="text-muted small">@(att.FileSizeBytes / 1024) KB</span>
                 </li>
             }
         </ul>
-    </section>
+    </div>
 }

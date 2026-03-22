@@ -2,9 +2,11 @@ using System.ComponentModel.DataAnnotations;
 
 namespace LooseNotes.ViewModels.Account;
 
-public sealed class ForgotPasswordViewModel
+public class ForgotPasswordViewModel
 {
     [Required]
     [EmailAddress]
+    [MaxLength(254)]
+    [Display(Name = "Email")]
     public string Email { get; set; } = string.Empty;
 }

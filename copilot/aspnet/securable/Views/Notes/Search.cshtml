@@ -1,58 +1,46 @@
-@model SearchViewModel
+@model NoteSearchResultViewModel
 @{
-    ViewData["Title"] = "Search notes";
+    ViewData["Title"] = "Search Notes";
 }
+<h2 class="mb-4">Search Notes</h2>
 
-<div class="card shadow-sm mb-4">
-    <div class="card-body p-4">
-        <h1 class="h3 mb-3">Search notes</h1>
-        <form method="get" class="row g-3 align-items-end">
-            <div class="col-md-10">
-                <label for="query" class="form-label">Keyword</label>
-                <input id="query" name="query" value="@Model.Query" class="form-control" placeholder="Search title or content" />
-            </div>
-            <div class="col-md-2 d-grid">
-                <button type="submit" class="btn btn-primary">Search</button>
-            </div>
-        </form>
+<form asp-action="Search" method="get" class="mb-4">
+    <div class="input-group">
+        <input type="search" name="q" value="@Model.Query" class="form-control"
+               placeholder="Search by title or content…" maxlength="200" />
+        <button type="submit" class="btn btn-primary">Search</button>
     </div>
-</div>
+</form>
 
 @if (!string.IsNullOrWhiteSpace(Model.Query))
 {
-    <p class="text-muted">@Model.Results.Count result(s) found for <strong>@Model.Query</strong>.</p>
-}
+    <p class="text-muted">Found @Model.TotalCount result(s) for "@Model.Query"</p>
 
-@if (Model.Results.Count == 0)
-{
-    <div class="card shadow-sm">
-        <div class="card-body p-4 text-center text-muted">No matching notes were found.</div>
-    </div>
-}
-else
-{
-    <div class="row g-3">
-        @foreach (var note in Model.Results)
-        {
-            <div class="col-md-6 col-xl-4">
-                <div class="card shadow-sm h-100">
-                    <div class="card-body d-flex flex-column">
-                        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
-                            <h2 class="h5 mb-0">@note.Title</h2>
-                            <span class="badge @(note.IsPublic ? "text-bg-success" : "text-bg-secondary")">@(note.IsPublic ? "Public" : "Private")</span>
-                        </div>
-                        <p class="text-muted small">By @note.OwnerUserName on @note.CreatedAtUtc.ToLocalTime().ToString("d")</p>
-                        <p class="flex-grow-1">@note.Excerpt</p>
-                        <div class="d-flex justify-content-between align-items-center mt-2">
-                            <div>
-                                <span class="badge text-bg-warning">@note.AverageRating.ToString("0.0")</span>
-                                <span class="badge text-bg-light">@note.RatingCount ratings</span>
-                            </div>
-                            <a asp-action="Details" asp-route-id="@note.Id" class="btn btn-outline-primary btn-sm">Open</a>
+    @if (Model.Results.Any())
+    {
+        <div class="row g-3">
+            @foreach (var note in Model.Results)
+            {
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <a asp-action="Details" asp-route-id="@note.Id" class="text-decoration-none">
+                                    @note.Title
+                                </a>
+                            </h5>
+                            <p class="card-text text-muted small">
+                                @(note.Content.Length > 120 ? note.Content[..120] + "…" : note.Content)
+                            </p>
+                            <small class="text-muted">By @(note.User?.UserName ?? "Unknown")</small>
                         </div>
                     </div>
                 </div>
-            </div>
-        }
-    </div>
+            }
+        </div>
+    }
+    else
+    {
+        <p>No notes found matching your search.</p>
+    }
 }

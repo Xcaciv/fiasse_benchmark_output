@@ -1,129 +1,130 @@
-<%@ include file="/WEB-INF/jsp/fragments/header.jspf" %>
-<section class="card">
-    <h1>Admin dashboard</h1>
-    <div class="grid two">
-        <div class="stat">
-            <div class="muted">Total users</div>
-            <div style="font-size:2rem; font-weight:700;">${stats.totalUsers}</div>
-        </div>
-        <div class="stat">
-            <div class="muted">Total notes</div>
-            <div style="font-size:2rem; font-weight:700;">${stats.totalNotes}</div>
+<%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<jsp:include page="/WEB-INF/jsp/layout/header.jsp">
+    <jsp:param name="pageTitle" value="Admin Dashboard"/>
+</jsp:include>
+
+<h1 class="h3 mb-4">⚙️ Admin Dashboard</h1>
+
+<!-- Overview cards -->
+<c:if test="${not empty userCount}">
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card text-bg-primary">
+            <div class="card-body">
+                <h5 class="card-title">Total Users</h5>
+                <p class="card-text fs-2">${userCount}</p>
+            </div>
         </div>
     </div>
-</section>
-
-<div class="grid two">
-    <section class="card">
-        <h2>User management</h2>
-        <form method="get" action="${pageContext.request.contextPath}/admin">
-            <label>
-                Search users
-                        <input type="search" name="userQuery" value="${fn:escapeXml(userQuery)}" placeholder="Username or email">
-            </label>
-                    <input type="hidden" name="noteQuery" value="${fn:escapeXml(noteQuery)}">
-            <button class="btn primary" type="submit">Search users</button>
-        </form>
-        <table>
-            <thead>
-            <tr>
-                <th>User</th>
-                <th>Role</th>
-                <th>Registered</th>
-                <th>Notes</th>
-            </tr>
-            </thead>
-            <tbody>
-            <c:forEach var="userRow" items="${users}">
-                <tr>
-                    <td>
-                        <strong><c:out value="${userRow.username}" /></strong><br>
-                        <span class="muted"><c:out value="${userRow.email}" /></span>
-                    </td>
-                    <td><c:out value="${userRow.role}" /></td>
-                    <td><c:out value="${userRow.createdAt}" /></td>
-                    <td>${userRow.noteCount}</td>
-                </tr>
-            </c:forEach>
-            </tbody>
-        </table>
-    </section>
-
-    <section class="card">
-        <h2>Recent activity</h2>
-        <c:choose>
-            <c:when test="${empty activityLogs}">
-                <div class="empty-state">No activity has been recorded yet.</div>
-            </c:when>
-            <c:otherwise>
-                <c:forEach var="entry" items="${activityLogs}">
-                    <article style="margin-bottom:0.9rem; border-bottom:1px solid var(--border); padding-bottom:0.9rem;">
-                        <div class="meta">
-                            <span><strong><c:out value="${entry.actorUsername}" /></strong></span>
-                            <span><c:out value="${entry.actionType}" /></span>
-                            <span><c:out value="${entry.createdAt}" /></span>
-                        </div>
-                        <div class="note-preview"><c:out value="${entry.details}" /></div>
-                    </article>
-                </c:forEach>
-            </c:otherwise>
-        </c:choose>
-    </section>
+    <div class="col-md-4">
+        <div class="card text-bg-success">
+            <div class="card-body">
+                <h5 class="card-title">Total Notes</h5>
+                <p class="card-text fs-2">${noteCount}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-bg-secondary">
+            <div class="card-body">
+                <h5 class="card-title">Recent Activity</h5>
+                <a href="#activity" class="btn btn-light btn-sm mt-1">View Log</a>
+            </div>
+        </div>
+    </div>
 </div>
+</c:if>
 
-<section class="card">
-    <h2>Note ownership reassignment</h2>
-    <form method="get" action="${pageContext.request.contextPath}/admin">
-        <label>
-            Search notes
-                    <input type="search" name="noteQuery" value="${fn:escapeXml(noteQuery)}" placeholder="Title, content, or owner">
-        </label>
-                <input type="hidden" name="userQuery" value="${fn:escapeXml(userQuery)}">
-        <button class="btn primary" type="submit">Search notes</button>
-    </form>
-    <c:choose>
-        <c:when test="${empty notes}">
-            <div class="empty-state">No notes matched your note search.</div>
-        </c:when>
-        <c:otherwise>
-            <table>
-                <thead>
-                <tr>
-                    <th>Note</th>
-                    <th>Current owner</th>
-                    <th>Visibility</th>
-                    <th>Transfer</th>
-                </tr>
-                </thead>
-                <tbody>
-                <c:forEach var="note" items="${notes}">
-                    <tr>
-                        <td>
-                            <a href="${pageContext.request.contextPath}/notes/view?id=${note.id}"><c:out value="${note.title}" /></a>
-                            <div class="note-preview"><c:out value="${note.excerpt}" /></div>
-                        </td>
-                        <td><c:out value="${note.ownerUsername}" /></td>
-                        <td><span class="badge ${note.publicNote ? 'public' : 'private'}">${note.publicNote ? 'Public' : 'Private'}</span></td>
-                        <td>
-                            <form method="post" action="${pageContext.request.contextPath}/admin/reassign">
-                                <input type="hidden" name="csrfToken" value="${csrfToken}">
-                                <input type="hidden" name="noteId" value="${note.id}">
-                                <label>
-                                    <select name="newOwnerId" required>
-                                        <option value="">Select user</option>
-                                        <c:forEach var="candidate" items="${assignableUsers}">
-                                            <option value="${candidate.id}" ${candidate.id == note.ownerId ? 'selected' : ''}><c:out value="${candidate.username}" /></option>
-                                        </c:forEach>
-                                    </select>
-                                </label>
-                                <button class="btn secondary" type="submit">Reassign</button>
-                            </form>
-                        </td>
-                    </tr>
-                </c:forEach>
-                </tbody>
-            </table>
-        </c:otherwise>
-    </c:choose>
-</section>
-<%@ include file="/WEB-INF/jsp/fragments/footer.jspf" %>
+<c:if test="${param.reassigned == '1'}">
+    <div class="alert alert-success">Note ownership reassigned.</div>
+</c:if>
+
+<!-- User Management -->
+<h4>Users</h4>
+<form method="get" action="${pageContext.request.contextPath}/admin/users" class="mb-3">
+    <div class="input-group w-50">
+        <input type="text" name="q" class="form-control" placeholder="Search by username or email"
+               value="<c:out value='${query}'/>">
+        <button class="btn btn-outline-secondary" type="submit">Search</button>
+    </div>
+</form>
+
+<c:if test="${not empty users}">
+<div class="table-responsive">
+    <table class="table table-sm table-hover">
+        <thead class="table-light">
+        <tr>
+            <th>ID</th><th>Username</th><th>Email</th><th>Role</th><th>Joined</th><th>Notes</th>
+        </tr>
+        </thead>
+        <tbody>
+        <c:forEach var="u" items="${users}">
+            <tr>
+                <td>${u.id}</td>
+                <td><c:out value="${u.username}"/></td>
+                <td><c:out value="${u.email}"/></td>
+                <td><span class="badge ${u.role == 'ADMIN' ? 'bg-danger' : 'bg-secondary'}">
+                    <c:out value="${u.role}"/>
+                </span></td>
+                <td>${u.createdAt}</td>
+                <td>—</td>
+            </tr>
+        </c:forEach>
+        </tbody>
+    </table>
+</div>
+</c:if>
+
+<!-- Note Reassignment -->
+<hr>
+<h4>Reassign Note Ownership</h4>
+<form method="post" action="${pageContext.request.contextPath}/admin/notes/reassign">
+    <input type="hidden" name="_csrf" value="${sessionScope.csrf_token}">
+    <div class="row g-2 align-items-end">
+        <div class="col-auto">
+            <label for="noteId" class="form-label">Note ID</label>
+            <input type="number" id="noteId" name="noteId" class="form-control" min="1" required>
+        </div>
+        <div class="col-auto">
+            <label for="newOwnerId" class="form-label">New Owner ID</label>
+            <input type="number" id="newOwnerId" name="newOwnerId" class="form-control" min="1" required>
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-warning"
+                    onclick="return confirm('Reassign note ownership?')">Reassign</button>
+        </div>
+    </div>
+</form>
+
+<!-- Activity Log -->
+<c:if test="${not empty recentActivity}">
+<hr id="activity">
+<h4>Recent Activity Log</h4>
+<div class="table-responsive">
+    <table class="table table-sm table-striped">
+        <thead class="table-dark">
+        <tr>
+            <th>Time</th><th>Actor</th><th>Action</th>
+            <th>Resource</th><th>IP</th><th>Outcome</th>
+        </tr>
+        </thead>
+        <tbody>
+        <c:forEach var="entry" items="${recentActivity}">
+            <tr>
+                <td class="small">${entry.createdAt}</td>
+                <td><c:out value="${entry.actorUsername}"/></td>
+                <td><c:out value="${entry.action}"/></td>
+                <td><c:out value="${entry.resourceType}"/>/<c:out value="${entry.resourceId}"/></td>
+                <td class="small"><c:out value="${entry.ipAddress}"/></td>
+                <td><span class="badge ${entry.outcome == 'SUCCESS' ? 'bg-success' : 'bg-danger'}">
+                    <c:out value="${entry.outcome}"/>
+                </span></td>
+            </tr>
+        </c:forEach>
+        </tbody>
+    </table>
+</div>
+</c:if>
+
+<jsp:include page="/WEB-INF/jsp/layout/footer.jsp"/>

@@ -1,12 +1,8 @@
 @{
     ViewData["Title"] = "Error";
 }
-<div class="text-center mt-5">
+<div class="text-center">
     <h1 class="display-4">Oops!</h1>
-    <p>An unexpected error occurred. Please try again.</p>
-    @if (ViewData["RequestId"] != null)
-    {
-        <p class="text-muted small">Request ID: @ViewData["RequestId"]</p>
-    }
+    <p>An unexpected error has occurred.</p>
     <a asp-controller="Home" asp-action="Index" class="btn btn-primary">Go Home</a>
 </div>

@@ -1,7 +1,7 @@
 using LooseNotes.Data;
 using LooseNotes.Models;
 using LooseNotes.Services;
-using LooseNotes.ViewModels.Ratings;
+using LooseNotes.ViewModels.Notes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -10,74 +10,78 @@ using Microsoft.EntityFrameworkCore;
 namespace LooseNotes.Controllers;
 
 /// <summary>
-/// Handles note ratings.
-/// SSEM: One rating per user per note enforced at DB level (unique index) and application level.
+/// Handles note ratings: submit and edit.
+/// One rating per user per note enforced at DB (unique constraint) and service level.
+/// RaterId set server-side — never client-supplied (Derived Integrity).
 /// </summary>
 [Authorize]
 public class RatingsController : Controller
 {
     private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
-    private readonly IAuditService _audit;
+    private readonly IAuditService _auditService;
 
-    public RatingsController(ApplicationDbContext db, UserManager<ApplicationUser> userManager,
-        IAuditService audit)
+    public RatingsController(
+        ApplicationDbContext db,
+        UserManager<ApplicationUser> userManager,
+        IAuditService auditService)
     {
         _db = db;
         _userManager = userManager;
-        _audit = audit;
+        _auditService = auditService;
     }
 
-    [HttpPost]
-    public async Task<IActionResult> Rate(RateNoteViewModel model)
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Submit(RatingInputViewModel model)
     {
         if (!ModelState.IsValid)
-        {
-            TempData["Error"] = "Invalid rating. Stars must be between 1 and 5.";
             return RedirectToAction("Details", "Notes", new { id = model.NoteId });
-        }
-
-        // Verify note exists and is visible to this user
-        var note = await _db.Notes.FindAsync(model.NoteId);
-        if (note is null) return NotFound();
 
         var userId = _userManager.GetUserId(User)!;
+        var note = await _db.Notes.FindAsync(model.NoteId);
 
-        // Owners cannot rate their own notes
+        if (note is null) return NotFound();
+        // Owners cannot rate their own notes (Integrity)
         if (note.OwnerId == userId)
         {
             TempData["Error"] = "You cannot rate your own note.";
             return RedirectToAction("Details", "Notes", new { id = model.NoteId });
         }
 
+        // Check for existing rating (upsert logic)
         var existing = await _db.Ratings
             .FirstOrDefaultAsync(r => r.NoteId == model.NoteId && r.RaterId == userId);
 
-        if (existing is null)
+        if (existing is not null)
         {
-            _db.Ratings.Add(new Rating
-            {
-                NoteId = model.NoteId,
-                RaterId = userId,
-                Stars = model.Stars,
-                Comment = model.Comment,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            });
-            await _audit.LogAsync("RatingCreated", true, $"NoteId={model.NoteId} Stars={model.Stars}",
-                userId, User.Identity?.Name);
+            // Update existing rating — value validated by model annotations
+            existing.Value = model.Value;
+            existing.Comment = model.Comment;
+            existing.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+
+            await _auditService.RecordAsync("RatingUpdated", userId: userId,
+                resourceType: "Rating", resourceId: existing.Id.ToString());
         }
         else
         {
-            existing.Stars = model.Stars;
-            existing.Comment = model.Comment;
-            existing.UpdatedAt = DateTime.UtcNow;
-            await _audit.LogAsync("RatingUpdated", true, $"NoteId={model.NoteId} Stars={model.Stars}",
-                userId, User.Identity?.Name);
+            var rating = new Rating
+            {
+                NoteId = model.NoteId,
+                // RaterId set from server identity — never from form (Derived Integrity)
+                RaterId = userId,
+                Value = model.Value,
+                Comment = model.Comment,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            _db.Ratings.Add(rating);
+            await _db.SaveChangesAsync();
+
+            await _auditService.RecordAsync("RatingSubmitted", userId: userId,
+                resourceType: "Rating", resourceId: rating.Id.ToString());
         }
 
-        await _db.SaveChangesAsync();
-        TempData["Success"] = "Rating saved.";
         return RedirectToAction("Details", "Notes", new { id = model.NoteId });
     }
 }

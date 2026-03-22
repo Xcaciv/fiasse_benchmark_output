@@ -2,5 +2,5 @@ namespace LooseNotes.Services;
 
 public interface IEmailService
 {
-    Task SendPasswordResetEmailAsync(string toEmail, string resetLink);
+    Task SendPasswordResetEmailAsync(string email, string resetLink);
 }

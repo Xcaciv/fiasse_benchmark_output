@@ -1,8 +1,10 @@
 @{
     ViewData["Title"] = "Access Denied";
 }
-<div class="text-center">
-    <h2>Access Denied</h2>
-    <p>You don't have permission to view this page.</p>
-    <a asp-controller="Home" asp-action="Index" class="btn btn-primary">Go Home</a>
+<div class="row justify-content-center">
+    <div class="col-md-6 text-center py-5">
+        <h2>Access Denied</h2>
+        <p>You do not have permission to access this resource.</p>
+        <a asp-controller="Notes" asp-action="Index" class="btn btn-primary">Go to My Notes</a>
+    </div>
 </div>

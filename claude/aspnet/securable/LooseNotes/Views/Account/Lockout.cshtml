@@ -1,8 +1,10 @@
 @{
     ViewData["Title"] = "Account Locked";
 }
-<div class="text-center">
-    <h2>Account Temporarily Locked</h2>
-    <p>Your account has been locked due to multiple failed login attempts. Please try again later.</p>
-    <a asp-action="Login" class="btn btn-primary">Back to Login</a>
+<div class="row justify-content-center">
+    <div class="col-md-6 text-center py-5">
+        <h2>Account Temporarily Locked</h2>
+        <p>Your account has been locked due to multiple failed login attempts. Please try again later.</p>
+        <a asp-action="ForgotPassword" class="btn btn-outline-primary">Reset Password</a>
+    </div>
 </div>

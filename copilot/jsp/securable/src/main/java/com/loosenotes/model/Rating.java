@@ -1,32 +1,39 @@
 package com.loosenotes.model;
 
-public class Rating {
+import java.time.LocalDateTime;
+
+/** Immutable domain model for a note rating. */
+public final class Rating {
+
     private final long id;
     private final long noteId;
     private final long userId;
-    private final String username;
-    private final int ratingValue;
+    private final int stars;
     private final String comment;
-    private final String createdAt;
-    private final String updatedAt;
+    private final LocalDateTime createdAt;
+    private final LocalDateTime updatedAt;
+    /** Populated via JOIN */
+    private final String raterUsername;
 
-    public Rating(long id, long noteId, long userId, String username, int ratingValue, String comment, String createdAt, String updatedAt) {
-        this.id = id;
-        this.noteId = noteId;
-        this.userId = userId;
-        this.username = username;
-        this.ratingValue = ratingValue;
-        this.comment = comment;
-        this.createdAt = createdAt;
-        this.updatedAt = updatedAt;
+    public Rating(long id, long noteId, long userId, int stars,
+                  String comment, LocalDateTime createdAt,
+                  LocalDateTime updatedAt, String raterUsername) {
+        this.id             = id;
+        this.noteId         = noteId;
+        this.userId         = userId;
+        this.stars          = stars;
+        this.comment        = comment;
+        this.createdAt      = createdAt;
+        this.updatedAt      = updatedAt;
+        this.raterUsername  = raterUsername;
     }
 
-    public long getId() { return id; }
-    public long getNoteId() { return noteId; }
-    public long getUserId() { return userId; }
-    public String getUsername() { return username; }
-    public int getRatingValue() { return ratingValue; }
-    public String getComment() { return comment; }
-    public String getCreatedAt() { return createdAt; }
-    public String getUpdatedAt() { return updatedAt; }
+    public long getId()                  { return id; }
+    public long getNoteId()              { return noteId; }
+    public long getUserId()              { return userId; }
+    public int getStars()                { return stars; }
+    public String getComment()           { return comment; }
+    public LocalDateTime getCreatedAt()  { return createdAt; }
+    public LocalDateTime getUpdatedAt()  { return updatedAt; }
+    public String getRaterUsername()     { return raterUsername; }
 }

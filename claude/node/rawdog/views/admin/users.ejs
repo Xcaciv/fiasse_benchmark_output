@@ -1,0 +1,72 @@
+<%- include('../partials/header', { title: title }) %>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1 class="h3 mb-0"><i class="bi bi-people me-2"></i>Manage Users</h1>
+  <a href="/admin/dashboard" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left me-1"></i>Dashboard
+  </a>
+</div>
+
+<form action="/admin/users" method="GET" class="mb-4">
+  <div class="input-group">
+    <input type="text" class="form-control" name="search" value="<%= search %>"
+      placeholder="Search by username or email...">
+    <button type="submit" class="btn btn-outline-primary">
+      <i class="bi bi-search me-1"></i>Search
+    </button>
+    <% if (search) { %>
+      <a href="/admin/users" class="btn btn-outline-secondary">Clear</a>
+    <% } %>
+  </div>
+</form>
+
+<% if (search) { %>
+  <p class="text-muted mb-3"><%= users.length %> user(s) found for "<strong><%= search %></strong>"</p>
+<% } %>
+
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Username</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Notes</th>
+          <th>Registered</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (users.length === 0) { %>
+          <tr><td colspan="6" class="text-center text-muted py-4">No users found.</td></tr>
+        <% } %>
+        <% users.forEach(u => { %>
+          <tr>
+            <td>
+              <strong><%= u.username %></strong>
+              <% if (u.id === user.id) { %>
+                <span class="badge bg-secondary ms-1">You</span>
+              <% } %>
+            </td>
+            <td><%= u.email %></td>
+            <td>
+              <span class="badge <%= u.role === 'admin' ? 'bg-danger' : 'bg-secondary' %>">
+                <%= u.role %>
+              </span>
+            </td>
+            <td><%= u.note_count %></td>
+            <td class="text-muted small"><%= new Date(u.created_at).toLocaleDateString() %></td>
+            <td>
+              <a href="/admin/users/<%= u.id %>/reassign" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-arrow-left-right me-1"></i>Reassign Notes
+              </a>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

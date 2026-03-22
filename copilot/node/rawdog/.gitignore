@@ -1,0 +1,11 @@
+node_modules/
+data/*.sqlite
+data/*.sqlite-shm
+data/*.sqlite-wal
+data/outbox/*.json
+uploads/*
+!uploads/.gitkeep
+!data/.gitkeep
+!data/outbox/.gitkeep
+npm-debug.log*
+.env

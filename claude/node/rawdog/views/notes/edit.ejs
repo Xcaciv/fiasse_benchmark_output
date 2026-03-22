@@ -1,0 +1,85 @@
+<%- include('../partials/header', { title: title }) %>
+
+<div class="row justify-content-center">
+  <div class="col-lg-9">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h1 class="h3 mb-0"><i class="bi bi-pencil me-2"></i>Edit Note</h1>
+      <a href="/notes/<%= note.id %>" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-eye me-1"></i>View Note
+      </a>
+    </div>
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-4">
+        <form action="/notes/<%= note.id %>/edit" method="POST" enctype="multipart/form-data">
+          <div class="mb-3">
+            <label for="title" class="form-label fw-semibold">Title <span class="text-danger">*</span></label>
+            <input type="text" class="form-control form-control-lg" id="title" name="title"
+              value="<%= note.title %>" required maxlength="255">
+          </div>
+          <div class="mb-3">
+            <label for="content" class="form-label fw-semibold">Content <span class="text-danger">*</span></label>
+            <textarea class="form-control" id="content" name="content" rows="12" required><%= note.content %></textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Visibility</label>
+            <div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="visibility" id="visPrivate" value="private"
+                  <%= note.visibility === 'private' ? 'checked' : '' %>>
+                <label class="form-check-label" for="visPrivate">
+                  <i class="bi bi-lock me-1"></i>Private
+                </label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="visibility" id="visPublic" value="public"
+                  <%= note.visibility === 'public' ? 'checked' : '' %>>
+                <label class="form-check-label" for="visPublic">
+                  <i class="bi bi-globe me-1"></i>Public
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <% if (attachments.length > 0) { %>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Current Attachments</label>
+              <ul class="list-group list-group-flush">
+                <% attachments.forEach(att => { %>
+                  <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                    <span>
+                      <i class="bi bi-paperclip me-2 text-muted"></i>
+                      <a href="/uploads/<%= att.stored_filename %>" target="_blank"><%= att.original_filename %></a>
+                      <span class="text-muted small ms-2">(<%= (att.file_size / 1024).toFixed(1) %> KB)</span>
+                    </span>
+                    <form action="/notes/<%= note.id %>/attachments/<%= att.id %>/delete" method="POST" class="d-inline">
+                      <button type="submit" class="btn btn-sm btn-outline-danger"
+                        onclick="return confirm('Delete this attachment?')">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </form>
+                  </li>
+                <% }) %>
+              </ul>
+            </div>
+          <% } %>
+
+          <div class="mb-4">
+            <label for="attachments" class="form-label fw-semibold">Add Attachments</label>
+            <input type="file" class="form-control" id="attachments" name="attachments" multiple
+              accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg">
+            <div class="form-text">Allowed: PDF, DOC, DOCX, TXT, PNG, JPG, JPEG. Max 10 MB per file.</div>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check2 me-1"></i>Save Changes
+            </button>
+            <a href="/notes/<%= note.id %>" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

@@ -1,0 +1,56 @@
+@model ProfileViewModel
+@{
+    ViewData["Title"] = "Profile";
+    var changePasswordModel = ViewBag.ChangePassword as ChangePasswordViewModel ?? new ChangePasswordViewModel();
+}
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-body p-4">
+                <h1 class="h3 mb-3">Profile details</h1>
+                <p class="text-muted">Registered on @Model.RegisteredAtUtc.ToLocalTime().ToString("f")</p>
+                <form asp-action="Update" method="post">
+                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+                    <div class="mb-3">
+                        <label asp-for="UserName" class="form-label"></label>
+                        <input asp-for="UserName" class="form-control" autocomplete="username" />
+                        <span asp-validation-for="UserName" class="text-danger"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="Email" class="form-label"></label>
+                        <input asp-for="Email" class="form-control" autocomplete="email" />
+                        <span asp-validation-for="Email" class="text-danger"></span>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save profile</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-body p-4">
+                <h2 class="h3 mb-3">Change password</h2>
+                <form asp-action="ChangePassword" method="post">
+                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+                    <div class="mb-3">
+                        <label asp-for="@changePasswordModel.CurrentPassword" class="form-label">Current password</label>
+                        <input asp-for="@changePasswordModel.CurrentPassword" class="form-control" autocomplete="current-password" />
+                        <span asp-validation-for="@changePasswordModel.CurrentPassword" class="text-danger"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="@changePasswordModel.NewPassword" class="form-label">New password</label>
+                        <input asp-for="@changePasswordModel.NewPassword" class="form-control" autocomplete="new-password" />
+                        <span asp-validation-for="@changePasswordModel.NewPassword" class="text-danger"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="@changePasswordModel.ConfirmPassword" class="form-label">Confirm new password</label>
+                        <input asp-for="@changePasswordModel.ConfirmPassword" class="form-control" autocomplete="new-password" />
+                        <span asp-validation-for="@changePasswordModel.ConfirmPassword" class="text-danger"></span>
+                    </div>
+                    <button type="submit" class="btn btn-outline-primary">Update password</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

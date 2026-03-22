@@ -1,0 +1,162 @@
+@model AdminDashboardViewModel
+@{
+    ViewData["Title"] = "Admin Dashboard";
+}
+
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+    <div>
+        <h1 class="h2 mb-1">Admin dashboard</h1>
+        <p class="text-muted mb-0">Review platform activity, inspect users, and reassign note ownership.</p>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6 col-xl-3">
+        <div class="stat-card">
+            <div class="stat-value">@Model.TotalUsers</div>
+            <div class="stat-label">Total users</div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="stat-card">
+            <div class="stat-value">@Model.TotalNotes</div>
+            <div class="stat-label">Total notes</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-xl-6">
+        <section class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
+                    <h2 class="h5 mb-0">Users</h2>
+                    <form asp-action="Dashboard" method="get" class="d-flex gap-2">
+                        <input type="search" name="q" value="@Model.SearchTerm" class="form-control" placeholder="Search username or email" />
+                        <button type="submit" class="btn btn-outline-primary">Search</button>
+                    </form>
+                </div>
+
+                @if (Model.Users.Count == 0)
+                {
+                    <p class="text-muted mb-0">No users matched the current filter.</p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Email</th>
+                                    <th>Registered</th>
+                                    <th class="text-end">Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var user in Model.Users)
+                                {
+                                    <tr>
+                                        <td>@user.UserName</td>
+                                        <td>@user.Email</td>
+                                        <td>@user.RegisteredAtUtc.ToLocalTime().ToString("g")</td>
+                                        <td class="text-end">@user.NoteCount</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </section>
+    </div>
+
+    <div class="col-xl-6">
+        <section class="card shadow-sm h-100">
+            <div class="card-body">
+                <h2 class="h5 mb-3">Recent activity</h2>
+                @if (Model.RecentActivity.Count == 0)
+                {
+                    <p class="text-muted mb-0">No activity has been logged yet.</p>
+                }
+                else
+                {
+                    <div class="vstack gap-3">
+                        @foreach (var item in Model.RecentActivity)
+                        {
+                            <div class="border rounded p-3">
+                                <div class="d-flex justify-content-between align-items-start gap-3">
+                                    <div>
+                                        <div class="fw-semibold">@item.ActionType</div>
+                                        <div>@item.Message</div>
+                                        <div class="text-muted small">Actor: @item.UserName</div>
+                                    </div>
+                                    <div class="text-muted small">@item.CreatedAtUtc.ToLocalTime().ToString("g")</div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </section>
+    </div>
+</div>
+
+<section class="card shadow-sm mt-4">
+    <div class="card-body">
+        <h2 class="h5 mb-3">Reassign note ownership</h2>
+        @if (Model.RecentNotes.Count == 0)
+        {
+            <p class="text-muted mb-0">No notes are available.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Note</th>
+                            <th>Owner</th>
+                            <th>Visibility</th>
+                            <th>Updated</th>
+                            <th>Reassign</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var note in Model.RecentNotes)
+                        {
+                            <tr>
+                                <td>
+                                    <a asp-controller="Notes" asp-action="Details" asp-route-id="@note.Id" class="text-decoration-none">@note.Title</a>
+                                </td>
+                                <td>@note.OwnerUserName</td>
+                                <td>@(note.IsPublic ? "Public" : "Private")</td>
+                                <td>@note.UpdatedOrCreatedAtUtc.ToLocalTime().ToString("g")</td>
+                                <td>
+                                    <form asp-action="ReassignNote" method="post" class="d-flex gap-2">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="noteId" value="@note.Id" />
+                                        <select name="newOwnerId" class="form-select form-select-sm">
+                                            @foreach (var user in Model.UserOptions)
+                                            {
+                                                if (user.Id == note.OwnerId)
+                                                {
+                                                    <option value="@user.Id" selected>@user.UserName</option>
+                                                }
+                                                else
+                                                {
+                                                    <option value="@user.Id">@user.UserName</option>
+                                                }
+                                            }
+                                        </select>
+                                        <button type="submit" class="btn btn-sm btn-primary">Save</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</section>

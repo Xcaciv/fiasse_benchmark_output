@@ -1,0 +1,53 @@
+@model EditProfileViewModel
+@{
+    ViewData["Title"] = "Edit Profile";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <h2><i class="bi bi-person-gear"></i> Edit Profile</h2>
+        <div class="card shadow-sm mt-3">
+            <div class="card-body p-4">
+                <form asp-action="Edit" method="post">
+                    @Html.AntiForgeryToken()
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+                    <h6 class="text-muted fw-semibold mb-3">Account Information</h6>
+                    <div class="mb-3">
+                        <label asp-for="UserName" class="form-label"></label>
+                        <input asp-for="UserName" class="form-control" />
+                        <span asp-validation-for="UserName" class="text-danger small"></span>
+                    </div>
+                    <div class="mb-4">
+                        <label asp-for="Email" class="form-label"></label>
+                        <input asp-for="Email" class="form-control" type="email" />
+                        <span asp-validation-for="Email" class="text-danger small"></span>
+                    </div>
+
+                    <h6 class="text-muted fw-semibold mb-3">Change Password <small class="text-muted fw-normal">(leave blank to keep current)</small></h6>
+                    <div class="mb-3">
+                        <label asp-for="CurrentPassword" class="form-label"></label>
+                        <input asp-for="CurrentPassword" class="form-control" type="password" />
+                        <span asp-validation-for="CurrentPassword" class="text-danger small"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="NewPassword" class="form-label"></label>
+                        <input asp-for="NewPassword" class="form-control" type="password" />
+                        <span asp-validation-for="NewPassword" class="text-danger small"></span>
+                    </div>
+                    <div class="mb-4">
+                        <label asp-for="ConfirmNewPassword" class="form-label"></label>
+                        <input asp-for="ConfirmNewPassword" class="form-control" type="password" />
+                        <span asp-validation-for="ConfirmNewPassword" class="text-danger small"></span>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Save Changes
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts { @await Html.PartialAsync("_ValidationScripts") }

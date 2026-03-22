@@ -1,0 +1,106 @@
+<%- include('../partials/head', {title}) %>
+<%- include('../partials/nav') %>
+<div class="container mt-4">
+  <%- include('../partials/flash') %>
+  <h1 class="h3 mb-4">Users</h1>
+
+  <form method="GET" action="/admin/users" class="mb-3">
+    <div class="input-group" style="max-width:400px">
+      <input type="text" class="form-control" name="q"
+             value="<%= q %>" placeholder="Search by username or email…">
+      <button class="btn btn-outline-primary" type="submit">Search</button>
+      <% if (q) { %>
+        <a href="/admin/users" class="btn btn-outline-secondary">Clear</a>
+      <% } %>
+    </div>
+  </form>
+
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Username</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Notes</th>
+          <th>Joined</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% users.forEach(user => { %>
+          <tr>
+            <td class="text-muted small"><%= user.id %></td>
+            <td><strong><%= user.username %></strong></td>
+            <td class="small"><%= user.email %></td>
+            <td>
+              <span class="badge bg-<%= user.role === 'admin' ? 'danger' : 'secondary' %>">
+                <%= user.role %>
+              </span>
+            </td>
+            <td><%= user.note_count %></td>
+            <td class="small text-muted"><%= new Date(user.created_at).toLocaleDateString() %></td>
+            <td>
+              <!-- Reassign notes trigger via modal -->
+              <button class="btn btn-sm btn-outline-warning"
+                      data-bs-toggle="modal"
+                      data-bs-target="#reassignModal"
+                      data-user-id="<%= user.id %>"
+                      data-username="<%= user.username %>">
+                Reassign Notes
+              </button>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Reassign Note Modal -->
+<div class="modal fade" id="reassignModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Reassign Note</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" id="reassignForm">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="modal-body">
+          <p>Reassign a note from user <strong id="reassignUsername"></strong> to another user.</p>
+          <div class="mb-3">
+            <label class="form-label">Note ID</label>
+            <input type="number" class="form-control" name="note_id_display" id="noteIdInput"
+                   placeholder="Note ID" min="1">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">New Owner User ID</label>
+            <input type="number" class="form-control" name="new_user_id"
+                   placeholder="Target user ID" min="1" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-warning">Reassign</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+document.getElementById('reassignModal').addEventListener('show.bs.modal', function (event) {
+  const btn = event.relatedTarget;
+  document.getElementById('reassignUsername').textContent = btn.dataset.username;
+});
+
+document.getElementById('reassignForm').addEventListener('submit', function (e) {
+  const noteId = document.getElementById('noteIdInput').value;
+  if (!noteId) { e.preventDefault(); alert('Please enter a Note ID.'); return; }
+  this.action = '/admin/notes/' + noteId + '/reassign';
+});
+</script>
+
+<%- include('../partials/footer') %>

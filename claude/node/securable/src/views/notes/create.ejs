@@ -1,0 +1,38 @@
+<%- include('../partials/head', {title}) %>
+<%- include('../partials/nav') %>
+<div class="container mt-4">
+  <div class="row justify-content-center">
+    <div class="col-md-8">
+      <h1 class="h3 mb-4">New Note</h1>
+      <%- include('../partials/errors') %>
+      <form method="POST" action="/notes/create" enctype="multipart/form-data" novalidate>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="mb-3">
+          <label for="title" class="form-label fw-semibold">Title <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="title" name="title"
+                 value="<%= old.title || '' %>" required maxlength="255">
+        </div>
+        <div class="mb-3">
+          <label for="content" class="form-label fw-semibold">Content <span class="text-danger">*</span></label>
+          <textarea class="form-control" id="content" name="content" rows="10" required><%= old.content || '' %></textarea>
+        </div>
+        <div class="mb-3 form-check">
+          <input type="checkbox" class="form-check-input" id="is_public" name="is_public"
+                 <%= old.is_public ? 'checked' : '' %>>
+          <label class="form-check-label" for="is_public">Make this note public</label>
+        </div>
+        <div class="mb-4">
+          <label class="form-label fw-semibold">Attachments</label>
+          <input type="file" class="form-control" name="attachments" multiple
+                 accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg">
+          <div class="form-text">Supported: PDF, DOC, DOCX, TXT, PNG, JPG, JPEG. Max 10 MB each, up to 5 files.</div>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary">Create Note</button>
+          <a href="/notes" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<%- include('../partials/footer') %>

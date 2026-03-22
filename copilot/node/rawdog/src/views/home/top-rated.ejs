@@ -1,0 +1,39 @@
+<section class="mb-4">
+  <h1 class="h2 mb-2">Top Rated Notes</h1>
+  <p class="text-muted mb-0">
+    Public notes with at least three ratings are ranked by average score.
+  </p>
+</section>
+
+<% if (notes.length === 0) { %>
+  <div class="alert alert-secondary">
+    No public notes have met the minimum rating threshold yet.
+  </div>
+<% } else { %>
+  <div class="row g-3">
+    <% notes.forEach(function(note, index) { %>
+      <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
+              <div>
+                <div class="text-muted small">#<%= index + 1 %></div>
+                <h2 class="h4 mb-1">
+                  <a class="text-decoration-none" href="/notes/<%= note.id %>"><%= note.title %></a>
+                </h2>
+                <p class="text-muted small mb-0">
+                  By <%= note.author_username %> · <%= helpers.formatDate(note.created_at) %>
+                </p>
+              </div>
+              <span class="badge text-bg-warning">
+                <%= note.average_rating %> / 5
+              </span>
+            </div>
+            <p class="mb-3"><%= helpers.excerpt(note.content, 220) %></p>
+            <div class="small text-muted"><%= note.rating_count %> rating(s)</div>
+          </div>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+<% } %>

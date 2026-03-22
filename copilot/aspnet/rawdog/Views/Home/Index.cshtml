@@ -1,0 +1,123 @@
+@model HomeIndexViewModel
+@{
+    ViewData["Title"] = "Home";
+}
+
+<div class="hero-card mb-4">
+    <div class="row align-items-center g-4">
+        <div class="col-lg-7">
+            <span class="badge bg-light text-primary mb-3">ASP.NET Core MVC + Identity + EF Core</span>
+            <h1 class="display-6 fw-bold mb-3">Capture, share, and rate notes in one place.</h1>
+            <p class="lead text-muted mb-4">
+                Loose Notes gives every user private note storage, public note discovery, file attachments, one-click share links, and community ratings.
+            </p>
+            <form asp-action="Search" method="get" class="row g-2">
+                <div class="col-md-9">
+                    <input class="form-control form-control-lg" type="search" name="q" placeholder="Search note titles or content" />
+                </div>
+                <div class="col-md-3 d-grid">
+                    <button class="btn btn-primary btn-lg" type="submit">Search notes</button>
+                </div>
+            </form>
+        </div>
+        <div class="col-lg-5">
+            <div class="row g-3">
+                <div class="col-4">
+                    <div class="stat-card">
+                        <div class="stat-value">@Model.UserCount</div>
+                        <div class="stat-label">Users</div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="stat-card">
+                        <div class="stat-value">@Model.PublicNoteCount</div>
+                        <div class="stat-label">Public notes</div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="stat-card">
+                        <div class="stat-value">@Model.RatingCount</div>
+                        <div class="stat-label">Ratings</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <section class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="h4 mb-0">Latest public notes</h2>
+                    <a asp-action="Search" class="btn btn-sm btn-outline-primary">Open search</a>
+                </div>
+
+                @if (Model.LatestPublicNotes.Count == 0)
+                {
+                    <p class="text-muted mb-0">No public notes have been published yet.</p>
+                }
+                else
+                {
+                    <div class="vstack gap-3">
+                        @foreach (var note in Model.LatestPublicNotes)
+                        {
+                            <article class="border rounded p-3">
+                                <div class="d-flex justify-content-between align-items-start gap-3">
+                                    <div>
+                                        <h3 class="h5 mb-1">
+                                            <a asp-controller="Notes" asp-action="Details" asp-route-id="@note.Id" class="text-decoration-none">@note.Title</a>
+                                        </h3>
+                                        <p class="text-muted small mb-2">By @note.Author on @note.CreatedAtUtc.ToLocalTime().ToString("g")</p>
+                                    </div>
+                                    <span class="badge bg-success-subtle text-success">Public</span>
+                                </div>
+                                <p class="mb-0 note-preview">@note.Excerpt</p>
+                            </article>
+                        }
+                    </div>
+                }
+            </div>
+        </section>
+    </div>
+
+    <div class="col-lg-6">
+        <section class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="h4 mb-0">Top rated highlights</h2>
+                    <a asp-action="TopRated" class="btn btn-sm btn-outline-primary">View leaderboard</a>
+                </div>
+
+                @if (Model.TopRatedNotes.Count == 0)
+                {
+                    <p class="text-muted mb-0">Notes appear here once they receive at least 3 ratings.</p>
+                }
+                else
+                {
+                    <div class="vstack gap-3">
+                        @foreach (var note in Model.TopRatedNotes)
+                        {
+                            <article class="border rounded p-3">
+                                <div class="d-flex justify-content-between align-items-start gap-3">
+                                    <div>
+                                        <h3 class="h5 mb-1">
+                                            <a asp-controller="Notes" asp-action="Details" asp-route-id="@note.Id" class="text-decoration-none">@note.Title</a>
+                                        </h3>
+                                        <p class="text-muted small mb-2">By @note.Author</p>
+                                    </div>
+                                    <div class="text-end">
+                                        <div class="fw-semibold">@note.AverageRating.ToString("0.0") / 5</div>
+                                        <div class="text-muted small">@note.RatingCount ratings</div>
+                                    </div>
+                                </div>
+                                <p class="mb-0 note-preview">@note.Preview</p>
+                            </article>
+                        }
+                    </div>
+                }
+            </div>
+        </section>
+    </div>
+</div>

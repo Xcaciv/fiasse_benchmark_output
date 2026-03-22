@@ -1,0 +1,183 @@
+<section class="row g-4">
+  <div class="col-lg-8">
+    <div class="card shadow-sm mb-4">
+      <div class="card-body p-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+          <div>
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <span class="badge text-bg-<%= note.is_public ? 'success' : 'secondary' %>">
+                <%= note.is_public ? 'Public' : 'Private' %>
+              </span>
+              <% if (shareToken) { %>
+                <span class="badge text-bg-info">Shared link view</span>
+              <% } %>
+            </div>
+            <h1 class="h2 mb-1"><%= note.title %></h1>
+            <p class="text-muted mb-0">
+              By <%= note.author_username %> · Created <%= helpers.formatDate(note.created_at) %> · Updated <%= helpers.formatDate(note.updated_at) %>
+            </p>
+          </div>
+
+          <% if (currentUser && (currentUser.id === note.user_id || currentUser.role === 'Admin')) { %>
+            <div class="d-flex gap-2">
+              <a class="btn btn-outline-primary btn-sm" href="/notes/<%= note.id %>/edit">Edit</a>
+              <form method="post" action="/notes/<%= note.id %>/delete" onsubmit="return confirm('Delete this note, its attachments, ratings, and share links?');">
+                <input type="hidden" name="csrfToken" value="<%= csrfToken %>" />
+                <button class="btn btn-outline-danger btn-sm" type="submit">Delete</button>
+              </form>
+            </div>
+          <% } %>
+        </div>
+
+        <div class="note-content"><%= note.content %></div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+      <div class="card-body p-4">
+        <h2 class="h4 mb-3">Attachments</h2>
+        <% if (attachments.length === 0) { %>
+          <p class="text-muted mb-0">No attachments uploaded.</p>
+        <% } else { %>
+          <ul class="list-group">
+            <% attachments.forEach(function(attachment) { %>
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                  <div class="fw-semibold"><%= attachment.original_filename %></div>
+                  <div class="small text-muted"><%= attachment.mime_type || 'Unknown type' %> · <%= Math.round(attachment.size_bytes / 1024) %> KB</div>
+                </div>
+                <a
+                  class="btn btn-outline-secondary btn-sm"
+                  href="/attachments/<%= attachment.id %>/download<%= shareToken ? '?shareToken=' + encodeURIComponent(shareToken) : '' %>"
+                >
+                  Download
+                </a>
+              </li>
+            <% }) %>
+          </ul>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="h4 mb-0">Ratings</h2>
+          <div class="text-muted">
+            Average: <strong><%= ratingSummary.average_rating || 'N/A' %></strong> · <%= ratingSummary.rating_count %> rating(s)
+          </div>
+        </div>
+
+        <% if (currentUser) { %>
+          <form
+            class="mb-4"
+            method="post"
+            action="/notes/<%= note.id %>/rating<%= shareToken ? '?shareToken=' + encodeURIComponent(shareToken) : '' %>"
+          >
+            <input type="hidden" name="csrfToken" value="<%= csrfToken %>" />
+            <div class="row g-3">
+              <div class="col-md-3">
+                <label class="form-label" for="ratingValue">Your rating</label>
+                <select class="form-select" id="ratingValue" name="ratingValue" required>
+                  <% for (let i = 1; i <= 5; i += 1) { %>
+                    <option value="<%= i %>" <%= currentUserRating && currentUserRating.rating_value === i ? 'selected' : '' %>>
+                      <%= i %> star<%= i === 1 ? '' : 's' %>
+                    </option>
+                  <% } %>
+                </select>
+              </div>
+              <div class="col-md-9">
+                <label class="form-label" for="comment">Comment</label>
+                <textarea class="form-control" id="comment" name="comment" rows="3"><%= currentUserRating ? currentUserRating.comment || '' : '' %></textarea>
+              </div>
+            </div>
+            <button class="btn btn-primary mt-3" type="submit">
+              <%= currentUserRating ? 'Update rating' : 'Submit rating' %>
+            </button>
+          </form>
+        <% } else { %>
+          <p class="text-muted">Log in to add a rating or comment.</p>
+        <% } %>
+
+        <% if (ratings.length === 0) { %>
+          <p class="text-muted mb-0">No ratings yet.</p>
+        <% } else { %>
+          <div class="list-group">
+            <% ratings.forEach(function(rating) { %>
+              <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <div class="fw-semibold"><%= rating.rater_username %></div>
+                  <div class="small text-muted"><%= helpers.formatDate(rating.created_at) %></div>
+                </div>
+                <div class="rating-stars mb-2">
+                  <% for (let i = 1; i <= 5; i += 1) { %>
+                    <%= i <= rating.rating_value ? '★' : '☆' %>
+                  <% } %>
+                </div>
+                <div><%= rating.comment || 'No comment provided.' %></div>
+              </div>
+            <% }) %>
+          </div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <% if (currentUser && currentUser.id === note.user_id) { %>
+      <div class="card shadow-sm mb-4">
+        <div class="card-body p-4">
+          <h2 class="h4 mb-3">Share links</h2>
+          <form method="post" action="/notes/<%= note.id %>/share-links/create">
+            <input type="hidden" name="csrfToken" value="<%= csrfToken %>" />
+            <input type="hidden" name="mode" value="<%= activeShareLinks.some(function(link) { return link.is_active; }) ? 'regenerate' : 'create' %>" />
+            <button class="btn btn-primary w-100 mb-3" type="submit">
+              <%= activeShareLinks.some(function(link) { return link.is_active; }) ? 'Generate new share link' : 'Create share link' %>
+            </button>
+          </form>
+
+          <% if (activeShareLinks.length === 0) { %>
+            <p class="text-muted mb-0">No share links created yet.</p>
+          <% } else { %>
+            <div class="list-group">
+              <% activeShareLinks.forEach(function(link) { %>
+                <div class="list-group-item">
+                  <div class="small text-muted mb-2">
+                    <%= link.is_active ? 'Active' : 'Revoked' %> · Created <%= helpers.formatDate(link.created_at) %>
+                  </div>
+                  <div class="small mb-2 text-break">
+                    <a href="/shared/<%= link.token %>"><%= shareUrlForToken(link.token) %></a>
+                  </div>
+                  <% if (link.is_active) { %>
+                    <form method="post" action="/notes/<%= note.id %>/share-links/<%= link.id %>/revoke">
+                      <input type="hidden" name="csrfToken" value="<%= csrfToken %>" />
+                      <button class="btn btn-outline-danger btn-sm" type="submit">Revoke</button>
+                    </form>
+                  <% } else { %>
+                    <div class="small text-muted">Revoked <%= helpers.formatDate(link.revoked_at) %></div>
+                  <% } %>
+                </div>
+              <% }) %>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    <% } %>
+
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <h2 class="h4 mb-3">Note details</h2>
+        <dl class="row mb-0">
+          <dt class="col-sm-5">Author</dt>
+          <dd class="col-sm-7"><%= note.author_username %></dd>
+          <dt class="col-sm-5">Visibility</dt>
+          <dd class="col-sm-7"><%= note.is_public ? 'Public' : 'Private' %></dd>
+          <dt class="col-sm-5">Attachments</dt>
+          <dd class="col-sm-7"><%= attachments.length %></dd>
+          <dt class="col-sm-5">Ratings</dt>
+          <dd class="col-sm-7"><%= ratingSummary.rating_count %></dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</section>

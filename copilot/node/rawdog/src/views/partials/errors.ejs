@@ -1,0 +1,10 @@
+<% if (errors && errors.length > 0) { %>
+  <div class="alert alert-danger">
+    <p class="fw-semibold mb-2">Please fix the following issues:</p>
+    <ul class="mb-0">
+      <% errors.forEach(function(error) { %>
+        <li><%= error %></li>
+      <% }) %>
+    </ul>
+  </div>
+<% } %>

@@ -1,0 +1,37 @@
+{
+  "name": "loose-notes",
+  "version": "1.0.0",
+  "description": "Secure-by-default multi-user note taking application built with Express.js and SQLite.",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "node --watch app.js",
+    "seed:admin": "node scripts/seed-admin.js",
+    "test": "node --test"
+  },
+  "keywords": [
+    "express",
+    "sqlite",
+    "notes",
+    "security"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "better-sqlite3": "^12.2.0",
+    "bootstrap": "^5.3.8",
+    "dotenv": "^17.2.3",
+    "ejs": "^3.1.10",
+    "express": "^5.1.0",
+    "express-ejs-layouts": "^2.5.1",
+    "express-session": "^1.18.2",
+    "express-validator": "^7.3.0",
+    "helmet": "^8.1.0",
+    "multer": "^2.0.2",
+    "nodemailer": "^7.0.10",
+    "winston": "^3.18.3"
+  },
+  "devDependencies": {
+    "supertest": "^7.1.4"
+  }
+}

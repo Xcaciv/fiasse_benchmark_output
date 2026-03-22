@@ -1,0 +1,20 @@
+body {
+    background: #f8fafc;
+}
+
+.navbar-brand {
+    font-weight: 700;
+}
+
+.note-card {
+    height: 100%;
+}
+
+.note-content {
+    white-space: pre-wrap;
+}
+
+.muted-small {
+    color: #6c757d;
+    font-size: 0.9rem;
+}

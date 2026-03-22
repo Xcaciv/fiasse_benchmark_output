@@ -1,0 +1,47 @@
+@model LooseNotes.Models.Note
+@{
+    ViewData["Title"] = Model.Title;
+    Layout = "_Layout";
+}
+
+<div class="alert alert-secondary mb-3">
+    <small>You are viewing this note via a share link. <a asp-controller="Account" asp-action="Login">Log in</a> to rate or leave a comment.</small>
+</div>
+
+<div class="d-flex justify-content-between align-items-start mb-3">
+    <div>
+        <h2>@Model.Title</h2>
+        <p class="text-muted small">
+            By @Model.Owner.UserName &bull;
+            @Model.CreatedAt.ToString("g") UTC
+            @if (Model.Ratings.Any())
+            {
+                <span>&bull; &#9733; @Model.Ratings.Average(r => r.Stars).ToString("0.1") (@Model.Ratings.Count ratings)</span>
+            }
+        </p>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <pre style="white-space: pre-wrap; font-family: inherit;">@Model.Content</pre>
+    </div>
+</div>
+
+@if (Model.Attachments.Any())
+{
+    <section>
+        <h4>Attachments</h4>
+        <ul class="list-group">
+            @foreach (var att in Model.Attachments)
+            {
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <a asp-controller="Attachments" asp-action="Download" asp-route-id="@att.Id">
+                        @att.OriginalFileName
+                    </a>
+                    <span class="text-muted small">@(att.FileSizeBytes / 1024) KB</span>
+                </li>
+            }
+        </ul>
+    </section>
+}

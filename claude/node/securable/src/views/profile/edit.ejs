@@ -1,0 +1,86 @@
+<%- include('../partials/head', {title}) %>
+<%- include('../partials/nav') %>
+<div class="container mt-4">
+  <div class="row justify-content-center">
+    <div class="col-md-7">
+      <h1 class="h3 mb-4">My Profile</h1>
+      <%- include('../partials/flash') %>
+
+      <!-- Tab navigation -->
+      <ul class="nav nav-tabs mb-4">
+        <li class="nav-item">
+          <a class="nav-link <%= section === 'info' ? 'active' : '' %>" href="/profile">Profile Info</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link <%= section === 'password' ? 'active' : '' %>"
+             href="/profile#password">Change Password</a>
+        </li>
+      </ul>
+
+      <!-- Profile info form -->
+      <div class="card mb-4">
+        <div class="card-header"><strong>Profile Information</strong></div>
+        <div class="card-body">
+          <% if (section === 'info') { %>
+            <%- include('../partials/errors') %>
+          <% } %>
+          <form method="POST" action="/profile/info" novalidate>
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <div class="mb-3">
+              <label class="form-label">Username</label>
+              <input type="text" class="form-control" name="username"
+                     value="<%= user.username %>" required minlength="3" maxlength="30">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Email Address</label>
+              <input type="email" class="form-control" name="email"
+                     value="<%= user.email %>" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Role</label>
+              <input type="text" class="form-control" value="<%= user.role %>" readonly>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Member Since</label>
+              <input type="text" class="form-control"
+                     value="<%= new Date(user.created_at).toLocaleDateString() %>" readonly>
+            </div>
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Change password form -->
+      <div class="card" id="password">
+        <div class="card-header"><strong>Change Password</strong></div>
+        <div class="card-body">
+          <% if (section === 'password') { %>
+            <%- include('../partials/errors') %>
+          <% } %>
+          <form method="POST" action="/profile/password" novalidate>
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <div class="mb-3">
+              <label class="form-label">Current Password</label>
+              <input type="password" class="form-control" name="current_password"
+                     required autocomplete="current-password">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">New Password</label>
+              <input type="password" class="form-control" name="password"
+                     required autocomplete="new-password">
+              <div class="form-text">Min 8 chars, one uppercase, one number.</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Confirm New Password</label>
+              <input type="password" class="form-control" name="confirmPassword"
+                     required autocomplete="new-password">
+            </div>
+            <button type="submit" class="btn btn-warning">Change Password</button>
+          </form>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<%- include('../partials/footer') %>

@@ -1,0 +1,59 @@
+@model NoteEditViewModel
+@{
+    var actionName = Model.Id.HasValue ? "Edit" : "Create";
+}
+
+<form asp-action="@actionName" method="post" enctype="multipart/form-data">
+    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+    @if (Model.Id.HasValue)
+    {
+        <input asp-for="Id" type="hidden" />
+    }
+    <div class="mb-3">
+        <label asp-for="Title" class="form-label"></label>
+        <input asp-for="Title" class="form-control" />
+        <span asp-validation-for="Title" class="text-danger"></span>
+    </div>
+    <div class="mb-3">
+        <label asp-for="Content" class="form-label"></label>
+        <textarea asp-for="Content" class="form-control" rows="12"></textarea>
+        <span asp-validation-for="Content" class="text-danger"></span>
+    </div>
+    <div class="form-check form-switch mb-3">
+        <input asp-for="IsPublic" class="form-check-input" />
+        <label asp-for="IsPublic" class="form-check-label"></label>
+    </div>
+    <div class="mb-4">
+        <label asp-for="NewAttachments" class="form-label"></label>
+        <input asp-for="NewAttachments" class="form-control" type="file" multiple accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" />
+        <span asp-validation-for="NewAttachments" class="text-danger"></span>
+        <div class="form-text">Allowed file types: PDF, DOC, DOCX, TXT, PNG, JPG, JPEG. Max 10 MB each.</div>
+    </div>
+
+    @if (Model.ExistingAttachments.Count > 0)
+    {
+        <div class="mb-4">
+            <h2 class="h5">Existing attachments</h2>
+            <div class="list-group">
+                @foreach (var attachment in Model.ExistingAttachments)
+                {
+                    <label class="list-group-item d-flex justify-content-between align-items-center gap-3">
+                        <span>
+                            <strong>@attachment.OriginalFileName</strong>
+                            <span class="text-muted">(@(attachment.SizeBytes / 1024.0).ToString("0.0") KB)</span>
+                        </span>
+                        <span class="form-check">
+                            <input class="form-check-input" type="checkbox" name="RemoveAttachmentIds" value="@attachment.Id" />
+                            <span class="form-check-label">Remove</span>
+                        </span>
+                    </label>
+                }
+            </div>
+        </div>
+    }
+
+    <div class="d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary">Save note</button>
+        <a class="btn btn-outline-secondary" asp-action="Index">Cancel</a>
+    </div>
+</form>

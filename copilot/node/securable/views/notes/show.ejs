@@ -1,0 +1,136 @@
+<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-start gap-3 mb-4">
+  <div>
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <h1 class="h3 mb-0"><%= note.title %></h1>
+      <span class="badge text-bg-<%= note.visibility === 'public' ? 'success' : 'secondary' %>"><%= helpers.formatVisibility(note.visibility) %></span>
+    </div>
+    <div class="text-body-secondary">
+      By <%= note.author %> · Created <%= helpers.formatDateTime(note.created_at) %> · Updated <%= helpers.formatDateTime(note.updated_at) %>
+    </div>
+  </div>
+
+  <% if (canManage) { %>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="/notes/<%= note.id %>/edit" class="btn btn-outline-primary">Edit</a>
+      <a href="/notes/<%= note.id %>/delete" class="btn btn-outline-danger">Delete</a>
+      <% if (currentUser && currentUser.role === 'admin') { %>
+        <a href="/admin/notes/<%= note.id %>/reassign" class="btn btn-outline-dark">Reassign owner</a>
+      <% } %>
+    </div>
+  <% } %>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-8">
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <h2 class="h5">Content</h2>
+        <div class="note-content"><%= note.content %></div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <h2 class="h5">Attachments</h2>
+        <% if (!attachments.length) { %>
+          <p class="text-body-secondary mb-0">No attachments for this note.</p>
+        <% } else { %>
+          <ul class="list-group list-group-flush">
+            <% for (const attachment of attachments) { %>
+              <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
+                <div>
+                  <div class="fw-medium"><%= attachment.original_name %></div>
+                  <div class="small text-body-secondary"><%= attachment.mime_type %> · <%= attachment.file_size %> bytes</div>
+                </div>
+                <a class="btn btn-sm btn-outline-secondary" href="<%= sharedMode ? `/shared/${sharedToken}/attachments/${attachment.id}` : `/attachments/${attachment.id}` %>">Download</a>
+              </li>
+            <% } %>
+          </ul>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="h5 mb-0">Ratings</h2>
+          <div class="text-body-secondary">
+            Average <strong><%= ratingSummary.average_rating || 'N/A' %></strong> from <%= ratingSummary.rating_count %> rating(s)
+          </div>
+        </div>
+
+        <% if (canRate) { %>
+          <form method="post" action="/notes/<%= note.id %>/ratings" class="row g-3 mb-4">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <div class="col-md-2">
+              <label class="form-label" for="value">Stars</label>
+              <select class="form-select" id="value" name="value">
+                <% for (let value = 1; value <= 5; value += 1) { %>
+                  <option value="<%= value %>" <%= currentRating && currentRating.value === value ? 'selected' : '' %>><%= value %></option>
+                <% } %>
+              </select>
+            </div>
+            <div class="col-md-10">
+              <label class="form-label" for="comment">Comment</label>
+              <input class="form-control" id="comment" name="comment" maxlength="1000" value="<%= currentRating ? currentRating.comment || '' : '' %>">
+            </div>
+            <div class="col-12">
+              <button class="btn btn-primary" type="submit"><%= currentRating ? 'Update rating' : 'Save rating' %></button>
+            </div>
+          </form>
+        <% } else if (!currentUser) { %>
+          <div class="alert alert-light border">Sign in to rate this note.</div>
+        <% } %>
+
+        <% if (!ratings.length) { %>
+          <p class="text-body-secondary mb-0">No ratings yet.</p>
+        <% } else { %>
+          <div class="vstack gap-3">
+            <% for (const rating of ratings) { %>
+              <div class="border rounded-3 p-3">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div class="fw-semibold"><%= rating.rater_username %> · <%= rating.value %>/5</div>
+                  <div class="small text-body-secondary"><%= helpers.formatDateTime(rating.updated_at || rating.created_at) %></div>
+                </div>
+                <div class="mt-2 mb-0"><%= rating.comment || 'No comment provided.' %></div>
+              </div>
+            <% } %>
+          </div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <% if (canManage && note.user_id === currentUser.id) { %>
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h2 class="h5">Share link</h2>
+          <% if (activeShareLink) { %>
+            <p class="text-body-secondary">An active share link exists. Regenerate it to issue a new link and revoke the old one.</p>
+            <form method="post" action="/notes/<%= note.id %>/share/revoke" class="mb-2">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button class="btn btn-outline-danger w-100" type="submit">Revoke active link</button>
+            </form>
+          <% } else { %>
+            <p class="text-body-secondary">Generate a bearer share link so anyone with the URL can view this note and its attachments.</p>
+          <% } %>
+
+          <form method="post" action="/notes/<%= note.id %>/share">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button class="btn btn-primary w-100" type="submit"><%= activeShareLink ? 'Regenerate share link' : 'Generate share link' %></button>
+          </form>
+        </div>
+      </div>
+    <% } %>
+
+    <% if (sharedMode) { %>
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h2 class="h5">Shared view</h2>
+          <p class="text-body-secondary mb-0">You are viewing this note through a share link.</p>
+        </div>
+      </div>
+    <% } %>
+  </div>
+</div>

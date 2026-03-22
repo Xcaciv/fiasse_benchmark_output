@@ -1,0 +1,64 @@
+<div class="row justify-content-center">
+  <div class="col-lg-9">
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h1 class="h3 mb-0">Edit note</h1>
+          <a class="btn btn-outline-secondary btn-sm" href="/notes/<%= note.id %>">Back to note</a>
+        </div>
+
+        <form
+          method="post"
+          action="/notes/<%= note.id %>/edit?csrfToken=<%= encodeURIComponent(csrfToken) %>"
+          enctype="multipart/form-data"
+        >
+          <input type="hidden" name="csrfToken" value="<%= csrfToken %>" />
+          <div class="mb-3">
+            <label class="form-label" for="title">Title</label>
+            <input class="form-control" id="title" name="title" value="<%= formData.title %>" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="content">Content</label>
+            <textarea class="form-control" id="content" name="content" rows="10" required><%= formData.content %></textarea>
+          </div>
+          <div class="form-check mb-3">
+            <input
+              class="form-check-input"
+              id="isPublic"
+              name="isPublic"
+              type="checkbox"
+              <%= formData.isPublic ? 'checked' : '' %>
+            />
+            <label class="form-check-label" for="isPublic">Make this note public</label>
+          </div>
+
+          <% if (attachments.length > 0) { %>
+            <div class="mb-3">
+              <label class="form-label d-block">Existing attachments</label>
+              <% attachments.forEach(function(attachment) { %>
+                <div class="form-check">
+                  <input
+                    class="form-check-input"
+                    id="removeAttachment-<%= attachment.id %>"
+                    name="removeAttachmentIds"
+                    type="checkbox"
+                    value="<%= attachment.id %>"
+                  />
+                  <label class="form-check-label" for="removeAttachment-<%= attachment.id %>">
+                    Remove <%= attachment.original_filename %>
+                  </label>
+                </div>
+              <% }) %>
+            </div>
+          <% } %>
+
+          <div class="mb-3">
+            <label class="form-label" for="attachments">Add attachments</label>
+            <input class="form-control" id="attachments" name="attachments" type="file" multiple />
+          </div>
+          <button class="btn btn-primary" type="submit">Save changes</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

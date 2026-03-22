@@ -1,0 +1,39 @@
+@model LooseNotes.ViewModels.Admin.ReassignNoteViewModel
+@{
+    ViewData["Title"] = "Reassign Note";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <h2>Reassign Note</h2>
+        <p class="text-muted">
+            Note: <strong>@Model.NoteTitle</strong><br />
+            Current owner: <strong>@Model.CurrentOwnerName</strong>
+        </p>
+
+        <form asp-action="ReassignNote" method="post">
+            <input type="hidden" asp-for="NoteId" />
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+            <div class="mb-3">
+                <label asp-for="NewOwnerId" class="form-label">New Owner</label>
+                <select asp-for="NewOwnerId" class="form-select">
+                    <option value="">-- Select user --</option>
+                    @foreach (var user in Model.AllUsers)
+                    {
+                        <option value="@user.Id"
+                            @(user.Id == Model.CurrentOwnerId ? "disabled" : "")>
+                            @user.UserName
+                        </option>
+                    }
+                </select>
+                <span asp-validation-for="NewOwnerId" class="text-danger"></span>
+            </div>
+
+            <button type="submit" class="btn btn-warning">Reassign</button>
+            <a asp-action="Dashboard" class="btn btn-outline-secondary ms-2">Cancel</a>
+        </form>
+    </div>
+</div>
+
+@section Scripts { @await Html.PartialAsync("_ValidationScripts") }

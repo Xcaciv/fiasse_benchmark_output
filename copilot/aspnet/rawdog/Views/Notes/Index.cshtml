@@ -1,0 +1,55 @@
+@model NoteIndexViewModel
+@{
+    ViewData["Title"] = "My Notes";
+}
+
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+    <div>
+        <h1 class="h2 mb-1">My notes</h1>
+        <p class="text-muted mb-0">Create, edit, share, and manage all of your notes from one place.</p>
+    </div>
+    <a asp-action="Create" class="btn btn-primary">Create note</a>
+</div>
+
+@if (Model.Notes.Count == 0)
+{
+    <div class="alert alert-info">You have not created any notes yet.</div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var note in Model.Notes)
+        {
+            <div class="col-md-6 col-xl-4">
+                <article class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                            <h2 class="h5 mb-0">
+                                <a asp-action="Details" asp-route-id="@note.Id" class="text-decoration-none">@note.Title</a>
+                            </h2>
+                            <span class="badge @(note.IsPublic ? "bg-success-subtle text-success" : "bg-secondary-subtle text-secondary")">
+                                @(note.IsPublic ? "Public" : "Private")
+                            </span>
+                        </div>
+                        <div class="text-muted small mb-3">
+                            Created @note.CreatedAtUtc.ToLocalTime().ToString("g")
+                            @if (note.UpdatedAtUtc.HasValue)
+                            {
+                                <span>- Updated @note.UpdatedAtUtc.Value.ToLocalTime().ToString("g")</span>
+                            }
+                        </div>
+                        <div class="d-flex justify-content-between text-muted small mb-3">
+                            <span>@note.AttachmentCount attachments</span>
+                            <span>@note.RatingCount ratings (@note.AverageRating.ToString("0.0"))</span>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <a asp-action="Edit" asp-route-id="@note.Id" class="btn btn-sm btn-outline-primary">Edit</a>
+                            <a asp-action="Details" asp-route-id="@note.Id" class="btn btn-sm btn-outline-secondary">View</a>
+                            <a asp-action="Delete" asp-route-id="@note.Id" class="btn btn-sm btn-outline-danger">Delete</a>
+                        </div>
+                    </div>
+                </article>
+            </div>
+        }
+    </div>
+}

@@ -1,0 +1,51 @@
+@model NoteFormViewModel
+
+<div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+<div class="mb-3">
+    <label asp-for="Title" class="form-label"></label>
+    <input asp-for="Title" class="form-control" />
+    <span asp-validation-for="Title" class="text-danger"></span>
+</div>
+
+<div class="mb-3">
+    <label asp-for="Content" class="form-label"></label>
+    <textarea asp-for="Content" class="form-control" rows="12"></textarea>
+    <span asp-validation-for="Content" class="text-danger"></span>
+</div>
+
+<div class="form-check mb-3">
+    <input asp-for="IsPublic" class="form-check-input" />
+    <label asp-for="IsPublic" class="form-check-label"></label>
+</div>
+
+<div class="mb-3">
+    <label asp-for="UploadedFiles" class="form-label"></label>
+    <input asp-for="UploadedFiles" class="form-control" multiple />
+    <div class="form-text">Supported: PDF, DOC, DOCX, TXT, PNG, JPG, JPEG. Max 10 MB per file.</div>
+    <span asp-validation-for="UploadedFiles" class="text-danger"></span>
+</div>
+
+@if (Model.ExistingAttachments.Count > 0)
+{
+    <div class="mb-3">
+        <h2 class="h6">Existing attachments</h2>
+        <div class="list-group">
+            @foreach (var attachment in Model.ExistingAttachments)
+            {
+                <div class="list-group-item d-flex justify-content-between align-items-center gap-3">
+                    <div>
+                        <div class="fw-semibold">@attachment.OriginalFileName</div>
+                        <div class="text-muted small">@attachment.ContentType - @(attachment.SizeBytes / 1024.0m).ToString("0.0") KB</div>
+                    </div>
+                    <form asp-action="DeleteAttachment" method="post" class="m-0">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="noteId" value="@Model.Id" />
+                        <input type="hidden" name="attachmentId" value="@attachment.Id" />
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                    </form>
+                </div>
+            }
+        </div>
+    </div>
+}

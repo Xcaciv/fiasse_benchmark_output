@@ -1,0 +1,28 @@
+@model LooseNotes.Models.Note
+@{
+    ViewData["Title"] = "Delete Note";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-7">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">Confirm Deletion</div>
+            <div class="card-body">
+                <h5 class="card-title">@Model.Title</h5>
+                <p class="card-text text-muted">
+                    @(Model.Content.Length > 200 ? Model.Content.Substring(0, 200) + "…" : Model.Content)
+                </p>
+                <p class="text-danger">
+                    <strong>This action is permanent.</strong>
+                    The note, all attachments, ratings, and share links will be deleted.
+                </p>
+            </div>
+            <div class="card-footer d-flex gap-2">
+                <form asp-action="Delete" asp-route-id="@Model.Id" method="post">
+                    <button type="submit" class="btn btn-danger">Yes, Delete</button>
+                </form>
+                <a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+        </div>
+    </div>
+</div>

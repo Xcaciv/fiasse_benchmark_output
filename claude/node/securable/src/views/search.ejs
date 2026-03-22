@@ -1,0 +1,46 @@
+<%- include('partials/head', {title}) %>
+<%- include('partials/nav') %>
+<div class="container mt-4">
+  <h1 class="h3 mb-4">Search Notes</h1>
+  <form method="GET" action="/search" class="mb-4">
+    <div class="input-group">
+      <input type="text" class="form-control" name="q"
+             value="<%= q %>" placeholder="Search by title or content…" autofocus>
+      <button class="btn btn-primary" type="submit">Search</button>
+    </div>
+  </form>
+
+  <% if (q) { %>
+    <p class="text-muted"><%= results.length %> result<%= results.length === 1 ? '' : 's' %> for "<strong><%= q %></strong>"</p>
+  <% } %>
+
+  <% if (results.length) { %>
+    <div class="list-group">
+      <% results.forEach(note => { %>
+        <a href="/notes/<%= note.id %>" class="list-group-item list-group-item-action">
+          <div class="d-flex justify-content-between">
+            <h6 class="mb-1"><%= note.title %></h6>
+            <div>
+              <span class="badge bg-<%= note.is_public ? 'success' : 'secondary' %> me-1">
+                <%= note.is_public ? 'Public' : 'Private' %>
+              </span>
+              <% if (note.avg_rating > 0) { %>
+                <span class="text-warning small">★ <%= note.avg_rating %></span>
+              <% } %>
+            </div>
+          </div>
+          <p class="mb-1 small text-muted">
+            <%= note.content.substring(0, 200) %><%= note.content.length > 200 ? '…' : '' %>
+          </p>
+          <small class="text-muted">
+            By <strong><%= note.username %></strong> &middot;
+            <%= new Date(note.created_at).toLocaleDateString() %>
+          </small>
+        </a>
+      <% }) %>
+    </div>
+  <% } else if (q) { %>
+    <div class="text-center py-5 text-muted">No notes found.</div>
+  <% } %>
+</div>
+<%- include('partials/footer') %>

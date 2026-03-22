@@ -1,0 +1,46 @@
+/* Loose Notes – custom styles */
+
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: #f8f9fa;
+}
+
+main, .container {
+  flex: 1;
+}
+
+/* Note content area */
+.note-content {
+  line-height: 1.8;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #fff;
+  padding: 1.25rem;
+  border-radius: 0.5rem;
+  border: 1px solid #dee2e6;
+}
+
+/* Star display */
+.text-warning {
+  font-size: 1rem;
+}
+
+/* Card hover effect on notes list */
+.card:hover {
+  box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.1) !important;
+  transition: box-shadow 0.15s ease-in-out;
+}
+
+/* Footer sticky at bottom */
+.footer {
+  margin-top: auto;
+}
+
+/* Responsive tables */
+@media (max-width: 576px) {
+  .table-responsive table {
+    font-size: 0.85rem;
+  }
+}

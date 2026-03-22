@@ -1,0 +1,81 @@
+html {
+  font-size: 14px;
+}
+
+@media (min-width: 768px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+body {
+  min-height: 100vh;
+  background: #f5f7fb;
+  color: #1f2937;
+}
+
+.hero-card {
+  background: linear-gradient(135deg, #ffffff, #e8f0ff);
+  border: 1px solid #d9e4ff;
+  border-radius: 1rem;
+  padding: 2rem;
+  box-shadow: 0 10px 30px rgba(37, 99, 235, 0.08);
+}
+
+.stat-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.85rem;
+  padding: 1.25rem;
+  text-align: center;
+  height: 100%;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+}
+
+.stat-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
+.stat-label {
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.note-content {
+  white-space: pre-wrap;
+  line-height: 1.7;
+}
+
+.note-preview {
+  white-space: pre-wrap;
+}
+
+.leader-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
+.bg-success-subtle {
+  background: #dcfce7;
+}
+
+.bg-secondary-subtle {
+  background: #e5e7eb;
+}
+
+.bg-info-subtle {
+  background: #dbeafe;
+}
+
+footer a {
+  color: inherit;
+}

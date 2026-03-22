@@ -1,0 +1,63 @@
+@model AdminUserListViewModel
+@{
+    ViewData["Title"] = "Manage Users";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-people"></i> Users</h2>
+    <a asp-action="Index" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Dashboard
+    </a>
+</div>
+
+<form asp-action="Users" method="get" class="mb-4">
+    <div class="input-group">
+        <input type="text" name="q" value="@Model.SearchQuery" class="form-control"
+               placeholder="Search by username or email…" />
+        <button type="submit" class="btn btn-outline-primary">
+            <i class="bi bi-search"></i> Search
+        </button>
+        @if (!string.IsNullOrWhiteSpace(Model.SearchQuery))
+        {
+            <a asp-action="Users" class="btn btn-outline-secondary">Clear</a>
+        }
+    </div>
+</form>
+
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Roles</th>
+                <th>Notes</th>
+                <th>Registered</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var user in Model.Users)
+            {
+                <tr>
+                    <td><strong>@user.UserName</strong></td>
+                    <td>@user.Email</td>
+                    <td>
+                        @foreach (var role in user.Roles)
+                        {
+                            <span class="badge @(role == "Admin" ? "bg-danger" : "bg-secondary") me-1">@role</span>
+                        }
+                    </td>
+                    <td>@user.NoteCount</td>
+                    <td>@user.CreatedAt.ToString("MMM d, yyyy")</td>
+                    <td></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@if (!Model.Users.Any())
+{
+    <p class="text-center text-muted">No users found.</p>
+}

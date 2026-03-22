@@ -1,0 +1,27 @@
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <h1 class="h3 mb-3">Reset your password</h1>
+        <p class="text-body-secondary">Enter your email address. If it exists, a reset link will be written to the local mail outbox.</p>
+
+        <% if (typeof errors !== 'undefined' && errors.length) { %>
+          <div class="alert alert-danger">
+            <ul class="mb-0">
+              <% for (const error of errors) { %><li><%= error %></li><% } %>
+            </ul>
+          </div>
+        <% } %>
+
+        <form method="post" action="/forgot-password" class="vstack gap-3">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <div>
+            <label class="form-label" for="email">Email address</label>
+            <input class="form-control" id="email" name="email" type="email" maxlength="200" required>
+          </div>
+          <button class="btn btn-primary" type="submit">Generate reset link</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

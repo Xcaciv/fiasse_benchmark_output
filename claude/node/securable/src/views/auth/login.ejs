@@ -1,0 +1,37 @@
+<%- include('../partials/head', {title}) %>
+<%- include('../partials/nav') %>
+<div class="container mt-5">
+  <div class="row justify-content-center">
+    <div class="col-md-5">
+      <div class="card shadow-sm">
+        <div class="card-body p-4">
+          <h2 class="card-title mb-4">Sign In</h2>
+          <%- include('../partials/flash') %>
+          <%- include('../partials/errors') %>
+          <form method="POST" action="/auth/login" novalidate>
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <div class="mb-3">
+              <label for="username" class="form-label">Username</label>
+              <input type="text" class="form-control" id="username" name="username"
+                     value="<%= old.username || '' %>" required autocomplete="username">
+            </div>
+            <div class="mb-3">
+              <label for="password" class="form-label">Password</label>
+              <input type="password" class="form-control" id="password" name="password"
+                     required autocomplete="current-password">
+            </div>
+            <div class="d-grid mb-3">
+              <button type="submit" class="btn btn-primary">Sign In</button>
+            </div>
+          </form>
+          <div class="text-center small">
+            <a href="/auth/forgot-password">Forgot password?</a>
+            &nbsp;·&nbsp;
+            <a href="/auth/register">Create an account</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<%- include('../partials/footer') %>

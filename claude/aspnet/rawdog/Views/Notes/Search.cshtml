@@ -1,0 +1,72 @@
+@model SearchViewModel
+@{
+    ViewData["Title"] = "Search Notes";
+}
+
+<h2><i class="bi bi-search"></i> Search Notes</h2>
+
+<form asp-action="Search" method="get" class="mb-4">
+    <div class="input-group">
+        <input type="text" name="q" value="@Model.Query" class="form-control form-control-lg"
+               placeholder="Search by title or content…" />
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-search"></i> Search
+        </button>
+    </div>
+</form>
+
+@if (!string.IsNullOrWhiteSpace(Model.Query))
+{
+    <p class="text-muted">
+        @Model.Results.Count result(s) for <strong>"@Model.Query"</strong>
+    </p>
+
+    if (!Model.Results.Any())
+    {
+        <div class="text-center py-4 text-muted">
+            <i class="bi bi-search display-4"></i>
+            <p class="mt-3">No notes found.</p>
+        </div>
+    }
+    else
+    {
+        <div class="list-group">
+            @foreach (var note in Model.Results)
+            {
+                <a asp-action="Details" asp-route-id="@note.Id"
+                   class="list-group-item list-group-item-action">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="mb-1">@note.Title</h6>
+                            <p class="mb-1 text-muted small">@note.Excerpt</p>
+                            <small class="text-muted">
+                                By <strong>@note.AuthorName</strong> &bull;
+                                @note.CreatedAt.ToString("MMM d, yyyy")
+                                @if (note.RatingCount > 0)
+                                {
+                                    <span class="ms-2 star-rating">
+                                        <i class="bi bi-star-fill"></i> @note.AverageRating (@note.RatingCount)
+                                    </span>
+                                }
+                            </small>
+                        </div>
+                        <div>
+                            @if (note.IsPublic)
+                            {
+                                <span class="badge bg-success">Public</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">Private</span>
+                            }
+                        </div>
+                    </div>
+                </a>
+            }
+        </div>
+    }
+}
+else
+{
+    <p class="text-muted">Enter a keyword to search public notes and your own notes.</p>
+}

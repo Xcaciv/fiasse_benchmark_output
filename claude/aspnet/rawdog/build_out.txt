@@ -1,0 +1,32 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+C:\Program Files\dotnet\sdk\10.0.200-preview.0.26103.119\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.RuntimeIdentifierInference.targets(383,5): message NETSDK1057: You are using a preview version of .NET. See: https://aka.ms/dotnet-support-policy [G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\LooseNotes.csproj]
+G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\Controllers\ShareController.cs(19,38): warning CS0114: 'ShareController.View(string)' hides inherited member 'Controller.View(string?)'. To make the current member override that implementation, add the override keyword. Otherwise add the new keyword. [G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\LooseNotes.csproj]
+G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\Views\Share\View.cshtml(13,110): error CS1002: ; expected [G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\LooseNotes.csproj]
+G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\Views\Share\View.cshtml(13,119): error CS1002: ; expected [G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\LooseNotes.csproj]
+G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\Views\Share\View.cshtml(13,125): error CS1001: Identifier expected [G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\LooseNotes.csproj]
+G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\Views\Share\View.cshtml(13,125): error CS1002: ; expected [G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\LooseNotes.csproj]
+G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\Views\Share\View.cshtml(13,102): error CS0246: The type or namespace name 'to' could not be found (are you missing a using directive or an assembly reference?) [G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\LooseNotes.csproj]
+G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\Views\Share\View.cshtml(13,110): error CS0246: The type or namespace name 'your' could not be found (are you missing a using directive or an assembly reference?) [G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\LooseNotes.csproj]
+G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\Views\Share\View.cshtml(13,119): error CS0103: The name 'notes' does not exist in the current context [G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\LooseNotes.csproj]
+G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\Views\Share\View.cshtml(13,105): warning CS0168: The variable 'save' is declared but never used [G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\LooseNotes.csproj]
+G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\Views\Share\View.cshtml(13,115): warning CS0168: The variable 'own' is declared but never used [G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\LooseNotes.csproj]
+G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\Views\Notes\Details.cshtml(85,100): error CS0103: The name 'Request' does not exist in the current context [G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\LooseNotes.csproj]
+
+Build FAILED.
+
+G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\Controllers\ShareController.cs(19,38): warning CS0114: 'ShareController.View(string)' hides inherited member 'Controller.View(string?)'. To make the current member override that implementation, add the override keyword. Otherwise add the new keyword. [G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\LooseNotes.csproj]
+G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\Views\Share\View.cshtml(13,105): warning CS0168: The variable 'save' is declared but never used [G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\LooseNotes.csproj]
+G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\Views\Share\View.cshtml(13,115): warning CS0168: The variable 'own' is declared but never used [G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\LooseNotes.csproj]
+G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\Views\Share\View.cshtml(13,110): error CS1002: ; expected [G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\LooseNotes.csproj]
+G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\Views\Share\View.cshtml(13,119): error CS1002: ; expected [G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\LooseNotes.csproj]
+G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\Views\Share\View.cshtml(13,125): error CS1001: Identifier expected [G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\LooseNotes.csproj]
+G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\Views\Share\View.cshtml(13,125): error CS1002: ; expected [G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\LooseNotes.csproj]
+G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\Views\Share\View.cshtml(13,102): error CS0246: The type or namespace name 'to' could not be found (are you missing a using directive or an assembly reference?) [G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\LooseNotes.csproj]
+G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\Views\Share\View.cshtml(13,110): error CS0246: The type or namespace name 'your' could not be found (are you missing a using directive or an assembly reference?) [G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\LooseNotes.csproj]
+G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\Views\Share\View.cshtml(13,119): error CS0103: The name 'notes' does not exist in the current context [G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\LooseNotes.csproj]
+G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\Views\Notes\Details.cshtml(85,100): error CS0103: The name 'Request' does not exist in the current context [G:\Generated\fiasse_benchmark_output\claude\aspnet\rawdog\LooseNotes.csproj]
+    3 Warning(s)
+    8 Error(s)
+
+Time Elapsed 00:00:01.19

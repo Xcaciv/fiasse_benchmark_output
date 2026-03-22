@@ -1,0 +1,30 @@
+/* Loose Notes – site styles */
+
+html {
+    font-size: 14px;
+}
+
+@media (min-width: 768px) {
+    html {
+        font-size: 16px;
+    }
+}
+
+body {
+    background-color: #f8f9fa;
+}
+
+.navbar-brand {
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+
+pre {
+    background: none;
+    border: none;
+    padding: 0;
+}
+
+footer.footer {
+    font-size: 0.85rem;
+}

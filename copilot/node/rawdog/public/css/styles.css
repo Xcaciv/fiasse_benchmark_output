@@ -1,0 +1,24 @@
+body {
+  background-color: #f8fafc;
+}
+
+.navbar-brand {
+  font-weight: 700;
+}
+
+.note-content {
+  white-space: pre-wrap;
+}
+
+.rating-stars {
+  color: #f59e0b;
+}
+
+.table td,
+.table th {
+  vertical-align: middle;
+}
+
+.card-note-preview {
+  min-height: 5rem;
+}

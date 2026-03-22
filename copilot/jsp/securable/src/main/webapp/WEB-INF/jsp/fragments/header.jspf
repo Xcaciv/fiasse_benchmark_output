@@ -1,0 +1,62 @@
+<%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><c:out value="${pageTitle}" /> - Loose Notes</title>
+    <link rel="stylesheet" href="${pageContext.request.contextPath}/assets/app.css">
+    <script defer src="${pageContext.request.contextPath}/assets/app.js"></script>
+</head>
+<body>
+<header class="site-header">
+    <div class="container">
+        <a class="brand" href="${pageContext.request.contextPath}/">Loose Notes</a>
+        <nav class="nav-links">
+            <a href="${pageContext.request.contextPath}/notes/search">Search</a>
+            <a href="${pageContext.request.contextPath}/notes/top-rated">Top rated</a>
+            <c:choose>
+                <c:when test="${isAuthenticated}">
+                    <a href="${pageContext.request.contextPath}/notes">My notes</a>
+                    <a href="${pageContext.request.contextPath}/profile">Profile</a>
+                    <c:if test="${isAdmin}">
+                        <a href="${pageContext.request.contextPath}/admin">Admin</a>
+                    </c:if>
+                    <form class="inline-form" method="post" action="${pageContext.request.contextPath}/auth/logout">
+                        <input type="hidden" name="csrfToken" value="${csrfToken}">
+                        <button type="submit">Logout</button>
+                    </form>
+                </c:when>
+                <c:otherwise>
+                    <a href="${pageContext.request.contextPath}/auth/login">Login</a>
+                    <a href="${pageContext.request.contextPath}/auth/register">Register</a>
+                </c:otherwise>
+            </c:choose>
+        </nav>
+    </div>
+</header>
+<main class="container">
+    <c:if test="${not empty flashSuccess}">
+        <div class="flash success"><c:out value="${flashSuccess}" /></div>
+    </c:if>
+    <c:if test="${not empty flashError}">
+        <div class="flash error"><c:out value="${flashError}" /></div>
+    </c:if>
+    <c:if test="${not empty flashShareUrl}">
+        <div class="flash success">
+            Share URL:<br>
+            <code class="mono"><c:out value="${flashShareUrl}" /></code>
+        </div>
+    </c:if>
+    <c:if test="${not empty errors}">
+        <div class="flash error">
+            <strong>Please fix the following:</strong>
+            <ul class="errors">
+                <c:forEach var="error" items="${errors}">
+                    <li><c:out value="${error}" /></li>
+                </c:forEach>
+            </ul>
+        </div>
+    </c:if>

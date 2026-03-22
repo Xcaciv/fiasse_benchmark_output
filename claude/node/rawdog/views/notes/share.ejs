@@ -1,0 +1,111 @@
+<%- include('../partials/header', { title: title }) %>
+
+<div class="row">
+  <div class="col-lg-8">
+    <div class="alert alert-info mb-3">
+      <i class="bi bi-share me-2"></i>You are viewing a shared note.
+      <% if (!user) { %>
+        <a href="/auth/login" class="alert-link">Log in</a> to rate and manage your own notes.
+      <% } %>
+    </div>
+
+    <div class="mb-3">
+      <h1 class="h2 mb-1"><%= note.title %></h1>
+      <p class="text-muted small">
+        By <strong><%= note.username %></strong> &bull;
+        <%= new Date(note.created_at).toLocaleDateString() %>
+      </p>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-body p-4">
+        <pre class="mb-0" style="font-family: inherit;"><%= note.content %></pre>
+      </div>
+    </div>
+
+    <% if (attachments.length > 0) { %>
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white fw-semibold">
+          <i class="bi bi-paperclip me-2"></i>Attachments (<%= attachments.length %>)
+        </div>
+        <ul class="list-group list-group-flush">
+          <% attachments.forEach(att => { %>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <a href="/uploads/<%= att.stored_filename %>" target="_blank">
+                <i class="bi bi-file-earmark me-2"></i><%= att.original_filename %>
+              </a>
+              <span class="text-muted small"><%= (att.file_size / 1024).toFixed(1) %> KB</span>
+            </li>
+          <% }) %>
+        </ul>
+      </div>
+    <% } %>
+
+    <% if (ratings.length > 0) { %>
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white fw-semibold d-flex justify-content-between">
+          <span><i class="bi bi-star me-2"></i>Ratings (<%= ratings.length %>)</span>
+          <% if (avgRating) { %>
+            <span class="star-rating"><i class="bi bi-star-fill"></i> <%= avgRating %> / 5</span>
+          <% } %>
+        </div>
+        <div class="card-body">
+          <% ratings.forEach(r => { %>
+            <div class="mb-3 pb-3 border-bottom">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <strong class="small"><%= r.username %></strong>
+                <span class="star-rating small">
+                  <% for (let i = 1; i <= 5; i++) { %>
+                    <i class="bi bi-star<%= i <= r.rating ? '-fill' : '' %>"></i>
+                  <% } %>
+                </span>
+              </div>
+              <% if (r.comment) { %>
+                <p class="small mb-0 text-muted"><%= r.comment %></p>
+              <% } %>
+            </div>
+          <% }) %>
+        </div>
+      </div>
+    <% } %>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-info-circle me-2"></i>Note Info
+      </div>
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item d-flex justify-content-between small">
+          <span class="text-muted">Author</span>
+          <span><%= note.username %></span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between small">
+          <span class="text-muted">Created</span>
+          <span><%= new Date(note.created_at).toLocaleDateString() %></span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between small">
+          <span class="text-muted">Avg Rating</span>
+          <span>
+            <% if (avgRating) { %>
+              <span class="star-rating"><i class="bi bi-star-fill"></i></span> <%= avgRating %>
+            <% } else { %>
+              No ratings
+            <% } %>
+          </span>
+        </li>
+      </ul>
+    </div>
+    <% if (!user) { %>
+      <div class="card border-0 shadow-sm mt-3">
+        <div class="card-body text-center">
+          <p class="text-muted small mb-2">Join Loose Notes to create, share, and rate notes.</p>
+          <a href="/auth/register" class="btn btn-primary btn-sm w-100 mb-2">Create Account</a>
+          <a href="/auth/login" class="btn btn-outline-secondary btn-sm w-100">Log In</a>
+        </div>
+      </div>
+    <% } %>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

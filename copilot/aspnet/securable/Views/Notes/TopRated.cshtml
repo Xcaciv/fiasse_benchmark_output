@@ -1,0 +1,39 @@
+@model TopRatedViewModel
+@{
+    ViewData["Title"] = "Top rated notes";
+}
+
+<div class="d-flex justify-content-between align-items-end mb-4">
+    <div>
+        <h1 class="mb-1">Top rated notes</h1>
+        <p class="text-muted mb-0">Only public notes with at least three ratings appear here.</p>
+    </div>
+</div>
+
+@if (Model.Notes.Count == 0)
+{
+    <div class="card shadow-sm">
+        <div class="card-body p-4 text-center text-muted">No notes qualify for the leaderboard yet.</div>
+    </div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var note in Model.Notes)
+        {
+            <div class="col-lg-6">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                            <h2 class="h5 mb-0">@note.Title</h2>
+                            <span class="badge text-bg-warning">@note.AverageRating.ToString("0.0") / 5</span>
+                        </div>
+                        <p class="text-muted small mb-2">By @note.OwnerUserName · @note.RatingCount ratings</p>
+                        <p>@note.Excerpt</p>
+                        <a asp-action="Details" asp-route-id="@note.Id" class="btn btn-outline-primary btn-sm">Read note</a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}

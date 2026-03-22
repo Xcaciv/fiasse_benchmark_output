@@ -1,0 +1,13 @@
+<% if (flash && Object.keys(flash).length > 0) { %>
+  <div class="mb-3">
+    <% (flash.success || []).forEach(function(message) { %>
+      <div class="alert alert-success" role="alert"><%= message %></div>
+    <% }) %>
+    <% (flash.error || []).forEach(function(message) { %>
+      <div class="alert alert-danger" role="alert"><%= message %></div>
+    <% }) %>
+    <% (flash.info || []).forEach(function(message) { %>
+      <div class="alert alert-info" role="alert"><%= message %></div>
+    <% }) %>
+  </div>
+<% } %>

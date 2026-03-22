@@ -1,0 +1,7 @@
+target/
+data/loose-notes.db
+data/storage/*
+!data/storage/.gitkeep
+data/outbox/*
+!data/outbox/.gitkeep
+*.log

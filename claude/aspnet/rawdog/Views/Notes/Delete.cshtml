@@ -1,0 +1,36 @@
+@model Note
+@{
+    ViewData["Title"] = "Delete Note";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <i class="bi bi-exclamation-triangle"></i> Confirm Deletion
+            </div>
+            <div class="card-body">
+                <h5 class="card-title">Are you sure you want to delete this note?</h5>
+                <p class="text-muted mb-1"><strong>Title:</strong> @Model.Title</p>
+                <p class="text-muted mb-1"><strong>Created:</strong> @Model.CreatedAt.ToString("MMMM d, yyyy")</p>
+                @if (Model.Attachments.Any())
+                {
+                    <p class="text-warning mt-2">
+                        <i class="bi bi-exclamation-circle"></i>
+                        This note has @Model.Attachments.Count attachment(s) that will also be permanently deleted.
+                    </p>
+                }
+                <p class="text-danger mt-3 mb-0"><strong>This action cannot be undone.</strong></p>
+            </div>
+            <div class="card-footer d-flex gap-2">
+                <form asp-action="Delete" method="post">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                </form>
+                <a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,57 @@
+<div class="row justify-content-center">
+  <div class="col-xl-9">
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <h1 class="h3 mb-3"><%= title %></h1>
+
+        <% if (errors && errors.length) { %>
+          <div class="alert alert-danger">
+            <ul class="mb-0">
+              <% for (const error of errors) { %><li><%= error %></li><% } %>
+            </ul>
+          </div>
+        <% } %>
+
+        <form method="post" action="<%= `${formAction}?_csrf=${encodeURIComponent(csrfToken)}` %>" enctype="multipart/form-data" class="row g-3">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <div class="col-12">
+            <label class="form-label" for="title">Title</label>
+            <input class="form-control" id="title" name="title" maxlength="120" value="<%= note.title || '' %>" required>
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="content">Content</label>
+            <textarea class="form-control" id="content" name="content" rows="12" maxlength="10000" required><%= note.content || '' %></textarea>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="visibility">Visibility</label>
+            <select class="form-select" id="visibility" name="visibility">
+              <option value="private" <%= note.visibility === 'private' ? 'selected' : '' %>>Private</option>
+              <option value="public" <%= note.visibility === 'public' ? 'selected' : '' %>>Public</option>
+            </select>
+          </div>
+          <div class="col-md-8">
+            <label class="form-label" for="attachments">Attachments</label>
+            <input class="form-control" id="attachments" name="attachments" type="file" multiple accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg">
+            <div class="form-text">Supported files: PDF, DOC, DOCX, TXT, PNG, JPG, JPEG. Maximum 5 files, 5 MB each.</div>
+          </div>
+          <% if (typeof attachments !== 'undefined' && attachments.length) { %>
+            <div class="col-12">
+              <div class="border rounded-3 p-3 bg-light">
+                <h2 class="h6">Existing attachments</h2>
+                <ul class="mb-0">
+                  <% for (const attachment of attachments) { %>
+                    <li><a href="/attachments/<%= attachment.id %>"><%= attachment.original_name %></a></li>
+                  <% } %>
+                </ul>
+              </div>
+            </div>
+          <% } %>
+          <div class="col-12 d-flex gap-2">
+            <button class="btn btn-primary" type="submit">Save note</button>
+            <a href="<%= note.id ? `/notes/${note.id}` : '/dashboard' %>" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

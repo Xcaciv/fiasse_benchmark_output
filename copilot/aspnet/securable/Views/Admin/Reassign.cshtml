@@ -1,0 +1,30 @@
+@model ReassignOwnerViewModel
+@{
+    ViewData["Title"] = "Reassign note owner";
+}
+
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <h1 class="h3 mb-3">Reassign note owner</h1>
+                <p class="text-muted">Reassign <strong>@Model.NoteTitle</strong> from <strong>@Model.CurrentOwnerUserName</strong> to another user.</p>
+                <form asp-action="Reassign" method="post">
+                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+                    <input asp-for="NoteId" type="hidden" />
+                    <div class="mb-3">
+                        <label asp-for="NewOwnerId" class="form-label"></label>
+                        <select asp-for="NewOwnerId" asp-items="Model.Users" class="form-select">
+                            <option value="">Select a user</option>
+                        </select>
+                        <span asp-validation-for="NewOwnerId" class="text-danger"></span>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="submit" class="btn btn-primary">Reassign</button>
+                        <a asp-action="Dashboard" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

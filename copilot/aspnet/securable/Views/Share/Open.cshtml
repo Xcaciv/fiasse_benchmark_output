@@ -1,0 +1,82 @@
+@model NoteDetailsViewModel
+@{
+    ViewData["Title"] = Model.Title;
+    var shareToken = ViewBag.ShareToken as string ?? string.Empty;
+}
+
+<div class="alert alert-info">You are viewing this note via a share link.</div>
+
+<div class="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-4">
+    <div>
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <h1 class="mb-0">@Model.Title</h1>
+            <span class="badge @(Model.IsPublic ? "text-bg-success" : "text-bg-secondary")">@(Model.IsPublic ? "Public" : "Private")</span>
+        </div>
+        <p class="text-muted mb-1">By @Model.OwnerUserName</p>
+        <p class="text-muted mb-0">Created @Model.CreatedAtUtc.ToLocalTime().ToString("f") · Updated @Model.UpdatedAtUtc.ToLocalTime().ToString("f")</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <h2 class="h4 mb-3">Content</h2>
+                <div class="note-content">@Model.Content</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card shadow-sm mb-4">
+            <div class="card-body p-4">
+                <h2 class="h4 mb-3">Attachments</h2>
+                @if (Model.Attachments.Count == 0)
+                {
+                    <p class="text-muted mb-0">No attachments uploaded.</p>
+                }
+                else
+                {
+                    <div class="list-group">
+                        @foreach (var attachment in Model.Attachments)
+                        {
+                            <a asp-controller="Share" asp-action="DownloadAttachment" asp-route-token="@shareToken" asp-route-attachmentId="@attachment.Id" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                <span>@attachment.OriginalFileName</span>
+                                <span class="text-muted small">@(attachment.SizeBytes / 1024.0).ToString("0.0") KB</span>
+                            </a>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <h2 class="h4 mb-3">Ratings</h2>
+                <p class="mb-3"><span class="badge text-bg-warning">@Model.AverageRating.ToString("0.0") / 5</span> <span class="badge text-bg-light">@Model.RatingCount total</span></p>
+                @if (Model.Ratings.Count == 0)
+                {
+                    <p class="text-muted mb-0">This note has not been rated yet.</p>
+                }
+                else
+                {
+                    <div class="vstack gap-3">
+                        @foreach (var rating in Model.Ratings)
+                        {
+                            <div class="border rounded-3 p-3">
+                                <div class="d-flex justify-content-between gap-3">
+                                    <strong>@rating.UserName</strong>
+                                    <span class="badge text-bg-warning">@rating.Value / 5</span>
+                                </div>
+                                <div class="text-muted small">@rating.CreatedAtUtc.ToLocalTime().ToString("g")</div>
+                                @if (!string.IsNullOrWhiteSpace(rating.Comment))
+                                {
+                                    <p class="mb-0 mt-2">@rating.Comment</p>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,60 @@
+<%- include('../partials/header', { title: title }) %>
+
+<div class="mb-4">
+  <h1 class="h3 mb-3"><i class="bi bi-search me-2"></i>Search Notes</h1>
+  <form action="/notes/search" method="GET">
+    <div class="input-group input-group-lg">
+      <input type="text" class="form-control" name="q" value="<%= query %>"
+        placeholder="Search by title or content..." autofocus>
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-search me-1"></i>Search
+      </button>
+    </div>
+  </form>
+</div>
+
+<% if (query) { %>
+  <p class="text-muted mb-3">
+    <%= notes.length %> result<%= notes.length !== 1 ? 's' : '' %> for "<strong><%= query %></strong>"
+  </p>
+<% } %>
+
+<% if (notes.length === 0 && query) { %>
+  <div class="text-center py-5">
+    <i class="bi bi-search display-4 text-muted mb-3"></i>
+    <p class="text-muted">No notes found matching "<%= query %>".</p>
+  </div>
+<% } else { %>
+  <div class="row g-3">
+    <% notes.forEach(note => { %>
+      <div class="col-md-6">
+        <div class="card h-100 note-card border-0 shadow-sm">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <h5 class="card-title mb-0">
+                <a href="/notes/<%= note.id %>" class="text-decoration-none text-dark"><%= note.title %></a>
+              </h5>
+              <span class="badge ms-2 flex-shrink-0 visibility-badge-<%= note.visibility %>">
+                <%= note.visibility %>
+              </span>
+            </div>
+            <p class="note-excerpt mb-2">
+              <%= note.content.substring(0, 200) %><%= note.content.length > 200 ? '...' : '' %>
+            </p>
+            <div class="d-flex justify-content-between align-items-center small text-muted">
+              <span>By <strong><%= note.username %></strong></span>
+              <div>
+                <% if (note.avg_rating) { %>
+                  <span class="star-rating me-2"><i class="bi bi-star-fill"></i> <%= note.avg_rating %></span>
+                <% } %>
+                <%= new Date(note.created_at).toLocaleDateString() %>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+<% } %>
+
+<%- include('../partials/footer') %>

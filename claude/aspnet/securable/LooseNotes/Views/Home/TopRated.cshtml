@@ -1,0 +1,33 @@
+@using LooseNotes.Controllers
+@model IReadOnlyList<TopRatedEntry>
+@{
+    ViewData["Title"] = "Top Rated Notes";
+}
+
+<h2>Top Rated Notes</h2>
+<p class="text-muted">Public notes with at least 3 ratings, sorted by average rating.</p>
+
+@if (!Model.Any())
+{
+    <div class="alert alert-info">No notes qualify yet. Rate some public notes to get the list started!</div>
+}
+else
+{
+    <div class="list-group">
+        @foreach (var entry in Model)
+        {
+            <a asp-controller="Notes" asp-action="Details" asp-route-id="@entry.NoteId"
+               class="list-group-item list-group-item-action">
+                <div class="d-flex w-100 justify-content-between">
+                    <h5 class="mb-1">@entry.Title</h5>
+                    <span class="badge bg-warning text-dark fs-6">
+                        &#9733; @entry.AverageRating.ToString("0.0")
+                        <small class="ms-1 text-muted">(@entry.RatingCount)</small>
+                    </span>
+                </div>
+                <p class="mb-1 text-muted small">@entry.Preview</p>
+                <small>by @entry.AuthorName</small>
+            </a>
+        }
+    </div>
+}

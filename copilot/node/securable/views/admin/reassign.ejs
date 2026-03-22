@@ -1,0 +1,26 @@
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <h1 class="h3 mb-3">Reassign note ownership</h1>
+        <p class="text-body-secondary">Move <strong><%= note.title %></strong> to a different existing user.</p>
+
+        <form method="post" action="/admin/notes/<%= note.id %>/reassign" class="vstack gap-3">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <div>
+            <label class="form-label" for="newOwnerId">New owner</label>
+            <select class="form-select" id="newOwnerId" name="newOwnerId" required>
+              <% for (const user of users) { %>
+                <option value="<%= user.id %>"><%= user.username %> (<%= user.email %>)</option>
+              <% } %>
+            </select>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-primary" type="submit">Reassign note</button>
+            <a href="/notes/<%= note.id %>" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

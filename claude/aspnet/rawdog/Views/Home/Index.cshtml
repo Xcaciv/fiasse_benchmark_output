@@ -1,0 +1,37 @@
+@{
+    ViewData["Title"] = "Welcome";
+}
+
+<div class="text-center py-5">
+    <h1 class="display-4 fw-bold"><i class="bi bi-journal-text text-primary"></i> Loose Notes</h1>
+    <p class="lead text-muted">Create, share, and rate notes — all in one place.</p>
+    <div class="mt-4">
+        <a asp-controller="Account" asp-action="Register" class="btn btn-primary btn-lg me-2">
+            <i class="bi bi-person-plus"></i> Get Started
+        </a>
+        <a asp-controller="Account" asp-action="Login" class="btn btn-outline-secondary btn-lg me-2">
+            <i class="bi bi-box-arrow-in-right"></i> Login
+        </a>
+        <a asp-controller="Notes" asp-action="TopRated" class="btn btn-outline-primary btn-lg">
+            <i class="bi bi-star"></i> Top Rated Notes
+        </a>
+    </div>
+</div>
+
+<div class="row mt-5 text-center">
+    <div class="col-md-4 mb-4">
+        <i class="bi bi-pencil-square display-5 text-primary"></i>
+        <h5 class="mt-2">Create Notes</h5>
+        <p class="text-muted">Write notes with rich content and attach files (PDF, images, documents).</p>
+    </div>
+    <div class="col-md-4 mb-4">
+        <i class="bi bi-share display-5 text-success"></i>
+        <h5 class="mt-2">Share Easily</h5>
+        <p class="text-muted">Generate share links so anyone can view your notes, even without an account.</p>
+    </div>
+    <div class="col-md-4 mb-4">
+        <i class="bi bi-star-half display-5 text-warning"></i>
+        <h5 class="mt-2">Rate & Discover</h5>
+        <p class="text-muted">Rate public notes and find the best content in the Top Rated section.</p>
+    </div>
+</div>

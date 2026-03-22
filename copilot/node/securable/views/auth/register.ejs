@@ -1,0 +1,44 @@
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <h1 class="h3 mb-3">Create an account</h1>
+        <p class="text-body-secondary">Register with a username, email address, and strong password.</p>
+
+        <% if (typeof errors !== 'undefined' && errors.length) { %>
+          <div class="alert alert-danger">
+            <ul class="mb-0">
+              <% for (const error of errors) { %><li><%= error %></li><% } %>
+            </ul>
+          </div>
+        <% } %>
+
+        <form method="post" action="/register" class="row g-3">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <div class="col-md-6">
+            <label class="form-label" for="username">Username</label>
+            <input class="form-control" id="username" name="username" maxlength="30" value="<%= form.username || '' %>" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="email">Email address</label>
+            <input class="form-control" id="email" name="email" type="email" maxlength="200" value="<%= form.email || '' %>" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="password">Password</label>
+            <input class="form-control" id="password" name="password" type="password" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="confirmPassword">Confirm password</label>
+            <input class="form-control" id="confirmPassword" name="confirmPassword" type="password" required>
+          </div>
+          <div class="col-12">
+            <div class="form-text">Use at least 12 characters with upper, lower, numeric, and symbol characters.</div>
+          </div>
+          <div class="col-12">
+            <button class="btn btn-primary" type="submit">Register</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

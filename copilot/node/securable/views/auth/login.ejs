@@ -1,0 +1,35 @@
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <h1 class="h3 mb-3">Login</h1>
+        <p class="text-body-secondary">Sign in with your username and password.</p>
+
+        <% if (typeof errors !== 'undefined' && errors.length) { %>
+          <div class="alert alert-danger">
+            <ul class="mb-0">
+              <% for (const error of errors) { %><li><%= error %></li><% } %>
+            </ul>
+          </div>
+        <% } %>
+
+        <form method="post" action="/login" class="vstack gap-3">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <div>
+            <label class="form-label" for="username">Username</label>
+            <input class="form-control" id="username" name="username" maxlength="30" value="<%= form.username || '' %>" required>
+          </div>
+          <div>
+            <label class="form-label" for="password">Password</label>
+            <input class="form-control" id="password" name="password" type="password" required>
+          </div>
+          <button class="btn btn-primary" type="submit">Login</button>
+        </form>
+
+        <div class="mt-3">
+          <a href="/forgot-password">Forgot password?</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

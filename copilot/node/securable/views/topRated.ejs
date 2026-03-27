@@ -1,0 +1,26 @@
+<%- include('partials/header') %>
+<h2 class="mb-4">🏆 Top Rated Notes</h2>
+<% if (notes.length === 0) { %>
+  <div class="alert alert-info">No notes with at least 3 ratings yet. Be the first to rate some notes!</div>
+<% } else { %>
+  <div class="row">
+    <% notes.forEach(function(note, i) { %>
+      <div class="col-md-6 mb-3">
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <h5 class="card-title"><a href="/notes/<%= note.id %>"><%= note.title %></a></h5>
+              <span class="badge bg-warning text-dark">#<%= i+1 %></span>
+            </div>
+            <p class="card-text text-muted small"><%= note.preview %>&hellip;</p>
+            <div class="d-flex justify-content-between align-items-center">
+              <small class="text-muted">By <strong><%= note.author %></strong></small>
+              <span class="text-warning">★ <%= note.avgRating %> <small class="text-muted">(<%= note.ratingCount %> ratings)</small></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+<% } %>
+<%- include('partials/footer') %>

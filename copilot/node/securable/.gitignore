@@ -1,7 +1,7 @@
 node_modules/
-database.sqlite
-sessions.sqlite
 uploads/
 logs/
+data/
 .env
-*.log
+*.sqlite
+*.sqlite-journal

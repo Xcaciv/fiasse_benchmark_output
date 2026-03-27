@@ -1,11 +1,9 @@
 'use strict';
 
-const { DataTypes, Model } = require('sequelize');
-const { sequelize } = require('../config/database');
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
 
-class ShareLink extends Model {}
-
-ShareLink.init({
+const ShareLink = sequelize.define('ShareLink', {
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
@@ -14,20 +12,20 @@ ShareLink.init({
   noteId: {
     type: DataTypes.UUID,
     allowNull: false,
-    unique: true,
-    references: { model: 'notes', key: 'id' },
   },
-  // token is a server-generated UUID — never derived from client input
   token: {
-    type: DataTypes.UUID,
+    type: DataTypes.STRING(64),
     allowNull: false,
     unique: true,
   },
+  revokedAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    defaultValue: null,
+  },
 }, {
-  sequelize,
-  modelName: 'ShareLink',
   tableName: 'share_links',
-  timestamps: true,
+  updatedAt: false,
 });
 
-module.exports = { ShareLink };
+module.exports = ShareLink;

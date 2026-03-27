@@ -2,44 +2,26 @@
 
 require('dotenv').config();
 
-const fs = require('fs');
-const path = require('path');
 const app = require('./app');
-const { syncDatabase } = require('./models/index');
-const { logger } = require('./config/logger');
+const { syncDatabase } = require('./models');
+const logger = require('./utils/logger');
 
-const PORT = parseInt(process.env.PORT || '3000', 10);
+const PORT = parseInt(process.env.PORT, 10) || 3000;
 
-/** Ensure required runtime directories exist before accepting requests. */
-const ensureRuntimeDirectories = () => {
-  const dirs = [
-    path.resolve(process.env.UPLOAD_DIR || './uploads'),
-    path.resolve('./logs'),
-  ];
-
-  for (const dir of dirs) {
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-      logger.info('Created runtime directory', { dir });
-    }
-  }
-};
-
-const start = async () => {
-  ensureRuntimeDirectories();
-
-  // Sync database schema (non-destructive alter)
-  await syncDatabase();
-
-  app.listen(PORT, () => {
-    logger.info('Loose Notes started', {
-      port: PORT,
-      env: process.env.NODE_ENV || 'development',
+async function start() {
+  try {
+    await syncDatabase();
+    logger.info('Database synchronized');
+    app.listen(PORT, () => {
+      logger.info(`Loose Notes server running on port ${PORT}`, {
+        env: process.env.NODE_ENV || 'development',
+        port: PORT,
+      });
     });
-  });
-};
+  } catch (err) {
+    logger.error('Failed to start server', { error: err.message, stack: err.stack });
+    process.exit(1);
+  }
+}
 
-start().catch((err) => {
-  logger.error('Server startup failed', { error: err.message, stack: err.stack });
-  process.exit(1);
-});
+start();

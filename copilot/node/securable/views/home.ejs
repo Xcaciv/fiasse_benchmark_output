@@ -1,49 +1,11 @@
-<section class="mb-4">
-  <div class="p-4 bg-white rounded-3 shadow-sm border">
-    <h1 class="h3 mb-3">Find notes</h1>
-    <p class="text-body-secondary mb-4">
-      Search public notes<% if (currentUser) { %> and your own private notes<% } %> by title or content.
-    </p>
-    <form method="get" action="/" class="row g-3">
-      <div class="col-md-9">
-        <label for="q" class="form-label">Keyword</label>
-        <input id="q" name="q" class="form-control" value="<%= searchTerm %>" maxlength="100" placeholder="Search title or content">
-      </div>
-      <div class="col-md-3 d-flex align-items-end">
-        <button type="submit" class="btn btn-primary w-100">Search</button>
-      </div>
-    </form>
+<%- include('partials/header') %>
+<div class="text-center py-5">
+  <h1 class="display-4 mb-3">📝 Loose Notes</h1>
+  <p class="lead text-muted mb-4">A secure, multi-user note-taking platform. Capture your thoughts, share what matters.</p>
+  <div class="d-flex justify-content-center gap-3">
+    <a href="/auth/register" class="btn btn-primary btn-lg">Get Started</a>
+    <a href="/auth/login" class="btn btn-outline-secondary btn-lg">Login</a>
+    <a href="/top-rated" class="btn btn-outline-success btn-lg">Top Rated Notes</a>
   </div>
-</section>
-
-<section>
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="h4 mb-0"><%= searchTerm ? 'Search results' : 'Available notes' %></h2>
-    <span class="text-body-secondary"><%= notes.length %> note(s)</span>
-  </div>
-
-  <% if (!notes.length) { %>
-    <div class="alert alert-light border">No notes matched your search.</div>
-  <% } %>
-
-  <div class="row g-3">
-    <% for (const note of notes) { %>
-      <div class="col-12">
-        <article class="card shadow-sm h-100">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start gap-3">
-              <div>
-                <h3 class="h5 card-title mb-1"><a class="text-decoration-none" href="/notes/<%= note.id %>"><%= note.title %></a></h3>
-                <div class="small text-body-secondary">
-                  By <%= note.author %> · <%= helpers.formatDateTime(note.created_at) %> · <%= helpers.formatVisibility(note.visibility) %>
-                </div>
-              </div>
-              <span class="badge text-bg-<%= note.visibility === 'public' ? 'success' : 'secondary' %>"><%= helpers.formatVisibility(note.visibility) %></span>
-            </div>
-            <p class="card-text mt-3 mb-0"><%= note.excerpt %></p>
-          </div>
-        </article>
-      </div>
-    <% } %>
-  </div>
-</section>
+</div>
+<%- include('partials/footer') %>

@@ -1,53 +1,22 @@
 'use strict';
 
-const { DataTypes, Model } = require('sequelize');
-const bcrypt = require('bcryptjs');
-const { sequelize } = require('../config/database');
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
 
-const BCRYPT_COST = 12;
-
-class User extends Model {
-  /**
-   * Timing-safe password verification using bcrypt.
-   * @param {string} plaintext
-   * @returns {Promise<boolean>}
-   */
-  async verifyPassword(plaintext) {
-    return bcrypt.compare(plaintext, this.passwordHash);
-  }
-
-  /**
-   * Hash a plaintext password with bcrypt cost factor 12.
-   * @param {string} plaintext
-   * @returns {Promise<string>}
-   */
-  static async hashPassword(plaintext) {
-    return bcrypt.hash(plaintext, BCRYPT_COST);
-  }
-
-  /**
-   * Confidentiality: strip sensitive fields before serialization.
-   * passwordHash and resetToken must never leave the server layer.
-   */
-  toJSON() {
-    const values = { ...this.get() };
-    delete values.passwordHash;
-    delete values.resetToken;
-    return values;
-  }
-}
-
-User.init({
+const User = sequelize.define('User', {
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true,
   },
   username: {
-    type: DataTypes.STRING(30),
+    type: DataTypes.STRING(50),
     allowNull: false,
     unique: true,
-    validate: { len: [3, 30], isAlphanumeric: true },
+    validate: {
+      len: [3, 50],
+      is: /^[a-zA-Z0-9_]+$/,
+    },
   },
   email: {
     type: DataTypes.STRING(255),
@@ -61,22 +30,27 @@ User.init({
   },
   role: {
     type: DataTypes.ENUM('user', 'admin'),
-    allowNull: false,
     defaultValue: 'user',
+    allowNull: false,
   },
-  resetToken: {
+  passwordResetToken: {
     type: DataTypes.STRING(255),
     allowNull: true,
   },
-  resetTokenExpiresAt: {
+  passwordResetExpires: {
     type: DataTypes.DATE,
     allowNull: true,
   },
 }, {
-  sequelize,
-  modelName: 'User',
   tableName: 'users',
-  timestamps: true,
+  defaultScope: {
+    attributes: { exclude: ['passwordHash', 'passwordResetToken', 'passwordResetExpires'] },
+  },
+  scopes: {
+    withAuth: {
+      attributes: {},
+    },
+  },
 });
 
-module.exports = { User };
+module.exports = User;

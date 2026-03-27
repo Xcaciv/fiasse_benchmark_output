@@ -1,0 +1,29 @@
+<%- include('../partials/header') %>
+<div class="row">
+  <div class="col-md-8">
+    <h2 class="mb-4">Create Note</h2>
+    <form action="/notes" method="POST" novalidate>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="mb-3">
+        <label for="title" class="form-label">Title <span class="text-danger">*</span></label>
+        <input type="text" id="title" name="title" class="form-control" required maxlength="255">
+      </div>
+      <div class="mb-3">
+        <label for="content" class="form-label">Content <span class="text-danger">*</span></label>
+        <textarea id="content" name="content" class="form-control" rows="12" required maxlength="50000"></textarea>
+      </div>
+      <div class="mb-3">
+        <label for="visibility" class="form-label">Visibility</label>
+        <select id="visibility" name="visibility" class="form-select">
+          <option value="private" selected>Private</option>
+          <option value="public">Public</option>
+        </select>
+      </div>
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">Create Note</button>
+        <a href="/notes" class="btn btn-outline-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+<%- include('../partials/footer') %>

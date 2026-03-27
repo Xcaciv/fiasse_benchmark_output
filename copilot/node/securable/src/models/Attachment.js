@@ -1,11 +1,9 @@
 'use strict';
 
-const { DataTypes, Model } = require('sequelize');
-const { sequelize } = require('../config/database');
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
 
-class Attachment extends Model {}
-
-Attachment.init({
+const Attachment = sequelize.define('Attachment', {
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
@@ -14,13 +12,11 @@ Attachment.init({
   noteId: {
     type: DataTypes.UUID,
     allowNull: false,
-    references: { model: 'notes', key: 'id' },
   },
   originalName: {
     type: DataTypes.STRING(255),
     allowNull: false,
   },
-  // storedName is server-generated UUID-based filename; never client-supplied
   storedName: {
     type: DataTypes.STRING(255),
     allowNull: false,
@@ -29,16 +25,13 @@ Attachment.init({
     type: DataTypes.STRING(100),
     allowNull: false,
   },
-  sizeBytes: {
+  size: {
     type: DataTypes.INTEGER,
     allowNull: false,
   },
 }, {
-  sequelize,
-  modelName: 'Attachment',
   tableName: 'attachments',
-  timestamps: true,
   updatedAt: false,
 });
 
-module.exports = { Attachment };
+module.exports = Attachment;

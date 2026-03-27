@@ -1,10 +1,7 @@
 ﻿{
     "allowed_write_directories":  [
-                                      "G:\\Generated\\fiasse_benchmark_output\\copilot\\aspnet\\rawdog",
                                       "G:\\Generated\\fiasse_benchmark_output\\copilot\\aspnet\\securable",
-                                      "G:\\Generated\\fiasse_benchmark_output\\copilot\\jsp\\rawdog",
                                       "G:\\Generated\\fiasse_benchmark_output\\copilot\\jsp\\securable",
-                                      "G:\\Generated\\fiasse_benchmark_output\\copilot\\node\\rawdog",
                                       "G:\\Generated\\fiasse_benchmark_output\\copilot\\node\\securable"
                                   ]
 }

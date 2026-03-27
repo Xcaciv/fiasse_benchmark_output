@@ -1,11 +1,9 @@
 'use strict';
 
-const { DataTypes, Model } = require('sequelize');
-const { sequelize } = require('../config/database');
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
 
-class Note extends Model {}
-
-Note.init({
+const Note = sequelize.define('Note', {
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
@@ -19,27 +17,19 @@ Note.init({
   content: {
     type: DataTypes.TEXT,
     allowNull: false,
+    validate: { len: [1, 50000] },
   },
-  // Derived Integrity Principle: server assigns default; only validated enum accepted from client
   visibility: {
     type: DataTypes.ENUM('public', 'private'),
-    allowNull: false,
     defaultValue: 'private',
+    allowNull: false,
   },
   userId: {
     type: DataTypes.UUID,
     allowNull: false,
-    references: { model: 'users', key: 'id' },
   },
 }, {
-  sequelize,
-  modelName: 'Note',
   tableName: 'notes',
-  timestamps: true,
-  scopes: {
-    public: { where: { visibility: 'public' } },
-    owned: (userId) => ({ where: { userId } }),
-  },
 });
 
-module.exports = { Note };
+module.exports = Note;

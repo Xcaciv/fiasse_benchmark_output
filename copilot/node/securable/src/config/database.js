@@ -1,23 +1,25 @@
 'use strict';
 
 const { Sequelize } = require('sequelize');
-const path = require('path');
+const logger = require('../utils/logger');
 
-// DB_PATH resolved from env; defaults to project root database.sqlite
-const dbPath = path.resolve(process.env.DB_PATH || './database.sqlite');
+const DATABASE_URL = process.env.DATABASE_URL;
 
-const sequelize = new Sequelize({
-  dialect: 'sqlite',
-  storage: dbPath,
-  // Only log SQL in development to avoid leaking query data in production logs
-  logging: process.env.NODE_ENV === 'development'
-    ? (msg) => require('./logger').logger.debug(msg)
-    : false,
-  define: {
-    underscored: false,
-    freezeTableName: false,
-    charset: 'utf8',
-  },
-});
+let sequelize;
 
-module.exports = { sequelize };
+if (DATABASE_URL && DATABASE_URL.startsWith('postgres')) {
+  sequelize = new Sequelize(DATABASE_URL, {
+    dialect: 'postgres',
+    logging: (msg) => logger.debug(msg),
+    pool: { max: 10, min: 0, acquire: 30000, idle: 10000 },
+  });
+} else {
+  const dbPath = DATABASE_URL || './data/database.sqlite';
+  sequelize = new Sequelize({
+    dialect: 'sqlite',
+    storage: dbPath,
+    logging: (msg) => logger.debug(msg),
+  });
+}
+
+module.exports = sequelize;

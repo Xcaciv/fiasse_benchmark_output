@@ -1,0 +1,23 @@
+<h2 class="mb-4">Search Notes</h2>
+<form action="/notes/search" method="GET" class="mb-4">
+  <div class="input-group">
+    <input type="text" name="q" class="form-control" placeholder="Search notes…" value="{{q}}" maxlength="200">
+    <button type="submit" class="btn btn-primary">Search</button>
+  </div>
+</form>
+
+{{#if notes.length}}
+  <div class="list-group">
+    {{#each notes}}
+      <a href="/notes/{{this.id}}" class="list-group-item list-group-item-action">
+        <div class="d-flex justify-content-between">
+          <strong>{{this.title}}</strong>
+          <small class="text-muted">{{this.author}} &middot; {{formatDate this.createdAt}}</small>
+        </div>
+        <p class="mb-0 text-muted small">{{excerpt this.excerpt 200}}</p>
+      </a>
+    {{/each}}
+  </div>
+{{else if q}}
+  <p class="text-muted">No results found for "<strong>{{q}}</strong>".</p>
+{{/if}}

@@ -1,0 +1,21 @@
+{
+    "instructions":  "./.securable/instructions.md",
+    "mcpServers":  {
+                       "securable":  {
+                                         "args":  [
+                                                      "./.securable/tools/mcp_server.py"
+                                                  ],
+                                         "env":  {
+                                                     "SECURABLE_DATA_DIR":  "./.securable/data",
+                                                     "SECURABLE_WORKFLOWS_DIR":  "./.securable/workflows",
+                                                     "SECURABLE_TEMPLATES_DIR":  "./.securable/templates"
+                                                 },
+                                         "command":  "python"
+                                     }
+                   },
+    "$schema":  "https://opencode.ai/config.json",
+    "permission":  {
+                       "edit":  "allow",
+                       "bash":  "allow"
+                   }
+}

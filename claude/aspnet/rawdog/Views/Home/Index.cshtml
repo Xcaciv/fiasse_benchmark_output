@@ -1,47 +1,36 @@
-@model List<LooseNotes.ViewModels.TopRatedNoteViewModel>
 @{
     ViewData["Title"] = "Welcome";
 }
 
-<div class="jumbotron bg-white p-5 rounded shadow-sm mb-4">
-    <h1 class="display-4">Welcome to Loose Notes</h1>
-    <p class="lead">Create, share, and discover notes with others.</p>
-    @if (!User.Identity!.IsAuthenticated)
+<div class="jumbotron text-center py-5 bg-light rounded">
+    <h1 class="display-4"><i class="bi bi-journal-text"></i> Loose Notes</h1>
+    <p class="lead">Create, share, and discover notes with the community.</p>
+    @if (User.Identity?.IsAuthenticated == true)
     {
-        <a asp-controller="Account" asp-action="Register" class="btn btn-primary btn-lg me-2">Get Started</a>
-        <a asp-controller="Account" asp-action="Login" class="btn btn-outline-secondary btn-lg">Login</a>
+        <a asp-controller="Notes" asp-action="Index" class="btn btn-primary btn-lg me-2">My Notes</a>
+        <a asp-controller="Notes" asp-action="Create" class="btn btn-success btn-lg">New Note</a>
     }
     else
     {
-        <a asp-controller="Notes" asp-action="Create" class="btn btn-primary btn-lg me-2">New Note</a>
-        <a asp-controller="Notes" asp-action="Index" class="btn btn-outline-secondary btn-lg">My Notes</a>
+        <a asp-controller="Account" asp-action="Register" class="btn btn-primary btn-lg me-2">Get Started</a>
+        <a asp-controller="Account" asp-action="Login" class="btn btn-outline-primary btn-lg">Login</a>
     }
 </div>
 
-@if (Model.Any())
-{
-    <h2>Top Rated Notes</h2>
-    <div class="row">
-        @foreach (var note in Model)
-        {
-            <div class="col-md-6 mb-3">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <h5 class="card-title">
-                            <a asp-controller="Notes" asp-action="Details" asp-route-id="@note.Id">@note.Title</a>
-                        </h5>
-                        <p class="card-text text-muted small">By @note.AuthorName</p>
-                        <p class="card-text">@note.Preview</p>
-                        <div class="star-rating">
-                            @for (int i = 1; i <= 5; i++)
-                            {
-                                <span>@(i <= Math.Round(note.AverageRating) ? "★" : "☆")</span>
-                            }
-                            <span class="text-muted">(@note.RatingCount ratings)</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        }
+<div class="row mt-4">
+    <div class="col-md-4 text-center">
+        <i class="bi bi-pencil-square fs-1 text-primary"></i>
+        <h4>Create Notes</h4>
+        <p>Write and organize your notes with titles and rich content.</p>
     </div>
-}
+    <div class="col-md-4 text-center">
+        <i class="bi bi-share fs-1 text-success"></i>
+        <h4>Share Easily</h4>
+        <p>Generate share links to share notes with anyone.</p>
+    </div>
+    <div class="col-md-4 text-center">
+        <i class="bi bi-star fs-1 text-warning"></i>
+        <h4>Rate & Discover</h4>
+        <p>Rate public notes and discover the best content.</p>
+    </div>
+</div>

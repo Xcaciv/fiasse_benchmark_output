@@ -1,0 +1,24 @@
+@model IEnumerable<LooseNotes.Models.Note>
+@{
+    ViewData["Title"] = "All Notes (Admin)";
+}
+<h2>All Notes</h2>
+<table class="table table-hover">
+    <thead>
+        <tr><th>Title</th><th>Owner</th><th>Visibility</th><th>Ratings</th><th>Updated</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+        @foreach (var note in Model)
+        {
+            <tr>
+                <td>@note.Title</td>
+                <td>@note.User?.UserName</td>
+                <td><span class="badge @(note.IsPublic ? "bg-success" : "bg-secondary")">@(note.IsPublic ? "Public" : "Private")</span></td>
+                <td>@note.Ratings.Count</td>
+                <td>@note.UpdatedAt.ToString("MMM d, yyyy")</td>
+                <td><a asp-action="NoteDetails" asp-route-id="@note.Id" class="btn btn-sm btn-outline-primary">View</a></td>
+            </tr>
+        }
+    </tbody>
+</table>
+<a asp-action="Dashboard" class="btn btn-secondary">Back to Dashboard</a>

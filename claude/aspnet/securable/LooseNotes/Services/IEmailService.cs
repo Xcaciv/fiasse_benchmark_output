@@ -1,13 +1,13 @@
+// IEmailService.cs — Abstraction for sending transactional email.
+// Modifiability: swap LoggingEmailService for a real SMTP/SES implementation without changing callers.
+// Confidentiality: method signature intentionally avoids exposing raw reset tokens in callers.
 namespace LooseNotes.Services;
 
-/// <summary>
-/// Email dispatch abstraction — injectable for testing without network side effects.
-/// </summary>
+/// <summary>Sends transactional emails. In development, implementations log instead of sending.</summary>
 public interface IEmailService
 {
-    /// <summary>
-    /// Sends a password-reset email containing the reset link.
-    /// Implementation must not log the token or link (Confidentiality).
-    /// </summary>
-    Task SendPasswordResetAsync(string toEmail, string resetLink, CancellationToken cancellationToken = default);
+    /// <summary>Sends a password reset link to the specified address.</summary>
+    /// <param name="toEmail">Recipient email address.</param>
+    /// <param name="resetLink">Full absolute URL for resetting the password.</param>
+    Task SendPasswordResetAsync(string toEmail, string resetLink);
 }

@@ -1,77 +1,116 @@
 package com.loosenotes.servlet;
 
-import com.loosenotes.audit.AuditLogger;
+import com.loosenotes.dao.DatabaseManager;
+import com.loosenotes.dao.UserDao;
 import com.loosenotes.model.User;
-import com.loosenotes.service.UserService;
-import com.loosenotes.util.CsrfUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.loosenotes.util.*;
 
 import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
 import java.io.IOException;
-import java.util.Optional;
+import java.sql.SQLException;
 
-/** Handles user login and session creation (REQ-002). */
-public final class LoginServlet extends HttpServlet {
+/**
+ * Handles user authentication.
+ * Failed attempts are logged with IP; session is created only on successful authentication.
+ * FIASSE Authenticity: new session ID on login prevents session fixation.
+ */
+@WebServlet("/login")
+public class LoginServlet extends HttpServlet {
 
-    private static final Logger log = LoggerFactory.getLogger(LoginServlet.class);
+    private static final String ATTEMPT_ATTR = "loginAttempts";
+    private static final int MAX_ATTEMPTS = 10;
 
-    private UserService userService;
-    private AuditLogger auditLogger;
+    private UserDao userDao;
 
     @Override
     public void init() {
-        this.userService  = (UserService)  getServletContext().getAttribute("userService");
-        this.auditLogger  = (AuditLogger)  getServletContext().getAttribute("auditLogger");
+        this.userDao = new UserDao(DatabaseManager.getInstance());
     }
 
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp)
+    protected void doGet(HttpServletRequest req, HttpServletResponse res)
             throws ServletException, IOException {
-        // If already authenticated, redirect to notes list
-        HttpSession session = req.getSession(false);
-        if (session != null && session.getAttribute("userId") != null) {
-            resp.sendRedirect(req.getContextPath() + "/notes");
+        res.setContentType("text/html;charset=UTF-8");
+        if (req.getSession(false) != null &&
+                req.getSession(false).getAttribute("currentUser") != null) {
+            res.sendRedirect(req.getContextPath() + "/notes");
             return;
         }
-        CsrfUtil.getOrCreateToken(req.getSession(true));
-        req.getRequestDispatcher("/WEB-INF/jsp/auth/login.jsp").forward(req, resp);
+        req.getRequestDispatcher("/WEB-INF/views/login.jsp").forward(req, res);
     }
 
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp)
+    protected void doPost(HttpServletRequest req, HttpServletResponse res)
             throws ServletException, IOException {
-        String username = req.getParameter("username");
+        res.setContentType("text/html;charset=UTF-8");
+        req.setCharacterEncoding("UTF-8");
+
+        // Track attempts per session to slow brute-force
+        HttpSession tempSession = req.getSession(true);
+        int attempts = getAttemptCount(tempSession);
+
+        if (attempts >= MAX_ATTEMPTS) {
+            req.setAttribute("error", "Too many failed attempts. Please try again later.");
+            req.getRequestDispatcher("/WEB-INF/views/login.jsp").forward(req, res);
+            return;
+        }
+
+        String username = ValidationUtil.sanitizeString(req.getParameter("username"));
         String password = req.getParameter("password");
 
-        Optional<User> userOpt = userService.authenticate(username, password);
-        if (userOpt.isEmpty()) {
-            req.setAttribute("error", "Invalid username or password");
-            CsrfUtil.getOrCreateToken(req.getSession(true));
-            req.getRequestDispatcher("/WEB-INF/jsp/auth/login.jsp").forward(req, resp);
+        if (ValidationUtil.isBlank(username) || ValidationUtil.isBlank(password)) {
+            recordFailedAttempt(tempSession, username, req.getRemoteAddr());
+            req.setAttribute("error", "Invalid username or password.");
+            req.getRequestDispatcher("/WEB-INF/views/login.jsp").forward(req, res);
             return;
         }
 
-        User user = userOpt.get();
-        // Invalidate old session to prevent session fixation (Authenticity)
-        HttpSession oldSession = req.getSession(false);
-        if (oldSession != null) oldSession.invalidate();
-
-        HttpSession newSession = req.getSession(true);
-        newSession.setAttribute("userId",       user.getId());
-        newSession.setAttribute("username",     user.getUsername());
-        newSession.setAttribute("userRole",     user.getRole());
-        CsrfUtil.generateToken(newSession);
-
-        auditLogger.log(user.getId(), user.getUsername(), "LOGIN_SUCCESS", "USER",
-                String.valueOf(user.getId()), req.getRemoteAddr(), "SUCCESS", null);
-
-        String redirect = req.getParameter("redirect");
-        if (redirect != null && redirect.startsWith("/") && !redirect.contains("//")) {
-            resp.sendRedirect(req.getContextPath() + redirect);
-        } else {
-            resp.sendRedirect(req.getContextPath() + "/notes");
+        try {
+            authenticateUser(req, res, username, password, tempSession);
+        } catch (SQLException e) {
+            getServletContext().log("Login error", e);
+            req.setAttribute("error", "Login failed. Please try again.");
+            req.getRequestDispatcher("/WEB-INF/views/login.jsp").forward(req, res);
         }
+    }
+
+    private void authenticateUser(HttpServletRequest req, HttpServletResponse res,
+                                   String username, String password, HttpSession tempSession)
+            throws SQLException, IOException, ServletException {
+        User user = userDao.findByUsername(username).orElse(null);
+
+        if (user == null || !PasswordUtil.verifyPassword(password, user.getPasswordHash())) {
+            recordFailedAttempt(tempSession, username, req.getRemoteAddr());
+            req.setAttribute("error", "Invalid username or password.");
+            req.getRequestDispatcher("/WEB-INF/views/login.jsp").forward(req, res);
+            return;
+        }
+
+        // Session fixation prevention: invalidate old session, create new one
+        tempSession.invalidate();
+        HttpSession newSession = req.getSession(true);
+        newSession.setAttribute("currentUser", user);
+        CsrfUtil.generateToken(newSession);
+        AuditLogger.logAuthEvent("LOGIN_SUCCESS", username, req.getRemoteAddr(), "");
+
+        String next = req.getParameter("next");
+        if (next != null && next.startsWith("/") && !next.startsWith("//")) {
+            res.sendRedirect(req.getContextPath() + next);
+        } else {
+            res.sendRedirect(req.getContextPath() + "/notes");
+        }
+    }
+
+    private int getAttemptCount(HttpSession session) {
+        Object count = session.getAttribute(ATTEMPT_ATTR);
+        return (count instanceof Integer) ? (Integer) count : 0;
+    }
+
+    private void recordFailedAttempt(HttpSession session, String username, String ip) {
+        int count = getAttemptCount(session) + 1;
+        session.setAttribute(ATTEMPT_ATTR, count);
+        AuditLogger.logAuthEvent("LOGIN_FAILURE", username, ip, "attempts=" + count);
     }
 }

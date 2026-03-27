@@ -1,0 +1,41 @@
+@model LooseNotes.ViewModels.Notes.ShareViewModel
+@{
+    ViewData["Title"] = "Share Note";
+}
+<h2>Share: @Model.Note.Title</h2>
+
+<div class="mb-4">
+    <form asp-action="RegenerateShareLink" asp-route-id="@Model.Note.Id" method="post">
+        <button type="submit" class="btn btn-primary">Generate New Share Link</button>
+    </form>
+</div>
+
+@if (Model.ShareLinks.Any())
+{
+    <h5>Active Share Links</h5>
+    <div class="list-group">
+        @foreach (var link in Model.ShareLinks)
+        {
+            var url = $"{Model.BaseUrl}/Notes/SharedView/{link.Token}";
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <a href="@url" target="_blank">@url</a>
+                        <div class="small text-muted">Created @link.CreatedAt.ToString("MMM d, yyyy HH:mm")</div>
+                    </div>
+                    <form asp-action="RevokeShareLink" asp-route-id="@Model.Note.Id" asp-route-linkId="@link.Id" method="post">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Revoke</button>
+                    </form>
+                </div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <p class="text-muted">No active share links. Generate one above.</p>
+}
+
+<div class="mt-3">
+    <a asp-action="Details" asp-route-id="@Model.Note.Id" class="btn btn-secondary">Back to Note</a>
+</div>

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Share Note - Loose Notes</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <div class="container">
+      <a class="navbar-brand" href="/"><i class="bi bi-journal-text"></i> Loose Notes</a>
+      <div class="navbar-nav ms-auto">
+        <a class="nav-link" href="/notes">My Notes</a>
+        <div class="dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+            <i class="bi bi-person-circle"></i> <%= user.username %>
+          </a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="/auth/profile">Profile</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <form action="/auth/logout" method="POST" class="d-inline">
+                <button type="submit" class="dropdown-item">Logout</button>
+              </form>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container mt-4">
+    <div class="row">
+      <div class="col-md-8 mx-auto">
+        <h2 class="mb-4">Share Note</h2>
+
+        <% if (success && success.length > 0) { %>
+          <div class="alert alert-success">
+            <%= success[0] %>
+          </div>
+        <% } %>
+
+        <div class="card mb-4">
+          <div class="card-body">
+            <h5><%= note.title %></h5>
+            <p class="text-muted mb-0">By <%= note.author %></p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">Share Link</h5>
+          </div>
+          <div class="card-body">
+            <% if (shareLink) { %>
+              <div class="mb-3">
+                <label class="form-label">Current Share Link</label>
+                <div class="input-group">
+                  <input type="text" class="form-control" value="<%= req.protocol %>://<%= req.get('host') %>/notes/share/<%= shareLink.token %>" readonly id="shareLinkInput">
+                  <button class="btn btn-outline-secondary" type="button" onclick="copyLink()">
+                    <i class="bi bi-clipboard"></i> Copy
+                  </button>
+                </div>
+              </div>
+              <p class="text-muted small">Anyone with this link can view your note without logging in.</p>
+            <% } else { %>
+              <p class="text-muted">No share link created yet.</p>
+            <% } %>
+
+            <hr>
+
+            <form method="POST" action="/notes/<%= note.id %>/share">
+              <% if (shareLink) { %>
+                <button type="submit" name="action" value="regenerate" class="btn btn-warning">
+                  <i class="bi bi-arrow-repeat"></i> Regenerate Link
+                </button>
+                <button type="submit" name="action" value="revoke" class="btn btn-danger" onclick="return confirm('Are you sure you want to revoke this share link?')">
+                  <i class="bi bi-x-circle"></i> Revoke Link
+                </button>
+              <% } else { %>
+                <button type="submit" name="action" value="create" class="btn btn-primary">
+                  <i class="bi bi-link-45deg"></i> Create Share Link
+                </button>
+              <% } %>
+              <a href="/notes/<%= note.id %>" class="btn btn-secondary">Back to Note</a>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    function copyLink() {
+      const input = document.getElementById('shareLinkInput');
+      input.select();
+      navigator.clipboard.writeText(input.value);
+      alert('Link copied to clipboard!');
+    }
+  </script>
+</body>
+</html>

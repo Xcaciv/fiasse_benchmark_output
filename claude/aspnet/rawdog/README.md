@@ -4,15 +4,14 @@ A multi-user note-taking web application built with ASP.NET Core MVC.
 
 ## Features
 
-- User registration and authentication (ASP.NET Core Identity)
-- Create, edit, delete private/public notes
+- User registration, login, and password reset
+- Create, edit, delete, and search notes
 - File attachments (PDF, DOC, DOCX, TXT, PNG, JPG, JPEG)
-- Note sharing via generated share links
-- 1–5 star ratings with optional comments
-- Full-text note search
-- Top-rated notes page
-- Admin dashboard (user list, note reassignment)
-- Password reset (logged to console in dev)
+- Public/private note visibility
+- Share notes via unique share links
+- Rate notes (1–5 stars with optional comment)
+- Top Rated notes page
+- Admin dashboard with user management and note reassignment
 
 ## Prerequisites
 
@@ -21,65 +20,35 @@ A multi-user note-taking web application built with ASP.NET Core MVC.
 ## Setup & Run
 
 ```bash
-# Restore packages
-dotnet restore
-
-# Run the application (applies migrations and seeds admin user automatically)
+# 1. Restore packages and run
+cd /path/to/project
 dotnet run
 ```
 
-The app will be available at `https://localhost:5001` (or the port shown in the console).
+The app runs on `http://localhost:5000` by default. The SQLite database
+(`loosenotes.db`) and migrations are applied automatically on first run.
 
-### Default Admin Account
+## Default Admin Account
 
-| Field    | Value              |
-|----------|--------------------|
-| Username | `admin`            |
-| Password | `Admin@123456`     |
-
-Change this password immediately after first login.
-
-## Configuration
-
-Edit `appsettings.json` to change:
-
-| Key                             | Default              | Description                  |
-|---------------------------------|----------------------|------------------------------|
-| `ConnectionStrings:DefaultConnection` | `Data Source=loosenotes.db` | SQLite connection string |
-| `FileStorage:UploadPath`        | `wwwroot/uploads`    | Uploaded file directory      |
-
-## Database
-
-The app uses SQLite by default. To switch to SQL Server or PostgreSQL:
-
-1. Install the appropriate EF Core provider package.
-2. Update `Program.cs` to use `UseSqlServer(...)` or `UseNpgsql(...)`.
-3. Update the connection string in `appsettings.json`.
-4. Run `dotnet ef database update` (or let the app auto-migrate on startup).
-
-## Email (Password Reset)
-
-Password reset links are written to the application log in development. To send real emails, implement `IEmailService` with an SMTP or transactional email provider and register it in `Program.cs`.
+| Username | Password  |
+|----------|-----------|
+| admin    | Admin@123 |
 
 ## Project Structure
 
 ```
-LooseNotes/
-├── Controllers/        # MVC controllers
-├── Data/               # EF Core DbContext and seed data
-├── Migrations/         # EF Core migrations
-├── Models/             # Entity models
-├── Services/           # File storage and email services
-├── ViewModels/         # View-specific models
-├── Views/              # Razor views
-│   ├── Account/
-│   ├── Admin/
-│   ├── Home/
-│   ├── Notes/
-│   ├── Profile/
-│   ├── Share/
-│   └── Shared/
-├── wwwroot/uploads/    # Uploaded files (created at runtime)
-├── appsettings.json
-└── Program.cs
+Controllers/    - MVC controllers
+Data/           - EF Core DbContext and seed data
+Migrations/     - Database migrations
+Models/         - Entity models
+Services/       - File storage and email services
+ViewModels/     - View-specific data models
+Views/          - Razor views
+uploads/        - Uploaded file storage (created at runtime)
 ```
+
+## Configuration
+
+Edit `appsettings.json` to change:
+- `ConnectionStrings:DefaultConnection` — SQLite path (default: `loosenotes.db`)
+- `FileStorage:Path` — Upload directory (default: `uploads`)

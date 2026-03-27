@@ -2,132 +2,133 @@
 @{
     ViewData["Title"] = Model.Title;
 }
-<div class="mb-3">
-    <a asp-action="Index" class="btn btn-sm btn-outline-secondary">&larr; My Notes</a>
+
+<div class="d-flex justify-content-between align-items-start mb-3">
+    <div>
+        <h2>@Model.Title</h2>
+        <small class="text-muted">
+            By <strong>@Model.AuthorUserName</strong> ·
+            Created @Model.CreatedAt.ToString("MMM d, yyyy") ·
+            Updated @Model.UpdatedAt.ToString("MMM d, yyyy") ·
+            <span class="badge @(Model.Visibility == NoteVisibility.Public ? "bg-success" : "bg-secondary")">
+                @Model.Visibility
+            </span>
+        </small>
+    </div>
+    @if (Model.IsOwner)
+    {
+        <div class="d-flex gap-2">
+            <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-outline-primary btn-sm">Edit</a>
+            <a asp-action="Delete" asp-route-id="@Model.Id" class="btn btn-outline-danger btn-sm">Delete</a>
+        </div>
+    }
 </div>
 
 <div class="card mb-4">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h3 class="mb-0">@Model.Title</h3>
-        <div class="d-flex gap-2 align-items-center">
-            <span class="badge @(Model.IsPublic ? "bg-success" : "bg-secondary")">
-                @(Model.IsPublic ? "Public" : "Private")
-            </span>
-            @if (Model.IsOwner)
-            {
-                <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-sm btn-outline-primary">Edit</a>
-                <a asp-action="Delete" asp-route-id="@Model.Id" class="btn btn-sm btn-outline-danger">Delete</a>
-            }
-        </div>
-    </div>
     <div class="card-body">
-        <p class="text-muted small mb-3">
-            By @Model.OwnerDisplayName &nbsp;|&nbsp;
-            Created @Model.CreatedAt.ToString("MMM d, yyyy HH:mm") UTC &nbsp;|&nbsp;
-            Updated @Model.UpdatedAt.ToString("MMM d, yyyy HH:mm") UTC
-        </p>
-        <!-- Content is Razor-encoded automatically (XSS prevention) -->
-        <div style="white-space: pre-wrap;">@Model.Content</div>
+        <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;">@Model.Content</pre>
     </div>
 </div>
 
-<!-- Attachments -->
+@* ── Attachments ── *@
 @if (Model.Attachments.Any())
 {
-    <div class="card mb-4">
-        <div class="card-header"><h5 class="mb-0">Attachments</h5></div>
-        <ul class="list-group list-group-flush">
-            @foreach (var att in Model.Attachments)
-            {
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <a asp-controller="Attachments" asp-action="Download" asp-route-id="@att.Id">
-                        @att.OriginalFileName
-                    </a>
-                    <span class="text-muted small">@((att.FileSizeBytes / 1024.0).ToString("F1")) KB</span>
+    <h5>Attachments</h5>
+    <ul class="list-group mb-4">
+        @foreach (var att in Model.Attachments)
+        {
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <span>
+                    📎 @att.OriginalFileName
+                    <small class="text-muted ms-2">(@(att.FileSizeBytes / 1024) KB)</small>
+                </span>
+                <div class="d-flex gap-2">
+                    <a asp-controller="Attachments" asp-action="Download" asp-route-id="@att.Id"
+                       class="btn btn-sm btn-outline-secondary">Download</a>
                     @if (Model.IsOwner)
                     {
-                        <form asp-controller="Attachments" asp-action="Delete" method="post" class="d-inline">
-                            <input type="hidden" name="id" value="@att.Id" />
-                            @Html.AntiForgeryToken()
+                        <form asp-controller="Attachments" asp-action="Delete" asp-route-id="@att.Id"
+                              method="post">
                             <button type="submit" class="btn btn-sm btn-outline-danger"
-                                    onclick="return confirm('Delete attachment?')">Delete</button>
+                                    onclick="return confirm('Delete this attachment?')">Remove</button>
                         </form>
                     }
-                </li>
-            }
-        </ul>
-    </div>
+                </div>
+            </li>
+        }
+    </ul>
 }
 
-<!-- Share Link (owner only) -->
+@* ── Share link management (owner only) ── *@
 @if (Model.IsOwner)
 {
     <div class="card mb-4">
-        <div class="card-header"><h5 class="mb-0">Share Link</h5></div>
+        <div class="card-header">Share Link</div>
         <div class="card-body">
             @if (Model.ActiveShareToken is not null)
             {
-                var shareUrl = $"{Context.Request.Scheme}://{Context.Request.Host}/share/{Model.ActiveShareToken}";
+                var shareUrl = Url.Action("View", "Share",
+                    new { token = Model.ActiveShareToken }, protocol: Request.Scheme);
                 <div class="input-group mb-2">
                     <input type="text" class="form-control" value="@shareUrl" readonly id="shareUrl" />
-                    <button class="btn btn-outline-secondary" onclick="navigator.clipboard.writeText(document.getElementById('shareUrl').value)">Copy</button>
+                    <button class="btn btn-outline-secondary" type="button"
+                            onclick="navigator.clipboard.writeText(document.getElementById('shareUrl').value)">
+                        Copy
+                    </button>
                 </div>
                 <form asp-action="RevokeShareLink" asp-route-id="@Model.Id" method="post" class="d-inline">
-                    @Html.AntiForgeryToken()
                     <button type="submit" class="btn btn-sm btn-outline-danger">Revoke Link</button>
+                </form>
+                <form asp-action="GenerateShareLink" asp-route-id="@Model.Id" method="post" class="d-inline ms-2">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary">Regenerate</button>
                 </form>
             }
             else
             {
                 <form asp-action="GenerateShareLink" asp-route-id="@Model.Id" method="post">
-                    @Html.AntiForgeryToken()
-                    <button type="submit" class="btn btn-outline-primary">Generate Share Link</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Generate Share Link</button>
                 </form>
             }
         </div>
     </div>
 }
 
-<!-- Ratings -->
-<div class="card mb-4">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">
+@* ── Ratings ── *@
+<div class="row">
+    <div class="col-md-8">
+        <h5>
             Ratings
-            @if (Model.AverageRating.HasValue)
+            @if (Model.RatingCount > 0)
             {
-                <span class="ms-2 text-warning">★ @Model.AverageRating.Value.ToString("F1")</span>
-                <small class="text-muted ms-1">(@Model.Ratings.Count)</small>
+                <span class="text-warning ms-2">★ @Model.AverageRating.ToString("F1")</span>
+                <small class="text-muted">(@Model.RatingCount)</small>
             }
         </h5>
-    </div>
-    <div class="card-body">
-        @if (Model.CanRate)
+
+        @* Rate form (authenticated users who don't own the note) *@
+        @if (User.Identity?.IsAuthenticated == true && !Model.IsOwner)
         {
-            <form asp-controller="Ratings" asp-action="Submit" method="post" class="mb-4">
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="NoteId" value="@Model.Id" />
-                <input type="hidden" name="RatingId" value="@(Model.UserRating?.RatingId ?? 0)" />
-                <div class="row g-2 align-items-end">
-                    <div class="col-auto">
-                        <label class="form-label">Your Rating</label>
-                        <select name="Value" class="form-select" required>
+            <form asp-action="Rate" method="post" class="card mb-3">
+                <div class="card-body">
+                    <input type="hidden" name="NoteId" value="@Model.Id" />
+                    <div class="mb-2">
+                        <label class="form-label fw-bold">
+                            @(Model.CurrentUserRating.HasValue ? "Update your rating" : "Rate this note")
+                        </label>
+                        <select name="Value" class="form-select form-select-sm w-auto">
                             @for (int i = 1; i <= 5; i++)
                             {
-                                var selected = Model.UserRating?.Value == i ? "selected" : "";
-                                <option value="@i" @selected>@i ★</option>
+                                <option value="@i" @(Model.CurrentUserRating == i ? "selected" : "")>
+                                    @i ★
+                                </option>
                             }
                         </select>
                     </div>
-                    <div class="col">
-                        <label class="form-label">Comment (optional)</label>
-                        <input type="text" name="Comment" class="form-control" maxlength="1000"
-                               value="@Model.UserRating?.Comment" />
+                    <div class="mb-2">
+                        <textarea name="Comment" class="form-control" rows="2"
+                                  placeholder="Optional comment (max 1000 chars)" maxlength="1000"></textarea>
                     </div>
-                    <div class="col-auto">
-                        <button type="submit" class="btn btn-primary">
-                            @(Model.UserRating is not null ? "Update Rating" : "Submit Rating")
-                        </button>
-                    </div>
+                    <button type="submit" class="btn btn-sm btn-primary">Submit Rating</button>
                 </div>
             </form>
         }
@@ -138,16 +139,20 @@
         }
         else
         {
-            @foreach (var r in Model.Ratings)
+            @foreach (var rating in Model.Ratings)
             {
-                <div class="border-bottom py-2">
-                    <strong>@r.RaterDisplayName</strong>
-                    <span class="text-warning ms-2">@string.Concat(Enumerable.Repeat("★", r.Value))</span>
-                    <small class="text-muted ms-2">@r.CreatedAt.ToString("MMM d, yyyy")</small>
-                    @if (!string.IsNullOrWhiteSpace(r.Comment))
-                    {
-                        <p class="mb-0 mt-1">@r.Comment</p>
-                    }
+                <div class="card mb-2">
+                    <div class="card-body py-2">
+                        <div class="d-flex justify-content-between">
+                            <strong>@rating.RaterUserName</strong>
+                            <span class="text-warning">@string.Concat(Enumerable.Repeat("★", rating.Value))</span>
+                        </div>
+                        @if (!string.IsNullOrEmpty(rating.Comment))
+                        {
+                            <p class="mb-0 text-muted small mt-1">@rating.Comment</p>
+                        }
+                        <small class="text-muted">@rating.CreatedAt.ToString("MMM d, yyyy")</small>
+                    </div>
                 </div>
             }
         }

@@ -1,0 +1,42 @@
+<div class="page-header">
+  <h1>Top Rated Notes</h1>
+  <p>Public notes rated by at least 3 different users.</p>
+</div>
+
+<% if (typeof notes !== 'undefined' && notes.length > 0) { %>
+  <div class="notes-list">
+    <% notes.forEach(function(note) { %>
+      <div class="note-card note-card-rated">
+        <div class="note-card-header">
+          <h2 class="note-title">
+            <a href="/notes/<%= note.id %>"><%= note.title %></a>
+          </h2>
+          <div class="rating-stars">
+            <span class="rating-avg">★ <%= note.dataValues && note.dataValues.avgRating ? parseFloat(note.dataValues.avgRating).toFixed(1) : 'N/A' %></span>
+            <small>(<%= note.dataValues && note.dataValues.ratingCount ? note.dataValues.ratingCount : 0 %> ratings)</small>
+          </div>
+        </div>
+        <% if (note.owner) { %>
+          <small class="note-author">by <%= note.owner.username %></small>
+        <% } %>
+        <p class="note-preview"><%= note.content.substring(0, 200) %><%= note.content.length > 200 ? '...' : '' %></p>
+        <small>Updated <%= new Date(note.updatedAt).toLocaleDateString() %></small>
+      </div>
+    <% }); %>
+  </div>
+
+  <div class="pagination">
+    <% if (page > 1) { %>
+      <a href="/notes/top-rated?page=<%= page - 1 %>" class="btn btn-sm btn-secondary">Previous</a>
+    <% } %>
+    <span>Page <%= page %></span>
+    <% if (notes.length >= 10) { %>
+      <a href="/notes/top-rated?page=<%= page + 1 %>" class="btn btn-sm btn-secondary">Next</a>
+    <% } %>
+  </div>
+<% } else { %>
+  <div class="empty-state">
+    <p>No top-rated notes yet. Be the first to rate public notes!</p>
+    <a href="/notes/search" class="btn btn-primary">Browse Notes</a>
+  </div>
+<% } %>

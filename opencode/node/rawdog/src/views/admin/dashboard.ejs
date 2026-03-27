@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - Loose Notes</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <div class="container">
+      <a class="navbar-brand" href="/"><i class="bi bi-journal-text"></i> Loose Notes</a>
+      <div class="navbar-nav ms-auto">
+        <a class="nav-link" href="/notes">My Notes</a>
+        <a class="nav-link" href="/admin">Admin</a>
+        <div class="dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+            <i class="bi bi-person-circle"></i> <%= user.username %>
+          </a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="/auth/profile">Profile</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <form action="/auth/logout" method="POST" class="d-inline">
+                <button type="submit" class="dropdown-item">Logout</button>
+              </form>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container mt-4">
+    <h2 class="mb-4"><i class="bi bi-speedometer2"></i> Admin Dashboard</h2>
+
+    <div class="row g-4 mb-4">
+      <div class="col-md-6">
+        <div class="card bg-primary text-white">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <h6 class="card-title">Total Users</h6>
+                <h2 class="mb-0"><%= stats.totalUsers %></h2>
+              </div>
+              <i class="bi bi-people display-4"></i>
+            </div>
+          </div>
+          <div class="card-footer bg-transparent border-0">
+            <a href="/admin/users" class="text-white">View All Users</a>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card bg-success text-white">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <h6 class="card-title">Total Notes</h6>
+                <h2 class="mb-0"><%= stats.totalNotes %></h2>
+              </div>
+              <i class="bi bi-journal-text display-4"></i>
+            </div>
+          </div>
+          <div class="card-footer bg-transparent border-0">
+            <a href="/admin/notes" class="text-white">View All Notes</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-activity"></i> Recent Activity</h5>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>User</th>
+                <th>Action</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% if (recentActivity.length === 0) { %>
+                <tr>
+                  <td colspan="4" class="text-center text-muted">No recent activity</td>
+                </tr>
+              <% } else { %>
+                <% recentActivity.forEach(function(log) { %>
+                  <tr>
+                    <td><small><%= new Date(log.created_at).toLocaleString() %></small></td>
+                    <td><%= log.username || 'System' %></td>
+                    <td><%= log.action %></td>
+                    <td><small><%= log.description %></small></td>
+                  </tr>
+                <% }); %>
+              <% } %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

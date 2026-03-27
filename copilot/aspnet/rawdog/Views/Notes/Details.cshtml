@@ -1,200 +1,109 @@
-@model NoteDetailsViewModel
+@model LooseNotes.Models.Note
 @{
     ViewData["Title"] = Model.Title;
+    var currentUserId = ViewBag.CurrentUserId as string;
+    var userRating = ViewBag.UserRating as LooseNotes.Models.Rating;
+    var isSharedView = ViewBag.IsSharedView as bool? ?? false;
+    bool isOwner = currentUserId != null && Model.UserId == currentUserId;
 }
-
-<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-start gap-3 mb-4">
+<div class="d-flex justify-content-between align-items-start mb-3">
     <div>
-        <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
-            <h1 class="h2 mb-0">@Model.Title</h1>
-            <span class="badge @(Model.IsPublic ? "bg-success-subtle text-success" : "bg-secondary-subtle text-secondary")">
-                @(Model.IsPublic ? "Public" : "Private")
-            </span>
-            @if (Model.AccessedByShareLink)
+        <h2>@Model.Title</h2>
+        <p class="text-muted">
+            by <strong>@Model.User?.UserName</strong> · 
+            @Model.CreatedAt.ToString("MMMM d, yyyy") ·
+            @if (Model.IsPublic)
             {
-                <span class="badge bg-info-subtle text-info">Shared link</span>
+                <span class="badge bg-success">Public</span>
             }
-        </div>
-        <p class="text-muted mb-1">By @Model.Author</p>
-        <p class="text-muted mb-0">
-            Created @Model.CreatedAtUtc.ToLocalTime().ToString("g")
-            @if (Model.UpdatedAtUtc.HasValue)
+            else
             {
-                <span>- Updated @Model.UpdatedAtUtc.Value.ToLocalTime().ToString("g")</span>
+                <span class="badge bg-secondary">Private</span>
             }
         </p>
     </div>
-    <div class="d-flex flex-wrap gap-2">
-        @if (Model.CanEdit)
-        {
-            <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-outline-primary">Edit</a>
-        }
-        @if (Model.CanDelete)
-        {
-            <a asp-action="Delete" asp-route-id="@Model.Id" class="btn btn-outline-danger">Delete</a>
-        }
+    @if (isOwner && !isSharedView)
+    {
+        <div>
+            <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-outline-secondary btn-sm">Edit</a>
+            <a asp-action="Share" asp-route-id="@Model.Id" class="btn btn-outline-info btn-sm">Share</a>
+            <a asp-action="Delete" asp-route-id="@Model.Id" class="btn btn-outline-danger btn-sm">Delete</a>
+        </div>
+    }
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <pre style="white-space: pre-wrap; font-family: inherit;">@Model.Content</pre>
     </div>
 </div>
 
-<div class="row g-4">
-    <div class="col-lg-8">
-        <section class="card shadow-sm mb-4">
-            <div class="card-body">
-                <h2 class="h5 mb-3">Content</h2>
-                <div class="note-content">@Model.Content</div>
-            </div>
-        </section>
-
-        <section class="card shadow-sm mb-4">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h2 class="h5 mb-0">Attachments</h2>
-                    <span class="text-muted small">@Model.Attachments.Count file(s)</span>
-                </div>
-
-                @if (Model.Attachments.Count == 0)
-                {
-                    <p class="text-muted mb-0">No attachments uploaded.</p>
-                }
-                else
-                {
-                    <div class="list-group">
-                        @foreach (var attachment in Model.Attachments)
-                        {
-                            <a asp-action="DownloadAttachment"
-                               asp-route-id="@attachment.Id"
-                               asp-route-token="@Model.AttachmentToken"
-                               class="list-group-item list-group-item-action d-flex justify-content-between align-items-center gap-3">
-                                <div>
-                                    <div class="fw-semibold">@attachment.OriginalFileName</div>
-                                    <div class="text-muted small">@attachment.ContentType</div>
-                                </div>
-                                <span class="text-muted small">@(attachment.SizeBytes / 1024.0m).ToString("0.0") KB</span>
-                            </a>
-                        }
-                    </div>
-                }
-            </div>
-        </section>
-
-        <section class="card shadow-sm">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h2 class="h5 mb-0">Ratings</h2>
-                    <div class="text-end">
-                        <div class="fw-semibold">@Model.AverageRating.ToString("0.0") / 5</div>
-                        <div class="text-muted small">@Model.RatingCount rating(s)</div>
-                    </div>
-                </div>
-
-                @if (Model.CanRate)
-                {
-                    <form asp-action="Rate" method="post" class="border rounded p-3 mb-4">
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" name="noteId" value="@Model.Id" />
-                        <div class="row g-3">
-                            <div class="col-md-3">
-                                <label asp-for="RatingInput.Score" class="form-label"></label>
-                                <select asp-for="RatingInput.Score" class="form-select">
-                                    @for (var score = 5; score >= 1; score--)
-                                    {
-                                        <option value="@score">@score star@(score == 1 ? "" : "s")</option>
-                                    }
-                                </select>
-                            </div>
-                            <div class="col-md-9">
-                                <label asp-for="RatingInput.Comment" class="form-label">Comment</label>
-                                <textarea asp-for="RatingInput.Comment" class="form-control" rows="3" placeholder="Optional feedback"></textarea>
-                            </div>
-                        </div>
-                        <button type="submit" class="btn btn-primary mt-3">Save rating</button>
-                    </form>
-                }
-
-                @if (Model.Ratings.Count == 0)
-                {
-                    <p class="text-muted mb-0">No ratings yet.</p>
-                }
-                else
-                {
-                    <div class="vstack gap-3">
-                        @foreach (var rating in Model.Ratings)
-                        {
-                            <article class="border rounded p-3">
-                                <div class="d-flex justify-content-between align-items-start gap-3">
-                                    <div>
-                                        <div class="fw-semibold">@rating.UserName</div>
-                                        <div class="text-warning mb-2">@(new string('★', rating.Score))<span class="text-muted">@(new string('☆', 5 - rating.Score))</span></div>
-                                    </div>
-                                    <div class="text-muted small">@rating.CreatedAtUtc.ToLocalTime().ToString("g")</div>
-                                </div>
-                                @if (!string.IsNullOrWhiteSpace(rating.Comment))
-                                {
-                                    <p class="mb-0">@rating.Comment</p>
-                                }
-                            </article>
-                        }
-                    </div>
-                }
-            </div>
-        </section>
-    </div>
-
-    <div class="col-lg-4">
-        @if (Model.CanManageShareLinks)
+@if (Model.Attachments.Any())
+{
+    <h4>Attachments</h4>
+    <ul class="list-group mb-4">
+        @foreach (var att in Model.Attachments)
         {
-            <section class="card shadow-sm mb-4">
-                <div class="card-body">
-                    <h2 class="h5 mb-3">Share access</h2>
+            <li class="list-group-item d-flex justify-content-between">
+                <span>📎 @att.FileName <small class="text-muted">(@((att.FileSize / 1024.0).ToString("F1")) KB)</small></span>
+                <a asp-action="DownloadAttachment" asp-route-id="@att.Id" class="btn btn-sm btn-outline-primary">Download</a>
+            </li>
+        }
+    </ul>
+}
 
-                    @if (string.IsNullOrWhiteSpace(Model.ActiveShareUrl))
+<h4>Ratings (@Model.Ratings.Count)</h4>
+@if (Model.Ratings.Any())
+{
+    var avg = Model.Ratings.Average(r => r.Stars);
+    <p>Average: <strong>⭐ @avg.ToString("F1")</strong></p>
+    <div class="list-group mb-3">
+        @foreach (var rating in Model.Ratings.OrderByDescending(r => r.UpdatedAt))
+        {
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between">
+                    <strong>@rating.User?.UserName</strong>
+                    <span>@string.Concat(Enumerable.Repeat("⭐", rating.Stars))</span>
+                </div>
+                @if (!string.IsNullOrEmpty(rating.Comment))
+                {
+                    <p class="mb-0 small">@rating.Comment</p>
+                }
+                <small class="text-muted">@rating.UpdatedAt.ToString("MMM d, yyyy")</small>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <p class="text-muted">No ratings yet.</p>
+}
+
+@if (User.Identity?.IsAuthenticated == true && !isOwner && !isSharedView)
+{
+    <h5>@(userRating != null ? "Update Your Rating" : "Rate This Note")</h5>
+    <form asp-action="Rate" method="post" class="mb-4">
+        <input type="hidden" name="NoteId" value="@Model.Id" />
+        <div class="mb-2">
+            <label class="form-label">Stars</label>
+            <select name="Stars" class="form-select w-auto">
+                @for (int i = 1; i <= 5; i++)
+                {
+                    if (userRating?.Stars == i)
                     {
-                        <p class="text-muted">This note does not currently have an active share link.</p>
+                        <option value="@i" selected>@i ⭐</option>
                     }
                     else
                     {
-                        <label class="form-label">Active link</label>
-                        <input class="form-control mb-3" value="@Model.ActiveShareUrl" readonly />
+                        <option value="@i">@i ⭐</option>
                     }
-
-                    <div class="d-flex flex-wrap gap-2">
-                        <form asp-action="GenerateShareLink" method="post">
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="noteId" value="@Model.Id" />
-                            <button type="submit" class="btn btn-primary">Generate / Regenerate</button>
-                        </form>
-
-                        <form asp-action="RevokeShareLinks" method="post">
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="noteId" value="@Model.Id" />
-                            <button type="submit" class="btn btn-outline-danger">Revoke</button>
-                        </form>
-                    </div>
-                </div>
-            </section>
-        }
-
-        <section class="card shadow-sm">
-            <div class="card-body">
-                <h2 class="h5 mb-3">At a glance</h2>
-                <dl class="row mb-0">
-                    <dt class="col-6">Visibility</dt>
-                    <dd class="col-6 text-end">@(Model.IsPublic ? "Public" : "Private")</dd>
-
-                    <dt class="col-6">Attachments</dt>
-                    <dd class="col-6 text-end">@Model.Attachments.Count</dd>
-
-                    <dt class="col-6">Average rating</dt>
-                    <dd class="col-6 text-end">@Model.AverageRating.ToString("0.0")</dd>
-
-                    <dt class="col-6">Ratings</dt>
-                    <dd class="col-6 text-end">@Model.RatingCount</dd>
-                </dl>
-            </div>
-        </section>
-    </div>
-</div>
-
-@section Scripts {
-    <partial name="_ValidationScriptsPartial" />
+                }
+            </select>
+        </div>
+        <div class="mb-2">
+            <label class="form-label">Comment (optional)</label>
+            <textarea name="Comment" class="form-control" rows="2">@userRating?.Comment</textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Submit Rating</button>
+    </form>
 }

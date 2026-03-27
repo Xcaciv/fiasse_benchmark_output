@@ -1,0 +1,33 @@
+@model LooseNotes.Models.Note
+@{
+    ViewData["Title"] = "Note Details (Admin)";
+    var allUsers = ViewBag.AllUsers as IEnumerable<LooseNotes.Models.ApplicationUser> ?? new List<LooseNotes.Models.ApplicationUser>();
+}
+<h2>Note: @Model.Title <span class="badge bg-secondary">Admin View</span></h2>
+<p><strong>Owner:</strong> @Model.User?.UserName (@Model.UserId)</p>
+<p><strong>Created:</strong> @Model.CreatedAt.ToString("MMM d, yyyy HH:mm")</p>
+<p><strong>Updated:</strong> @Model.UpdatedAt.ToString("MMM d, yyyy HH:mm")</p>
+<p><strong>Public:</strong> @(Model.IsPublic ? "Yes" : "No")</p>
+<div class="card mb-3">
+    <div class="card-body"><pre style="white-space:pre-wrap;font-family:inherit;">@Model.Content</pre></div>
+</div>
+
+<h5>Reassign Ownership</h5>
+<form asp-action="ReassignNote" asp-route-id="@Model.Id" method="post" class="d-flex gap-2 mb-4">
+    <select name="newUserId" class="form-select w-auto">
+        @foreach (var u in allUsers)
+        {
+            if (u.Id == Model.UserId)
+            {
+                <option value="@u.Id" selected>@u.UserName</option>
+            }
+            else
+            {
+                <option value="@u.Id">@u.UserName</option>
+            }
+        }
+    </select>
+    <button type="submit" class="btn btn-warning">Reassign</button>
+</form>
+
+<a asp-action="Notes" class="btn btn-secondary">Back to Notes</a>

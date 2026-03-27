@@ -1,10 +1,11 @@
 const { DataTypes } = require('sequelize');
+const { v4: uuidv4 } = require('uuid');
 const sequelize = require('../config/database');
 
 const ShareLink = sequelize.define('ShareLink', {
   id: {
     type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
+    defaultValue: () => uuidv4(),
     primaryKey: true,
   },
   noteId: {
@@ -13,11 +14,11 @@ const ShareLink = sequelize.define('ShareLink', {
   },
   token: {
     type: DataTypes.UUID,
-    allowNull: false,
+    defaultValue: () => uuidv4(),
     unique: true,
   },
 }, {
-  tableName: 'share_links',
+  timestamps: true,
   updatedAt: false,
 });
 

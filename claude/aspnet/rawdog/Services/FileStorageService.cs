@@ -3,37 +3,34 @@ namespace LooseNotes.Services;
 public class FileStorageService : IFileStorageService
 {
     private readonly string _uploadPath;
-    private readonly ILogger<FileStorageService> _logger;
 
-    public FileStorageService(IConfiguration configuration, ILogger<FileStorageService> logger)
+    public FileStorageService(IConfiguration config, IWebHostEnvironment env)
     {
-        _logger = logger;
-        _uploadPath = configuration["FileStorage:UploadPath"] ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads");
+        var configured = config["FileStorage:Path"];
+        _uploadPath = string.IsNullOrEmpty(configured)
+            ? Path.Combine(env.ContentRootPath, "uploads")
+            : configured;
+
         Directory.CreateDirectory(_uploadPath);
     }
 
-    public async Task<string> SaveFileAsync(IFormFile file, string uniqueFileName)
+    public async Task<string> SaveFileAsync(IFormFile file)
     {
-        var filePath = Path.Combine(_uploadPath, uniqueFileName);
-        await using var stream = new FileStream(filePath, FileMode.Create);
+        var ext = Path.GetExtension(file.FileName);
+        var stored = Guid.NewGuid().ToString("N") + ext;
+        var fullPath = Path.Combine(_uploadPath, stored);
+        using var stream = File.Create(fullPath);
         await file.CopyToAsync(stream);
-        _logger.LogInformation("File saved: {FileName}", uniqueFileName);
-        return uniqueFileName;
+        return stored;
     }
 
-    public Task DeleteFileAsync(string storedFileName)
+    public void DeleteFile(string storedFileName)
     {
-        var filePath = Path.Combine(_uploadPath, storedFileName);
-        if (File.Exists(filePath))
-        {
-            File.Delete(filePath);
-            _logger.LogInformation("File deleted: {FileName}", storedFileName);
-        }
-        return Task.CompletedTask;
+        var fullPath = Path.Combine(_uploadPath, storedFileName);
+        if (File.Exists(fullPath))
+            File.Delete(fullPath);
     }
 
     public string GetFilePath(string storedFileName)
-    {
-        return Path.Combine(_uploadPath, storedFileName);
-    }
+        => Path.Combine(_uploadPath, storedFileName);
 }

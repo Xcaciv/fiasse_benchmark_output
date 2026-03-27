@@ -1,47 +1,45 @@
 'use strict';
 
-// Resilience: Graceful startup with error handling
-try {
-  require('dotenv').config();
-} catch (e) {
-  // dotenv not available; env vars must be set externally
-}
+require('dotenv').config();
 
 const fs = require('fs');
 const path = require('path');
-const { createApp } = require('./app');
-const { syncDatabase } = require('./config/database');
-const logger = require('./utils/logger');
+const app = require('./app');
+const { syncDatabase } = require('./models/index');
+const { logger } = require('./config/logger');
 
-// Ensure required directories exist at startup
-['uploads', 'data', 'logs'].forEach(dir => {
-  const dirPath = path.resolve(dir);
-  if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
-});
+const PORT = parseInt(process.env.PORT || '3000', 10);
 
-const PORT = process.env.PORT || 3000;
+/** Ensure required runtime directories exist before accepting requests. */
+const ensureRuntimeDirectories = () => {
+  const dirs = [
+    path.resolve(process.env.UPLOAD_DIR || './uploads'),
+    path.resolve('./logs'),
+  ];
 
-async function startServer() {
+  for (const dir of dirs) {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+      logger.info('Created runtime directory', { dir });
+    }
+  }
+};
+
+const start = async () => {
+  ensureRuntimeDirectories();
+
+  // Sync database schema (non-destructive alter)
   await syncDatabase();
-  const app = createApp();
-  const server = app.listen(PORT, () => {
-    logger.info('SERVER_START', { port: PORT, env: process.env.NODE_ENV || 'development' });
+
+  app.listen(PORT, () => {
+    logger.info('Loose Notes started', {
+      port: PORT,
+      env: process.env.NODE_ENV || 'development',
+    });
   });
-  return server;
-}
+};
 
-// Resilience: Handle uncaught errors without crashing silently
-process.on('uncaughtException', (err) => {
-  logger.error('UNCAUGHT_EXCEPTION', { message: err.message, stack: err.stack });
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason) => {
-  logger.error('UNHANDLED_REJECTION', { reason: String(reason) });
-  process.exit(1);
-});
-
-startServer().catch((err) => {
-  logger.error('STARTUP_FAILURE', { message: err.message });
+start().catch((err) => {
+  logger.error('Server startup failed', { error: err.message, stack: err.stack });
   process.exit(1);
 });

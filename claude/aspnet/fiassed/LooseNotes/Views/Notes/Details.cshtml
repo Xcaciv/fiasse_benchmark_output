@@ -1,0 +1,136 @@
+@model LooseNotes.ViewModels.Notes.NoteDetailsViewModel
+@{
+    ViewData["Title"] = Html.Encode(Model.Title);
+}
+<div class="note-detail">
+    <div class="note-detail-header">
+        <h2>@Html.Encode(Model.Title)</h2>
+        <div class="note-badges">
+            <span class="badge @(Model.IsPublic ? "badge-public" : "badge-private")">
+                @(Model.IsPublic ? "Public" : "Private")
+            </span>
+        </div>
+        @if (Model.IsOwner)
+        {
+            <div class="note-actions">
+                <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-secondary">Edit</a>
+                <a asp-action="Delete" asp-route-id="@Model.Id" class="btn btn-danger">Delete</a>
+            </div>
+        }
+    </div>
+
+    <div class="note-meta">
+        <span>By @Html.Encode(Model.OwnerUsername)</span>
+        <span>Created @Model.CreatedAt.ToString("MMM d, yyyy")</span>
+        <span>Updated @Model.UpdatedAt.ToString("MMM d, yyyy")</span>
+        @if (Model.RatingCount > 0)
+        {
+            <span>⭐ @Model.AverageRating.ToString("F1") (@Model.RatingCount ratings)</span>
+        }
+    </div>
+
+    <!-- Content encoded by Razor by default (GSR-07) -->
+    <div class="note-content">@Model.Content</div>
+
+    @if (Model.Attachments.Any())
+    {
+        <section class="attachments">
+            <h3>Attachments</h3>
+            <ul>
+                @foreach (var a in Model.Attachments)
+                {
+                    <li>
+                        <a asp-controller="Attachments" asp-action="Download" asp-route-id="@a.Id">
+                            @Html.Encode(a.OriginalFileName)
+                        </a>
+                        <span class="file-size">(@(a.FileSizeBytes / 1024) KB)</span>
+                        @if (Model.IsOwner)
+                        {
+                            <form asp-controller="Attachments" asp-action="Delete" method="post" style="display:inline;">
+                                <input type="hidden" name="id" value="@a.Id" />
+                                <button type="submit" class="btn-link btn-danger-link">Remove</button>
+                            </form>
+                        }
+                    </li>
+                }
+            </ul>
+        </section>
+    }
+
+    @if (Model.IsOwner)
+    {
+        <section class="upload-section">
+            <h3>Attach File</h3>
+            <form asp-controller="Attachments" asp-action="Upload" method="post" enctype="multipart/form-data">
+                <input type="hidden" name="noteId" value="@Model.Id" />
+                <input type="file" name="file" />
+                <button type="submit" class="btn btn-secondary">Upload</button>
+            </form>
+        </section>
+
+        <section class="sharing-section">
+            <h3>Share Link</h3>
+            @if (Model.ActiveShareToken != null)
+            {
+                var shareUrl = Url.Action("View", "Share", new { token = Model.ActiveShareToken }, Request.Scheme);
+                <p>Share URL: <a href="@shareUrl" target="_blank">@shareUrl</a></p>
+                <form asp-action="RevokeShareLink" method="post">
+                    <input type="hidden" name="shareLinkId" value="@Model.Id" />
+                    <input type="hidden" name="noteId" value="@Model.Id" />
+                    <button type="submit" class="btn btn-danger">Revoke Link</button>
+                </form>
+            }
+            else
+            {
+                <form asp-action="CreateShareLink" method="post">
+                    <input type="hidden" name="noteId" value="@Model.Id" />
+                    <button type="submit" class="btn btn-secondary">Generate Share Link</button>
+                </form>
+            }
+        </section>
+    }
+
+    @if (Model.IsPublic || Model.IsOwner)
+    {
+        <section class="ratings-section">
+            <h3>Ratings</h3>
+            @if (Model.IsOwner)
+            {
+                foreach (var r in Model.Ratings)
+                {
+                    <div class="rating-item">
+                        <strong>@Html.Encode(r.RaterUsername)</strong>: @r.Value/5
+                        @if (r.Comment != null) { <span>- @Html.Encode(r.Comment)</span> }
+                        <span class="rating-date">@r.CreatedAt.ToString("MMM d, yyyy")</span>
+                    </div>
+                }
+            }
+
+            @{
+                var userRating = Model.Ratings.FirstOrDefault(r => r.IsCurrentUser);
+            }
+            <div class="rate-form">
+                <h4>@(userRating != null ? "Update Your Rating" : "Rate This Note")</h4>
+                <form asp-action="Rate" method="post">
+                    <input type="hidden" name="NoteId" value="@Model.Id" />
+                    @if (userRating != null) { <input type="hidden" name="ExistingRatingId" value="@userRating.Id" /> }
+                    <div class="form-group">
+                        <label>Rating (1-5)</label>
+                        <select name="Value" class="form-control">
+                            @for (int i = 1; i <= 5; i++)
+                            {
+                                if (userRating?.Value == i) { <option value="@i" selected>@i stars</option> }
+                                else { <option value="@i">@i stars</option> }
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Comment (optional)</label>
+                        <textarea name="Comment" class="form-control" maxlength="1000" rows="3">@userRating?.Comment</textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Submit Rating</button>
+                </form>
+            </div>
+        </section>
+    }
+</div>

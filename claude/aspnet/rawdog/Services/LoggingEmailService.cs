@@ -9,9 +9,9 @@ public class LoggingEmailService : IEmailService
         _logger = logger;
     }
 
-    public Task SendPasswordResetEmailAsync(string email, string resetLink)
+    public Task SendEmailAsync(string to, string subject, string body)
     {
-        _logger.LogInformation("Password reset email for {Email}: {ResetLink}", email, resetLink);
+        _logger.LogInformation("EMAIL TO: {To} | SUBJECT: {Subject} | BODY: {Body}", to, subject, body);
         return Task.CompletedTask;
     }
 }

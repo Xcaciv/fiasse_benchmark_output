@@ -1,20 +1,24 @@
-@model Note
+@model NoteListItemViewModel
 @{
     ViewData["Title"] = "Delete Note";
 }
+
 <div class="row justify-content-center">
     <div class="col-md-6">
-        <div class="alert alert-danger">
-            <h4 class="alert-heading">Delete Note</h4>
-            <p>Are you sure you want to permanently delete <strong>@Model.Title</strong>?</p>
-            <p class="mb-0">This will also remove all attachments, ratings, and share links.</p>
-        </div>
-        <form asp-action="Delete" asp-route-id="@Model.Id" method="post">
-            @Html.AntiForgeryToken()
-            <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-danger">Delete Permanently</button>
-                <a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary">Cancel</a>
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">Confirm Deletion</div>
+            <div class="card-body">
+                <h5 class="card-title">Delete "@Model.Title"?</h5>
+                <p class="card-text text-muted">
+                    This will permanently remove the note, all attachments, ratings, and share links.
+                    This action cannot be undone.
+                </p>
+                <form asp-action="Delete" asp-route-id="@Model.Id" method="post">
+                    <button type="submit" class="btn btn-danger me-2">Yes, Delete</button>
+                    <a asp-action="Details" asp-route-id="@Model.Id"
+                       class="btn btn-outline-secondary">Cancel</a>
+                </form>
             </div>
-        </form>
+        </div>
     </div>
 </div>

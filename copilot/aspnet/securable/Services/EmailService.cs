@@ -1,11 +1,7 @@
-using LooseNotes.Services.Interfaces;
-
 namespace LooseNotes.Services;
 
-/// <summary>
-/// Stub email service — logs intent without revealing the reset link (Confidentiality).
-/// Replace with a real SMTP/SendGrid implementation in production.
-/// </summary>
+// Stub email service - logs instead of sending real emails.
+// Replace with real SMTP implementation for production.
 public class EmailService : IEmailService
 {
     private readonly ILogger<EmailService> _logger;
@@ -15,23 +11,16 @@ public class EmailService : IEmailService
         _logger = logger;
     }
 
-    /// <inheritdoc />
-    /// <remarks>
-    /// SECURITY: The reset link is intentionally not written to the logger.
-    /// In development, write the link to the console directly so it is visible
-    /// during testing without polluting structured log sinks.
-    /// </remarks>
-    public Task SendPasswordResetEmailAsync(string email, string resetLink)
+    public Task SendPasswordResetEmailAsync(string toEmail, string resetLink, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(email);
-        ArgumentNullException.ThrowIfNull(resetLink);
+        // In production, send actual email. Log link for development only.
+        _logger.LogInformation("[EMAIL] Password reset requested for {Email}. Link: {ResetLink}", toEmail, resetLink);
+        return Task.CompletedTask;
+    }
 
-        // Structured log does NOT include resetLink — avoids token leakage in log aggregators
-        _logger.LogInformation("Password reset email requested for {Email}", email);
-
-        // Development convenience: print to console stdout only
-        Console.WriteLine($"[DEV] Password reset link for {email}: {resetLink}");
-
+    public Task SendWelcomeEmailAsync(string toEmail, string username, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("[EMAIL] Welcome email sent to {Email} for user {Username}", toEmail, username);
         return Task.CompletedTask;
     }
 }

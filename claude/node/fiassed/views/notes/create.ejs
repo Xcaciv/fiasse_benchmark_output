@@ -1,0 +1,54 @@
+<div class="page-header">
+  <h1>Create Note</h1>
+</div>
+
+<% if (typeof errors !== 'undefined' && errors.length > 0) { %>
+  <div class="alert alert-error">
+    <ul>
+      <% errors.forEach(function(err) { %>
+        <li><%= err.msg %></li>
+      <% }); %>
+    </ul>
+  </div>
+<% } %>
+
+<form method="POST" action="/notes/create" class="note-form">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+  <div class="form-group">
+    <label for="title">Title <span class="required">*</span></label>
+    <input
+      type="text"
+      id="title"
+      name="title"
+      maxlength="200"
+      required
+      placeholder="Note title"
+    >
+  </div>
+
+  <div class="form-group">
+    <label for="content">Content <span class="required">*</span></label>
+    <textarea
+      id="content"
+      name="content"
+      rows="15"
+      maxlength="50000"
+      required
+      placeholder="Write your note here..."
+    ></textarea>
+  </div>
+
+  <div class="form-group">
+    <label for="visibility">Visibility</label>
+    <select id="visibility" name="visibility">
+      <option value="private" selected>Private (only you)</option>
+      <option value="public">Public (anyone can view)</option>
+    </select>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Create Note</button>
+    <a href="/notes" class="btn btn-secondary">Cancel</a>
+  </div>
+</form>

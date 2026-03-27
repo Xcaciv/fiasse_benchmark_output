@@ -1,13 +1,8 @@
-using LooseNotes.Services.Interfaces;
+using LooseNotes.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LooseNotes.Controllers;
 
-/// <summary>
-/// Handles public share-link access. No authentication required,
-/// but token validity is strictly enforced (Authenticity + Integrity).
-/// </summary>
-[Route("[controller]/[action]")]
 public class ShareController : Controller
 {
     private readonly IShareLinkService _shareLinkService;
@@ -19,23 +14,21 @@ public class ShareController : Controller
         _logger = logger;
     }
 
-    /// <summary>
-    /// Trust boundary: token is an untrusted user-supplied value.
-    /// Validate length, then resolve through service (Integrity).
-    /// </summary>
-    [HttpGet]
-    public async Task<IActionResult> ViewNote(string token)
+    [HttpGet("share/{token}")]
+    public async Task<IActionResult> View(string token)
     {
-        _logger.LogInformation("Share/View called with token length={Len}", token?.Length ?? 0);
-
-        // Basic sanity check before hitting DB (Integrity)
-        if (string.IsNullOrWhiteSpace(token) || token.Length > 64)
+        if (string.IsNullOrWhiteSpace(token) || token.Length > 100)
         {
-            return NotFound();
+            return BadRequest("Invalid token.");
         }
 
-        var note = await _shareLinkService.GetNoteByShareTokenAsync(token);
-        if (note is null) return NotFound("Share link not found, revoked, or expired.");
+        var note = await _shareLinkService.GetNoteByTokenAsync(token);
+
+        if (note is null)
+        {
+            _logger.LogWarning("Invalid or inactive share token used.");
+            return NotFound("Share link is invalid or has been revoked.");
+        }
 
         return View("View", note);
     }

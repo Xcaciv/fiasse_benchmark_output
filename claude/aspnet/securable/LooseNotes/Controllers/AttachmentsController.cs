@@ -1,20 +1,19 @@
+// AttachmentsController.cs — Serves and deletes file attachments.
+// Trust boundary: storedFileName is looked up via DB row — never passed by user directly.
+// Integrity: access control checks note ownership/visibility before serving files.
+// Confidentiality: original filenames are preserved in Content-Disposition header only.
 using LooseNotes.Data;
+using LooseNotes.Models;
 using LooseNotes.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using LooseNotes.Models;
 
 namespace LooseNotes.Controllers;
 
-/// <summary>
-/// Handles attachment downloads and deletions.
-/// Download enforces note access rules; deletion requires ownership (Authenticity).
-/// Stored filenames are never exposed to clients; access is via attachment ID (Confidentiality).
-/// </summary>
 [Authorize]
-public class AttachmentsController : Controller
+public sealed class AttachmentsController : Controller
 {
     private readonly ApplicationDbContext _db;
     private readonly IFileStorageService _fileStorage;
@@ -33,10 +32,7 @@ public class AttachmentsController : Controller
         _auditService = auditService;
     }
 
-    /// <summary>
-    /// Download attachment by ID.
-    /// Checks note access rules before serving file stream (Authenticity).
-    /// </summary>
+    // ── GET /Attachments/Download/5 ───────────────────────────────────────────
     [HttpGet]
     [AllowAnonymous]
     public async Task<IActionResult> Download(int id)
@@ -45,49 +41,49 @@ public class AttachmentsController : Controller
             .Include(a => a.Note)
             .FirstOrDefaultAsync(a => a.Id == id);
 
-        if (attachment is null) return NotFound();
+        if (attachment?.Note is null) return NotFound();
 
+        // Authorization: only serve if note is public or requester owns it
         var userId = _userManager.GetUserId(User);
-        if (!CanAccessNote(attachment.Note!, userId))
-            return userId is null ? Challenge() : Forbid();
+        if (attachment.Note.Visibility == NoteVisibility.Private &&
+            attachment.Note.UserId != userId)
+        {
+            return Forbid();
+        }
 
-        var stream = await _fileStorage.OpenReadAsync(attachment.StoredFileName);
-        if (stream is null) return NotFound();
+        // Trust boundary: file path derived from DB record, not user input
+        var filePath = _fileStorage.GetFilePath(attachment.StoredFileName);
 
-        // Content-Disposition: attachment prevents inline execution in browsers (Integrity)
-        return File(stream, attachment.ContentType,
-            fileDownloadName: attachment.OriginalFileName);
+        if (!System.IO.File.Exists(filePath)) return NotFound();
+
+        // Integrity: use sanitized original name in header; never execute file
+        var safeOriginalName = Path.GetFileName(attachment.OriginalFileName);
+        return PhysicalFile(filePath, attachment.ContentType,
+            fileDownloadName: safeOriginalName);
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    // ── POST /Attachments/Delete/5 ────────────────────────────────────────────
+    [HttpPost]
     public async Task<IActionResult> Delete(int id)
     {
         var attachment = await _db.Attachments
             .Include(a => a.Note)
             .FirstOrDefaultAsync(a => a.Id == id);
 
-        if (attachment is null) return NotFound();
+        if (attachment?.Note is null) return NotFound();
 
         var userId = _userManager.GetUserId(User)!;
-        var isAdmin = User.IsInRole(Data.DbInitializer.AdminRoleName);
 
-        // Only note owner or admin may delete attachments (Authenticity)
-        if (attachment.Note!.OwnerId != userId && !isAdmin)
-            return Forbid();
+        // Authorization: only owner can delete
+        if (attachment.Note.UserId != userId) return Forbid();
 
-        var noteId = attachment.NoteId;
         await _fileStorage.DeleteAsync(attachment.StoredFileName);
         _db.Attachments.Remove(attachment);
         await _db.SaveChangesAsync();
 
-        await _auditService.RecordAsync("AttachmentDeleted", userId: userId,
-            resourceType: "Attachment", resourceId: id.ToString());
+        await _auditService.LogAsync(userId, "Attachment.Deleted", "Attachment",
+            attachment.Id.ToString(), $"NoteId={attachment.NoteId}");
 
-        return RedirectToAction("Details", "Notes", new { id = noteId });
+        return RedirectToAction("Details", "Notes", new { id = attachment.NoteId });
     }
-
-    // ── Private helpers ───────────────────────────────────────────────────────
-
-    private static bool CanAccessNote(Note note, string? userId)
-        => note.IsPublic || note.OwnerId == userId;
 }

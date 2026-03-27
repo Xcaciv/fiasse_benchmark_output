@@ -1,10 +1,10 @@
+using LooseNotes.Models;
+
 namespace LooseNotes.Services;
 
 public interface IShareLinkService
 {
-    ShareTokenPayload CreateTokenPayload();
-    string HashToken(string token);
-    string RevealToken(string protectedToken);
+    Task<ShareLink> GenerateShareLinkAsync(int noteId, string ownerId, CancellationToken cancellationToken = default);
+    Task<bool> RevokeShareLinkAsync(int noteId, string ownerId, CancellationToken cancellationToken = default);
+    Task<Note?> GetNoteByTokenAsync(string token, CancellationToken cancellationToken = default);
 }
-
-public sealed record ShareTokenPayload(string Token, string TokenHash, string ProtectedToken);

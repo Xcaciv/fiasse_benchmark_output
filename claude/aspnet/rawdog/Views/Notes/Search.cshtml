@@ -4,14 +4,18 @@
 }
 
 <h2>Search Notes</h2>
+
 <form asp-action="Search" method="get" class="mb-4">
     <div class="input-group">
-        <input type="text" name="q" value="@Model.Query" class="form-control" placeholder="Search by title or content..." />
-        <button type="submit" class="btn btn-primary">Search</button>
+        <input type="text" name="q" value="@Model.Query" class="form-control"
+               placeholder="Search by title or content..." />
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-search"></i> Search
+        </button>
     </div>
 </form>
 
-@if (Model.Query != null)
+@if (!string.IsNullOrWhiteSpace(Model.Query))
 {
     <p class="text-muted">@Model.Results.Count result(s) for "@Model.Query"</p>
 
@@ -19,23 +23,27 @@
     {
         <div class="alert alert-info">No notes found matching your search.</div>
     }
-
-    @foreach (var result in Model.Results)
+    else
     {
-        <div class="card mb-3">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <h5 class="card-title">
-                        <a asp-action="Details" asp-route-id="@result.Id">@result.Title</a>
-                    </h5>
-                    @if (result.IsPublic)
-                    {
-                        <span class="badge bg-success">Public</span>
-                    }
-                </div>
-                <p class="card-text">@result.Excerpt</p>
-                <small class="text-muted">By @result.AuthorName &middot; @result.CreatedAt.ToString("MMM d, yyyy")</small>
-            </div>
+        <div class="list-group">
+            @foreach (var note in Model.Results)
+            {
+                <a asp-action="Details" asp-route-id="@note.Id" class="list-group-item list-group-item-action">
+                    <div class="d-flex justify-content-between">
+                        <h6 class="mb-1">@note.Title</h6>
+                        <small class="text-muted">@note.CreatedAt.ToString("MMM d, yyyy")</small>
+                    </div>
+                    <p class="mb-1 text-muted small">
+                        @(note.Content.Length > 200 ? note.Content[..200] + "..." : note.Content)
+                    </p>
+                    <small>By @(note.User?.UserName ?? "Unknown")
+                        @if (note.IsPublic)
+                        {
+                            <span class="badge bg-success ms-1">Public</span>
+                        }
+                    </small>
+                </a>
+            }
         </div>
     }
 }

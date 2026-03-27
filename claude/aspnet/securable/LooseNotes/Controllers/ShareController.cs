@@ -1,3 +1,6 @@
+// ShareController.cs — Serves notes via share token (unauthenticated access).
+// Authenticity: token is looked up in DB — forgery yields 404.
+// Availability: only one active token per note; old ones are invalidated on regeneration.
 using LooseNotes.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -5,41 +8,28 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LooseNotes.Controllers;
 
-/// <summary>
-/// Renders a note via share link token.
-/// No authentication required — access is gated solely on valid, active token.
-/// Token is validated server-side; no user-supplied path components access storage.
-/// </summary>
-[AllowAnonymous]
-public class ShareController : Controller
+public sealed class ShareController : Controller
 {
     private readonly ApplicationDbContext _db;
 
-    public ShareController(ApplicationDbContext db)
-    {
-        _db = db;
-    }
+    public ShareController(ApplicationDbContext db) => _db = db;
 
-    /// <summary>
-    /// Trust boundary: token comes from URL segment.
-    /// Lookup uses parameterized EF query (Integrity).
-    /// Token is treated as an opaque credential — not logged (Confidentiality).
-    /// </summary>
-    [HttpGet("share/{token}")]
+    // ── GET /Share/View/{token} ───────────────────────────────────────────────
+    [HttpGet]
+    [AllowAnonymous]
     public async Task<IActionResult> View(string token)
     {
-        if (string.IsNullOrWhiteSpace(token) || token.Length > 64)
-            return NotFound();
+        if (string.IsNullOrWhiteSpace(token)) return NotFound();
 
+        // Trust boundary: token must match an active link in the DB
         var shareLink = await _db.ShareLinks
-            .Include(s => s.Note)
-                .ThenInclude(n => n!.Owner)
-            .Include(s => s.Note)
-                .ThenInclude(n => n!.Attachments)
+            .Include(s => s.Note).ThenInclude(n => n!.User)
+            .Include(s => s.Note).ThenInclude(n => n!.Attachments)
+            .Include(s => s.Note).ThenInclude(n => n!.Ratings).ThenInclude(r => r.User)
             .FirstOrDefaultAsync(s => s.Token == token && s.IsActive);
 
-        if (shareLink is null)
-            return NotFound();
+        // Authenticity: expired or non-existent tokens yield the same 404 response
+        if (shareLink?.Note is null) return NotFound();
 
         return View(shareLink.Note);
     }

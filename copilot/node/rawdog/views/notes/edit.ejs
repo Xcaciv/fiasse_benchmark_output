@@ -1,51 +1,30 @@
-<%- include('../partials/header') %>
 <div class="row justify-content-center">
-  <div class="col-lg-8">
-    <h2 class="mb-4">Edit Note</h2>
-    <% if (typeof errors !== 'undefined' && errors.length) { %>
-      <div class="alert alert-danger"><ul class="mb-0"><% errors.forEach(e => { %><li><%= e.msg %></li><% }) %></ul></div>
-    <% } %>
-    <form method="POST" action="/notes/<%= note.id %>/edit" enctype="multipart/form-data">
-      <div class="mb-3">
-        <label class="form-label fw-semibold">Title <span class="text-danger">*</span></label>
-        <input type="text" name="title" class="form-control" value="<%= note.title %>" required />
+  <div class="col-md-8">
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <h2 class="card-title mb-4">Edit Note</h2>
+        <form action="/notes/<%= note.id %>" method="POST">
+          <div class="mb-3">
+            <label class="form-label">Title</label>
+            <input type="text" name="title" class="form-control" value="<%= note.title %>" required autofocus>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Content</label>
+            <textarea name="content" class="form-control" rows="10" required><%= note.content %></textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Visibility</label>
+            <select name="visibility" class="form-select">
+              <option value="private" <%= note.visibility === 'private' ? 'selected' : '' %>>Private</option>
+              <option value="public" <%= note.visibility === 'public' ? 'selected' : '' %>>Public</option>
+            </select>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <a href="/notes/<%= note.id %>" class="btn btn-secondary">Cancel</a>
+          </div>
+        </form>
       </div>
-      <div class="mb-3">
-        <label class="form-label fw-semibold">Content <span class="text-danger">*</span></label>
-        <textarea name="content" class="form-control" rows="10" required><%= note.content %></textarea>
-      </div>
-      <div class="mb-3">
-        <label class="form-label fw-semibold">Visibility</label>
-        <select name="visibility" class="form-select">
-          <option value="private" <%= note.visibility === 'private' ? 'selected' : '' %>>Private</option>
-          <option value="public" <%= note.visibility === 'public' ? 'selected' : '' %>>Public</option>
-        </select>
-      </div>
-      <% if (note.Attachments && note.Attachments.length > 0) { %>
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Current Attachments</label>
-          <ul class="list-group mb-2">
-            <% note.Attachments.forEach(att => { %>
-              <li class="list-group-item d-flex justify-content-between align-items-center">
-                <a href="/uploads/<%= att.storedFilename %>" target="_blank"><%= att.originalFilename %></a>
-                <form method="POST" action="/notes/<%= note.id %>/attachments/<%= att.id %>/delete" onsubmit="return confirm('Remove this attachment?')" class="mb-0">
-                  <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x"></i></button>
-                </form>
-              </li>
-            <% }) %>
-          </ul>
-        </div>
-      <% } %>
-      <div class="mb-3">
-        <label class="form-label fw-semibold">Add Attachments</label>
-        <input type="file" name="attachments" class="form-control" multiple accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" />
-        <div class="form-text">Accepted: pdf, doc, docx, txt, png, jpg, jpeg. Max 10MB each.</div>
-      </div>
-      <div class="d-flex gap-2">
-        <button type="submit" class="btn btn-primary">Save Changes</button>
-        <a href="/notes/<%= note.id %>" class="btn btn-outline-secondary">Cancel</a>
-      </div>
-    </form>
+    </div>
   </div>
 </div>
-<%- include('../partials/footer') %>

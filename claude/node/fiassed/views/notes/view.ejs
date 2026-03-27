@@ -1,0 +1,145 @@
+<div class="note-detail">
+  <div class="note-header">
+    <h1><%= note.title %></h1>
+    <div class="note-meta">
+      <span class="badge badge-<%= note.visibility %>"><%= note.visibility %></span>
+      <% if (note.owner) { %>
+        <span>by <%= note.owner.username %></span>
+      <% } %>
+      <span>Updated <%= new Date(note.updatedAt).toLocaleDateString() %></span>
+    </div>
+  </div>
+
+  <div class="note-content">
+    <pre><%= note.content %></pre>
+  </div>
+
+  <% if (typeof currentUser !== 'undefined' && currentUser && note.ownerId === currentUser.id) { %>
+    <div class="note-owner-actions">
+      <a href="/notes/<%= note.id %>/edit" class="btn btn-secondary">Edit</a>
+      <form method="POST" action="/notes/<%= note.id %>/delete" style="display:inline;" onsubmit="return confirm('Delete this note?')">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-danger">Delete</button>
+      </form>
+      <a href="/notes/<%= note.id %>/ratings" class="btn btn-secondary">View Ratings</a>
+    </div>
+  <% } %>
+</div>
+
+<!-- Attachments section -->
+<div class="attachments-section">
+  <h2>Attachments</h2>
+  <% if (note.attachments && note.attachments.length > 0) { %>
+    <ul class="attachment-list">
+      <% note.attachments.forEach(function(attachment) { %>
+        <li class="attachment-item">
+          <a href="/attachments/<%= attachment.id %>">
+            <%= attachment.originalFilename %>
+          </a>
+          <small>(<%= Math.round(attachment.size / 1024) %> KB)</small>
+          <% if (typeof currentUser !== 'undefined' && currentUser && note.ownerId === currentUser.id) { %>
+            <form method="POST" action="/attachments/<%= attachment.id %>?_method=DELETE" style="display:inline;">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="_method" value="DELETE">
+              <button type="submit" class="btn btn-sm btn-danger">Remove</button>
+            </form>
+          <% } %>
+        </li>
+      <% }); %>
+    </ul>
+  <% } else { %>
+    <p class="empty-state-inline">No attachments.</p>
+  <% } %>
+
+  <% if (typeof currentUser !== 'undefined' && currentUser && note.ownerId === currentUser.id) { %>
+    <form method="POST" action="/attachments/<%= note.id %>" enctype="multipart/form-data" class="upload-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="form-group form-inline">
+        <label for="file">Add Attachment</label>
+        <input type="file" id="file" name="file" accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg">
+        <button type="submit" class="btn btn-secondary btn-sm">Upload</button>
+      </div>
+      <small>Allowed: PDF, DOC, DOCX, TXT, PNG, JPG. Max 10MB.</small>
+    </form>
+  <% } %>
+</div>
+
+<!-- Ratings section -->
+<div class="ratings-section">
+  <h2>Ratings</h2>
+  <p>Average rating: <strong><%= avgRating || 0 %></strong> / 5 (<%= ratingCount || 0 %> ratings)</p>
+
+  <% if (typeof showRatings !== 'undefined' && showRatings && typeof ratings !== 'undefined') { %>
+    <h3>Individual Ratings</h3>
+    <% if (ratings.length > 0) { %>
+      <ul class="ratings-list">
+        <% ratings.forEach(function(r) { %>
+          <li class="rating-item">
+            <span class="rating-value">★ <%= r.value %>/5</span>
+            <% if (r.comment) { %><p class="rating-comment"><%= r.comment %></p><% } %>
+            <small><%= new Date(r.createdAt).toLocaleDateString() %></small>
+          </li>
+        <% }); %>
+      </ul>
+    <% } else { %>
+      <p>No ratings yet.</p>
+    <% } %>
+  <% } %>
+
+  <% if (typeof currentUser !== 'undefined' && currentUser && note.ownerId !== currentUser.id) { %>
+    <div class="rate-note">
+      <h3>Rate This Note</h3>
+      <form method="POST" action="/notes/<%= note.id %>/rate">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="form-group">
+          <label for="value">Rating (1-5)</label>
+          <select id="value" name="value">
+            <option value="5">5 - Excellent</option>
+            <option value="4">4 - Good</option>
+            <option value="3" selected>3 - Average</option>
+            <option value="2">2 - Below Average</option>
+            <option value="1">1 - Poor</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="comment">Comment (optional)</label>
+          <textarea id="comment" name="comment" rows="3" maxlength="1000"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Submit Rating</button>
+      </form>
+    </div>
+  <% } %>
+</div>
+
+<!-- Share links section (owner only) -->
+<% if (typeof currentUser !== 'undefined' && currentUser && note.ownerId === currentUser.id) { %>
+  <div class="share-section">
+    <h2>Share Links</h2>
+    <% if (typeof shareLinks !== 'undefined' && shareLinks.length > 0) { %>
+      <ul class="share-list">
+        <% shareLinks.forEach(function(link) { %>
+          <li class="share-item">
+            <a href="/share/view/<%= link.token %>" target="_blank">
+              /share/view/<%= link.token %>
+            </a>
+            <% if (link.expiresAt) { %>
+              <small>Expires: <%= new Date(link.expiresAt).toLocaleDateString() %></small>
+            <% } %>
+            <form method="POST" action="/share/<%= link.id %>?_method=DELETE" style="display:inline;">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="_method" value="DELETE">
+              <button type="submit" class="btn btn-sm btn-danger">Revoke</button>
+            </form>
+          </li>
+        <% }); %>
+      </ul>
+    <% } else { %>
+      <p class="empty-state-inline">No active share links.</p>
+    <% } %>
+
+    <form method="POST" action="/share/<%= note.id %>">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button type="submit" class="btn btn-secondary">Create Share Link</button>
+    </form>
+  </div>
+<% } %>

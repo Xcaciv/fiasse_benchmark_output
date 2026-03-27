@@ -1,34 +1,35 @@
-@model List<LooseNotes.ViewModels.TopRatedNoteViewModel>
+@model TopRatedViewModel
 @{
     ViewData["Title"] = "Top Rated Notes";
 }
 
-<h2>Top Rated Notes</h2>
+<h2><i class="bi bi-trophy text-warning"></i> Top Rated Notes</h2>
 <p class="text-muted">Public notes with at least 3 ratings, sorted by average rating.</p>
 
-@if (!Model.Any())
+@if (!Model.Items.Any())
 {
-    <div class="alert alert-info">No notes have reached the minimum 3 ratings yet.</div>
+    <div class="alert alert-info">No notes with 3+ ratings yet.</div>
 }
-
-@foreach (var note in Model)
+else
 {
-    <div class="card mb-3">
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start">
-                <h5 class="card-title">
-                    <a asp-action="Details" asp-route-id="@note.Id">@note.Title</a>
-                </h5>
-                <div class="star-rating">
-                    @for (int i = 1; i <= 5; i++)
-                    {
-                        <span>@(i <= Math.Round(note.AverageRating) ? "★" : "☆")</span>
-                    }
-                    <span class="text-muted small ms-1">@note.AverageRating.ToString("0.0") (@note.RatingCount ratings)</span>
+    <div class="list-group">
+        @foreach (var (note, avg, count) in Model.Items)
+        {
+            <a asp-action="Details" asp-route-id="@note.Id" class="list-group-item list-group-item-action">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="mb-1">@note.Title</h6>
+                        <p class="mb-1 text-muted small">
+                            @(note.Content.Length > 200 ? note.Content[..200] + "..." : note.Content)
+                        </p>
+                        <small>By @(note.User?.UserName ?? "Unknown")</small>
+                    </div>
+                    <div class="text-end ms-3">
+                        <div class="text-warning fw-bold">@avg.ToString("F1") ★</div>
+                        <small class="text-muted">@count ratings</small>
+                    </div>
                 </div>
-            </div>
-            <p class="text-muted small">By @note.AuthorName</p>
-            <p class="card-text">@note.Preview</p>
-        </div>
+            </a>
+        }
     </div>
 }

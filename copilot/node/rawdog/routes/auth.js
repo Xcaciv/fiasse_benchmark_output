@@ -1,181 +1,190 @@
 const express = require('express');
-const router = express.Router();
-const bcrypt = require('bcrypt');
-const passport = require('passport');
+const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const nodemailer = require('nodemailer');
-const { body, validationResult } = require('express-validator');
-const { User } = require('../models');
-const logger = require('../config/logger');
+const { User, ActivityLog } = require('../models');
+
+const router = express.Router();
 
 // GET /auth/register
 router.get('/register', (req, res) => {
-  res.render('auth/register', { title: 'Register', user: null, errors: [], messages: req.flash() });
+  res.render('auth/register', { title: 'Register' });
 });
 
 // POST /auth/register
-router.post('/register', [
-  body('username').trim().isLength({ min: 3 }).withMessage('Username must be at least 3 characters.'),
-  body('email').isEmail().normalizeEmail().withMessage('Enter a valid email.'),
-  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters.'),
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.render('auth/register', { title: 'Register', user: null, errors: errors.array(), messages: req.flash() });
-  }
-  const { username, email, password } = req.body;
+router.post('/register', async (req, res) => {
   try {
-    const existing = await User.findOne({ where: { email } });
+    const { username, email, password, confirmPassword } = req.body;
+    if (!username || !email || !password) {
+      req.flash('error', 'All fields are required.');
+      return res.redirect('/auth/register');
+    }
+    if (password !== confirmPassword) {
+      req.flash('error', 'Passwords do not match.');
+      return res.redirect('/auth/register');
+    }
+    if (password.length < 6) {
+      req.flash('error', 'Password must be at least 6 characters.');
+      return res.redirect('/auth/register');
+    }
+    const existing = await User.findOne({ where: { username } });
     if (existing) {
-      return res.render('auth/register', { title: 'Register', user: null, errors: [{ msg: 'Email already registered.' }], messages: req.flash() });
+      req.flash('error', 'Username already taken.');
+      return res.redirect('/auth/register');
     }
-    const usernameExists = await User.findOne({ where: { username } });
-    if (usernameExists) {
-      return res.render('auth/register', { title: 'Register', user: null, errors: [{ msg: 'Username already taken.' }], messages: req.flash() });
+    const existingEmail = await User.findOne({ where: { email } });
+    if (existingEmail) {
+      req.flash('error', 'Email already registered.');
+      return res.redirect('/auth/register');
     }
-    const passwordHash = await bcrypt.hash(password, 12);
-    await User.create({ username, email, passwordHash });
-    logger.info(`New user registered: ${email}`);
+    const hashed = await bcrypt.hash(password, 12);
+    await User.create({ username, email, password: hashed });
     req.flash('success', 'Registration successful! Please log in.');
     res.redirect('/auth/login');
   } catch (err) {
-    logger.error(`Registration error: ${err.message}`);
-    res.render('auth/register', { title: 'Register', user: null, errors: [{ msg: 'An error occurred. Please try again.' }], messages: req.flash() });
+    console.error(err);
+    req.flash('error', 'Registration failed.');
+    res.redirect('/auth/register');
   }
 });
 
 // GET /auth/login
 router.get('/login', (req, res) => {
-  res.render('auth/login', { title: 'Login', user: null, errors: [], messages: req.flash() });
+  res.render('auth/login', { title: 'Login' });
 });
 
 // POST /auth/login
-router.post('/login', (req, res, next) => {
-  passport.authenticate('local', (err, user, info) => {
-    if (err) return next(err);
+router.post('/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const user = await User.findOne({ where: { username } });
     if (!user) {
-      req.flash('error', info.message || 'Login failed.');
+      req.flash('error', 'Invalid username or password.');
       return res.redirect('/auth/login');
     }
-    req.logIn(user, (err) => {
-      if (err) return next(err);
-      logger.info(`User logged in: ${user.email}`);
-      req.flash('success', `Welcome back, ${user.username}!`);
-      res.redirect('/notes');
-    });
-  })(req, res, next);
-});
-
-// GET /auth/logout
-router.get('/logout', (req, res, next) => {
-  const email = req.user ? req.user.email : 'unknown';
-  req.logout((err) => {
-    if (err) return next(err);
-    logger.info(`User logged out: ${email}`);
-    req.flash('success', 'You have been logged out.');
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) {
+      req.flash('error', 'Invalid username or password.');
+      return res.redirect('/auth/login');
+    }
+    req.session.userId = user.id;
+    req.session.role = user.role;
+    req.session.username = user.username;
+    await ActivityLog.create({ userId: user.id, action: 'login', details: `User ${user.username} logged in` });
+    req.flash('success', `Welcome back, ${user.username}!`);
+    res.redirect('/notes');
+  } catch (err) {
+    console.error(err);
+    req.flash('error', 'Login failed.');
     res.redirect('/auth/login');
-  });
-});
-
-// GET /auth/forgot
-router.get('/forgot', (req, res) => {
-  res.render('auth/forgot-password', { title: 'Forgot Password', user: null, errors: [], messages: req.flash() });
-});
-
-// POST /auth/forgot
-router.post('/forgot', [
-  body('email').isEmail().normalizeEmail().withMessage('Enter a valid email.'),
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.render('auth/forgot-password', { title: 'Forgot Password', user: null, errors: errors.array(), messages: req.flash() });
   }
-  const { email } = req.body;
+});
+
+// POST /auth/logout
+router.post('/logout', async (req, res) => {
   try {
+    const userId = req.session.userId;
+    const username = req.session.username;
+    req.session.destroy(async () => {
+      if (userId) {
+        await ActivityLog.create({ userId, action: 'logout', details: `User ${username} logged out` });
+      }
+      res.redirect('/auth/login');
+    });
+  } catch (err) {
+    console.error(err);
+    res.redirect('/');
+  }
+});
+
+// GET /auth/forgot-password
+router.get('/forgot-password', (req, res) => {
+  res.render('auth/forgot-password', { title: 'Forgot Password' });
+});
+
+// POST /auth/forgot-password
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
     const user = await User.findOne({ where: { email } });
     if (!user) {
-      req.flash('success', 'If that email exists, a reset link has been sent.');
-      return res.redirect('/auth/forgot');
+      req.flash('info', 'If that email is registered, a reset link has been sent.');
+      return res.redirect('/auth/forgot-password');
     }
     const token = uuidv4();
     const expires = new Date(Date.now() + 3600000); // 1 hour
-    await user.update({ resetToken: token, resetExpires: expires });
+    await user.update({ passwordResetToken: token, passwordResetExpires: expires });
 
-    const resetUrl = `${process.env.APP_URL || 'http://localhost:3000'}/auth/reset/${token}`;
-    console.log(`[PASSWORD RESET] Token for ${email}: ${resetUrl}`);
-    logger.info(`Password reset requested for: ${email}`);
+    const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+    const resetUrl = `${baseUrl}/auth/reset-password?token=${token}`;
 
-    // Send email if SMTP configured
-    if (process.env.SMTP_HOST) {
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT) || 587,
-        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-      });
-      await transporter.sendMail({
-        from: process.env.SMTP_FROM || 'noreply@loosenotes.local',
-        to: email,
-        subject: 'Loose Notes – Password Reset',
-        text: `Click the link to reset your password (valid 1 hour):\n\n${resetUrl}`,
-        html: `<p>Click the link to reset your password (valid 1 hour):</p><p><a href="${resetUrl}">${resetUrl}</a></p>`,
-      });
-    }
+    const transporter = nodemailer.createTransport({
+      host: process.env.EMAIL_HOST || 'smtp.ethereal.email',
+      port: parseInt(process.env.EMAIL_PORT || '587'),
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
 
-    req.flash('success', 'If that email exists, a reset link has been sent.');
-    res.redirect('/auth/forgot');
+    await transporter.sendMail({
+      from: '"Loose Notes" <noreply@loosenotes.app>',
+      to: user.email,
+      subject: 'Password Reset',
+      text: `Click the link to reset your password: ${resetUrl}\n\nExpires in 1 hour.`,
+      html: `<p>Click <a href="${resetUrl}">here</a> to reset your password.</p><p>Expires in 1 hour.</p>`,
+    }).catch(err => console.error('Email error:', err.message));
+
+    req.flash('info', 'If that email is registered, a reset link has been sent.');
+    res.redirect('/auth/forgot-password');
   } catch (err) {
-    logger.error(`Forgot password error: ${err.message}`);
-    req.flash('error', 'An error occurred. Please try again.');
-    res.redirect('/auth/forgot');
+    console.error(err);
+    req.flash('error', 'Something went wrong.');
+    res.redirect('/auth/forgot-password');
   }
 });
 
-// GET /auth/reset/:token
-router.get('/reset/:token', async (req, res) => {
+// GET /auth/reset-password
+router.get('/reset-password', async (req, res) => {
   try {
-    const user = await User.findOne({
-      where: { resetToken: req.params.token, resetExpires: { [require('sequelize').Op.gt]: new Date() } },
-    });
-    if (!user) {
-      req.flash('error', 'Password reset token is invalid or has expired.');
-      return res.redirect('/auth/forgot');
+    const { token } = req.query;
+    const user = await User.findOne({ where: { passwordResetToken: token } });
+    if (!user || !user.passwordResetExpires || user.passwordResetExpires < new Date()) {
+      req.flash('error', 'Invalid or expired reset token.');
+      return res.redirect('/auth/forgot-password');
     }
-    res.render('auth/reset-password', { title: 'Reset Password', user: null, token: req.params.token, errors: [], messages: req.flash() });
+    res.render('auth/reset-password', { title: 'Reset Password', token });
   } catch (err) {
-    req.flash('error', 'An error occurred.');
-    res.redirect('/auth/forgot');
+    console.error(err);
+    res.redirect('/auth/forgot-password');
   }
 });
 
-// POST /auth/reset/:token
-router.post('/reset/:token', [
-  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters.'),
-  body('confirmPassword').custom((value, { req }) => {
-    if (value !== req.body.password) throw new Error('Passwords do not match.');
-    return true;
-  }),
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.render('auth/reset-password', { title: 'Reset Password', user: null, token: req.params.token, errors: errors.array(), messages: req.flash() });
-  }
+// POST /auth/reset-password
+router.post('/reset-password', async (req, res) => {
   try {
-    const user = await User.findOne({
-      where: { resetToken: req.params.token, resetExpires: { [require('sequelize').Op.gt]: new Date() } },
-    });
-    if (!user) {
-      req.flash('error', 'Password reset token is invalid or has expired.');
-      return res.redirect('/auth/forgot');
+    const { token, password, confirmPassword } = req.body;
+    if (password !== confirmPassword) {
+      req.flash('error', 'Passwords do not match.');
+      return res.redirect(`/auth/reset-password?token=${token}`);
     }
-    const passwordHash = await bcrypt.hash(req.body.password, 12);
-    await user.update({ passwordHash, resetToken: null, resetExpires: null });
-    logger.info(`Password reset completed for: ${user.email}`);
-    req.flash('success', 'Password updated successfully. Please log in.');
+    if (password.length < 6) {
+      req.flash('error', 'Password must be at least 6 characters.');
+      return res.redirect(`/auth/reset-password?token=${token}`);
+    }
+    const user = await User.findOne({ where: { passwordResetToken: token } });
+    if (!user || !user.passwordResetExpires || user.passwordResetExpires < new Date()) {
+      req.flash('error', 'Invalid or expired reset token.');
+      return res.redirect('/auth/forgot-password');
+    }
+    const hashed = await bcrypt.hash(password, 12);
+    await user.update({ password: hashed, passwordResetToken: null, passwordResetExpires: null });
+    req.flash('success', 'Password reset successfully. Please log in.');
     res.redirect('/auth/login');
   } catch (err) {
-    logger.error(`Password reset error: ${err.message}`);
-    req.flash('error', 'An error occurred.');
-    res.redirect('/auth/forgot');
+    console.error(err);
+    req.flash('error', 'Reset failed.');
+    res.redirect('/auth/forgot-password');
   }
 });
 

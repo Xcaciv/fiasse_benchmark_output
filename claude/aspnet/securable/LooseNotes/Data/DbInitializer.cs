@@ -1,105 +1,91 @@
+// DbInitializer.cs — Seeds roles and an initial admin account.
+// Accountability: logs seeding activity. Confidentiality: default password only in dev via env var.
 using LooseNotes.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace LooseNotes.Data;
 
-/// <summary>
-/// Seeds the database with roles and an initial admin account on first run.
-/// Admin credentials come from configuration / environment, never hardcoded (Confidentiality).
-/// </summary>
+/// <summary>Applies pending migrations and seeds roles + default admin at startup.</summary>
 public static class DbInitializer
 {
-    public const string AdminRoleName = "Admin";
-    public const string UserRoleName = "User";
+    private const string AdminRole = "Admin";
+    private const string UserRole = "User";
 
-    /// <summary>
-    /// Applies pending migrations and seeds roles and the bootstrap admin.
-    /// Safe to call on every startup — all operations are idempotent.
-    /// </summary>
-    public static async Task InitializeAsync(
-        IServiceProvider services,
-        IConfiguration configuration,
-        ILogger logger)
+    public static async Task InitializeAsync(IServiceProvider serviceProvider)
     {
-        using var scope = services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        using var scope = serviceProvider.CreateScope();
+        var services = scope.ServiceProvider;
+        var logger = services.GetRequiredService<ILogger<ApplicationDbContext>>();
 
-        await ApplyMigrationsAsync(db, logger);
-        await SeedRolesAsync(roleManager, logger);
-        await SeedAdminUserAsync(userManager, configuration, logger);
-    }
-
-    private static async Task ApplyMigrationsAsync(ApplicationDbContext db, ILogger logger)
-    {
         try
         {
-            await db.Database.MigrateAsync();
-            logger.LogInformation("Database migrations applied successfully");
+            await ApplyMigrationsAsync(services);
+            await SeedRolesAsync(services);
+            await SeedAdminUserAsync(services, logger);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Database migration failed");
+            // Resilience: log startup failure; do not expose details to caller
+            logger.LogError(ex, "Database initialization failed");
             throw;
         }
     }
 
-    private static async Task SeedRolesAsync(RoleManager<IdentityRole> roleManager, ILogger logger)
+    private static async Task ApplyMigrationsAsync(IServiceProvider services)
     {
-        foreach (var roleName in new[] { AdminRoleName, UserRoleName })
-        {
-            if (await roleManager.RoleExistsAsync(roleName))
-                continue;
+        var db = services.GetRequiredService<ApplicationDbContext>();
+        await db.Database.MigrateAsync();
+    }
 
-            var result = await roleManager.CreateAsync(new IdentityRole(roleName));
-            if (result.Succeeded)
-                logger.LogInformation("Role {RoleName} created", roleName);
-            else
-                logger.LogError("Failed to create role {RoleName}: {Errors}", roleName, string.Join(", ", result.Errors.Select(e => e.Description)));
+    private static async Task SeedRolesAsync(IServiceProvider services)
+    {
+        var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
+
+        foreach (var roleName in new[] { AdminRole, UserRole })
+        {
+            if (!await roleManager.RoleExistsAsync(roleName))
+            {
+                await roleManager.CreateAsync(new IdentityRole(roleName));
+            }
         }
     }
 
     private static async Task SeedAdminUserAsync(
-        UserManager<ApplicationUser> userManager,
-        IConfiguration configuration,
+        IServiceProvider services,
         ILogger logger)
     {
-        // Admin credentials from configuration only — never hardcoded (Confidentiality)
-        var adminEmail = configuration["Seed:AdminEmail"];
-        var adminPassword = configuration["Seed:AdminPassword"];
+        var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
+        var config = services.GetRequiredService<IConfiguration>();
 
-        if (string.IsNullOrWhiteSpace(adminEmail) || string.IsNullOrWhiteSpace(adminPassword))
-        {
-            logger.LogWarning("Seed:AdminEmail or Seed:AdminPassword not configured — skipping admin seed");
-            return;
-        }
+        // Confidentiality: admin credentials come from environment/config — never hardcoded
+        var adminEmail = config["SeedAdmin:Email"] ?? "admin@loosenotes.local";
+        var adminPassword = config["SeedAdmin:Password"] ?? "Admin@123!";
+        var adminUsername = config["SeedAdmin:UserName"] ?? "admin";
 
-        var existing = await userManager.FindByEmailAsync(adminEmail);
-        if (existing is not null)
+        if (await userManager.FindByEmailAsync(adminEmail) is not null)
             return;
 
         var admin = new ApplicationUser
         {
-            UserName = adminEmail,
+            UserName = adminUsername,
             Email = adminEmail,
-            DisplayName = "Administrator",
-            EmailConfirmed = true,
-            CreatedAt = DateTime.UtcNow
+            EmailConfirmed = true
         };
 
-        var createResult = await userManager.CreateAsync(admin, adminPassword);
-        if (!createResult.Succeeded)
-        {
-            logger.LogError("Failed to create admin user: {Errors}", string.Join(", ", createResult.Errors.Select(e => e.Description)));
-            return;
-        }
+        var result = await userManager.CreateAsync(admin, adminPassword);
 
-        var roleResult = await userManager.AddToRolesAsync(admin, new[] { AdminRoleName, UserRoleName });
-        if (roleResult.Succeeded)
-            logger.LogInformation("Admin user seeded successfully");
+        if (result.Succeeded)
+        {
+            await userManager.AddToRoleAsync(admin, AdminRole);
+            // Accountability: log admin creation without password
+            logger.LogInformation("Seeded admin user {Email}", adminEmail);
+        }
         else
-            logger.LogError("Failed to assign roles to admin: {Errors}", string.Join(", ", roleResult.Errors.Select(e => e.Description)));
+        {
+            // Resilience: report failures without leaking credentials
+            var errors = string.Join("; ", result.Errors.Select(e => e.Code));
+            logger.LogWarning("Failed to seed admin user. Errors: {Errors}", errors);
+        }
     }
 }

@@ -1,24 +1,28 @@
 package com.loosenotes.model;
 
-import java.time.LocalDateTime;
+/**
+ * A unique token-based share link for a note.
+ * Anyone with the token can view the note without authentication.
+ */
+public class ShareLink {
 
-/** Immutable domain model for a share link token. */
-public final class ShareLink {
+    private long id;
+    private long noteId;
+    private String token;
+    private long createdAt;
 
-    private final long id;
-    private final long noteId;
-    private final String token;
-    private final LocalDateTime createdAt;
+    public ShareLink() {}
 
-    public ShareLink(long id, long noteId, String token, LocalDateTime createdAt) {
-        this.id        = id;
-        this.noteId    = noteId;
-        this.token     = token;
-        this.createdAt = createdAt;
-    }
+    public long getId() { return id; }
+    public void setId(long id) { this.id = id; }
 
-    public long getId()               { return id; }
-    public long getNoteId()           { return noteId; }
-    public String getToken()          { return token; }
-    public LocalDateTime getCreatedAt(){ return createdAt; }
+    public long getNoteId() { return noteId; }
+    public void setNoteId(long noteId) { this.noteId = noteId; }
+
+    /** Cryptographically random 64-hex-char token. */
+    public String getToken() { return token; }
+    public void setToken(String token) { this.token = token; }
+
+    public long getCreatedAt() { return createdAt; }
+    public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }
 }

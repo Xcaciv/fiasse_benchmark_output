@@ -1,0 +1,83 @@
+<div class="page-header">
+  <h1>Edit Profile</h1>
+</div>
+
+<% if (typeof errors !== 'undefined' && errors.length > 0) { %>
+  <div class="alert alert-error">
+    <ul>
+      <% errors.forEach(function(err) { %>
+        <li><%= err.msg %></li>
+      <% }); %>
+    </ul>
+  </div>
+<% } %>
+
+<div class="profile-info">
+  <p><strong>Username:</strong> <%= currentUser.username %></p>
+  <p><strong>Email:</strong> <%= currentUser.email %></p>
+  <p><strong>Role:</strong> <%= currentUser.role %></p>
+</div>
+
+<form method="POST" action="/profile/edit" class="profile-form">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+  <fieldset>
+    <legend>Update Username</legend>
+    <div class="form-group">
+      <label for="username">New Username</label>
+      <input
+        type="text"
+        id="username"
+        name="username"
+        maxlength="50"
+        pattern="[a-zA-Z0-9_\-]+"
+        value="<%= currentUser.username %>"
+        autocomplete="username"
+      >
+      <small>3-50 characters. Letters, numbers, underscores, hyphens only.</small>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Change Password</legend>
+    <p><small>Leave blank to keep current password.</small></p>
+
+    <div class="form-group">
+      <label for="currentPassword">Current Password</label>
+      <input
+        type="password"
+        id="currentPassword"
+        name="currentPassword"
+        autocomplete="current-password"
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="newPassword">New Password</label>
+      <input
+        type="password"
+        id="newPassword"
+        name="newPassword"
+        minlength="12"
+        autocomplete="new-password"
+      >
+      <small>Minimum 12 characters.</small>
+    </div>
+
+    <div class="form-group">
+      <label for="confirmPassword">Confirm New Password</label>
+      <input
+        type="password"
+        id="confirmPassword"
+        name="confirmPassword"
+        minlength="12"
+        autocomplete="new-password"
+      >
+    </div>
+  </fieldset>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Save Changes</button>
+    <a href="/notes" class="btn btn-secondary">Cancel</a>
+  </div>
+</form>

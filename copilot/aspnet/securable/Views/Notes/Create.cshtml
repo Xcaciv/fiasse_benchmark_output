@@ -1,40 +1,30 @@
-@model NoteCreateViewModel
+@model NoteViewModel
 @{
-    ViewData["Title"] = "New Note";
+    ViewData["Title"] = "Create Note";
 }
-<div class="row justify-content-center">
+<h2>Create Note</h2>
+<div class="row">
     <div class="col-md-8">
-        <h2 class="mb-4">Create Note</h2>
-        <form asp-action="Create" method="post" enctype="multipart/form-data">
+        <form asp-action="Create" method="post">
             @Html.AntiForgeryToken()
-            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
-
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
             <div class="mb-3">
                 <label asp-for="Title" class="form-label"></label>
                 <input asp-for="Title" class="form-control" maxlength="200" />
-                <span asp-validation-for="Title" class="text-danger small"></span>
+                <span asp-validation-for="Title" class="text-danger"></span>
             </div>
             <div class="mb-3">
                 <label asp-for="Content" class="form-label"></label>
-                <textarea asp-for="Content" class="form-control" rows="10" maxlength="10000"></textarea>
-                <span asp-validation-for="Content" class="text-danger small"></span>
+                <textarea asp-for="Content" class="form-control" rows="10" maxlength="50000"></textarea>
+                <span asp-validation-for="Content" class="text-danger"></span>
             </div>
             <div class="mb-3 form-check">
                 <input asp-for="IsPublic" class="form-check-input" />
                 <label asp-for="IsPublic" class="form-check-label">Make Public</label>
             </div>
-            <div class="mb-3">
-                <label asp-for="Attachments" class="form-label">
-                    Attachments <small class="text-muted">(PDF, DOC, DOCX, TXT, PNG, JPG, JPEG — max 10 MB each)</small>
-                </label>
-                <input asp-for="Attachments" class="form-control" type="file" multiple
-                       accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" />
-            </div>
-            <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-primary">Save Note</button>
-                <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
-            </div>
+            <button type="submit" class="btn btn-primary">Create</button>
+            <a asp-action="Index" class="btn btn-outline-secondary ms-2">Cancel</a>
         </form>
     </div>
 </div>
-@section Scripts { @{ await Html.RenderPartialAsync("_ValidationScripts"); } }
+@section Scripts { @{ await Html.RenderPartialAsync("_ValidationScripts.partial"); } }

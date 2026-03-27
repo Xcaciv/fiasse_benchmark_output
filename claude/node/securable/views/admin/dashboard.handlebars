@@ -1,0 +1,43 @@
+<h2 class="mb-4">Admin Dashboard</h2>
+<div class="row mb-4">
+  <div class="col-md-3">
+    <div class="card text-center">
+      <div class="card-body">
+        <h3>{{userCount}}</h3>
+        <p class="mb-0 text-muted">Users</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center">
+      <div class="card-body">
+        <h3>{{noteCount}}</h3>
+        <p class="mb-0 text-muted">Notes</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h5>Recent Activity</h5>
+<table class="table table-sm">
+  <thead>
+    <tr>
+      <th>Timestamp</th>
+      <th>Action</th>
+      <th>User</th>
+      <th>Details</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{#each recentLogs}}
+      <tr>
+        <td><small>{{formatDate this.createdAt}}</small></td>
+        <td><code>{{this.action}}</code></td>
+        <td>{{this.actor.username}}</td>
+        <td><small class="text-muted">{{this.ipAddress}}</small></td>
+      </tr>
+    {{/each}}
+  </tbody>
+</table>
+
+<a href="/admin/users" class="btn btn-outline-primary">Manage Users</a>

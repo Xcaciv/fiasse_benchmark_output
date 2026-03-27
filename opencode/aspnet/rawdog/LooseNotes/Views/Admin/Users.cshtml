@@ -1,0 +1,87 @@
+@model IEnumerable<UserListViewModel>
+@{
+    ViewData["Title"] = "Manage Users";
+}
+
+<h1>@ViewData["Title"]</h1>
+
+<div class="row mb-3">
+    <div class="col-md-6">
+        <form asp-action="Users" method="get" class="d-flex gap-2">
+            <input type="text" name="search" class="form-control" placeholder="Search by username or email..." value="@ViewBag.Search" />
+            <button type="submit" class="btn btn-primary">Search</button>
+            @if (!string.IsNullOrEmpty(ViewBag.Search))
+            {
+                <a asp-action="Users" class="btn btn-outline-secondary">Clear</a>
+            }
+        </form>
+    </div>
+</div>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+}
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Username</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Notes</th>
+            <th>Joined</th>
+            <th>Last Login</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var user in Model)
+        {
+            <tr>
+                <td>@user.UserName</td>
+                <td>@user.Email</td>
+                <td>
+                    @if (user.Role == "Admin")
+                    {
+                        <span class="badge bg-danger">Admin</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary">User</span>
+                    }
+                </td>
+                <td>@user.NoteCount</td>
+                <td>@user.CreatedAt.ToString("MMM dd, yyyy")</td>
+                <td>
+                    @if (user.LastLoginAt.HasValue)
+                    {
+                        @user.LastLoginAt.Value.ToString("MMM dd, yyyy HH:mm")
+                    }
+                    else
+                    {
+                        <span class="text-muted">Never</span>
+                    }
+                </td>
+                <td>
+                    <a asp-action="ReassignNote" asp-route-id="0" class="btn btn-sm btn-outline-primary" 
+                       onclick="this.href='@Url.Action("ReassignNote", new { id = 0 })'.replace('id=0', 'id=' + prompt('Enter note ID to reassign:'));">
+                        Reassign Note
+                    </a>
+                    @if (user.Role == "Admin")
+                    {
+                        <form asp-action="RemoveAdmin" asp-route-userId="@user.Id" method="post" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-warning">Remove Admin</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <form asp-action="AddAdmin" asp-route-userId="@user.Id" method="post" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-success">Make Admin</button>
+                        </form>
+                    }
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

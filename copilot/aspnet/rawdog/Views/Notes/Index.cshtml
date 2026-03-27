@@ -1,55 +1,77 @@
-@model NoteIndexViewModel
+@model LooseNotes.ViewModels.Notes.NoteListViewModel
 @{
     ViewData["Title"] = "My Notes";
 }
-
-<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
-    <div>
-        <h1 class="h2 mb-1">My notes</h1>
-        <p class="text-muted mb-0">Create, edit, share, and manage all of your notes from one place.</p>
-    </div>
-    <a asp-action="Create" class="btn btn-primary">Create note</a>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>My Notes</h2>
+    <a asp-action="Create" class="btn btn-primary">+ New Note</a>
 </div>
 
-@if (Model.Notes.Count == 0)
+@if (!Model.Notes.Any())
 {
-    <div class="alert alert-info">You have not created any notes yet.</div>
+    <div class="alert alert-info">You have no notes yet. <a asp-action="Create">Create your first note</a>.</div>
 }
 else
 {
-    <div class="row g-3">
-        @foreach (var note in Model.Notes)
-        {
-            <div class="col-md-6 col-xl-4">
-                <article class="card shadow-sm h-100">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
-                            <h2 class="h5 mb-0">
-                                <a asp-action="Details" asp-route-id="@note.Id" class="text-decoration-none">@note.Title</a>
-                            </h2>
-                            <span class="badge @(note.IsPublic ? "bg-success-subtle text-success" : "bg-secondary-subtle text-secondary")">
-                                @(note.IsPublic ? "Public" : "Private")
-                            </span>
-                        </div>
-                        <div class="text-muted small mb-3">
-                            Created @note.CreatedAtUtc.ToLocalTime().ToString("g")
-                            @if (note.UpdatedAtUtc.HasValue)
-                            {
-                                <span>- Updated @note.UpdatedAtUtc.Value.ToLocalTime().ToString("g")</span>
-                            }
-                        </div>
-                        <div class="d-flex justify-content-between text-muted small mb-3">
-                            <span>@note.AttachmentCount attachments</span>
-                            <span>@note.RatingCount ratings (@note.AverageRating.ToString("0.0"))</span>
-                        </div>
-                        <div class="d-flex gap-2">
-                            <a asp-action="Edit" asp-route-id="@note.Id" class="btn btn-sm btn-outline-primary">Edit</a>
-                            <a asp-action="Details" asp-route-id="@note.Id" class="btn btn-sm btn-outline-secondary">View</a>
-                            <a asp-action="Delete" asp-route-id="@note.Id" class="btn btn-sm btn-outline-danger">Delete</a>
-                        </div>
-                    </div>
-                </article>
-            </div>
-        }
-    </div>
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Visibility</th>
+                <th>Created</th>
+                <th>Updated</th>
+                <th>Rating</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var note in Model.Notes)
+            {
+                <tr>
+                    <td><a asp-action="Details" asp-route-id="@note.Id">@note.Title</a></td>
+                    <td>
+                        @if (note.IsPublic)
+                        {
+                            <span class="badge bg-success">Public</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">Private</span>
+                        }
+                    </td>
+                    <td>@note.CreatedAt.ToString("MMM d, yyyy")</td>
+                    <td>@note.UpdatedAt.ToString("MMM d, yyyy")</td>
+                    <td>
+                        @if (note.Ratings.Any())
+                        {
+                            <span>⭐ @note.Ratings.Average(r => r.Stars).ToString("F1")</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">—</span>
+                        }
+                    </td>
+                    <td>
+                        <a asp-action="Edit" asp-route-id="@note.Id" class="btn btn-sm btn-outline-secondary">Edit</a>
+                        <a asp-action="Share" asp-route-id="@note.Id" class="btn btn-sm btn-outline-info">Share</a>
+                        <a asp-action="Delete" asp-route-id="@note.Id" class="btn btn-sm btn-outline-danger">Delete</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    @if (Model.TotalPages > 1)
+    {
+        <nav>
+            <ul class="pagination justify-content-center">
+                @for (int i = 1; i <= Model.TotalPages; i++)
+                {
+                    <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
+                        <a class="page-link" asp-action="Index" asp-route-page="@i">@i</a>
+                    </li>
+                }
+            </ul>
+        </nav>
+    }
 }

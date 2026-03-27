@@ -1,9 +1,11 @@
 @{
     ViewData["Title"] = "Error";
 }
-<div class="text-center py-5">
-    <h1 class="display-4">Something went wrong</h1>
-    <p class="lead">An error occurred processing your request. Please try again later.</p>
-    <!-- No internal detail, stack traces, or exception messages shown to users (Confidentiality) -->
-    <a asp-controller="Home" asp-action="Index" class="btn btn-primary">Go Home</a>
+<div class="row justify-content-center">
+    <div class="col-md-6 text-center">
+        <h1 class="display-4 text-danger">Oops!</h1>
+        <p class="lead">An error occurred while processing your request.</p>
+        <p class="text-muted">If this problem persists, please contact support.</p>
+        <a asp-controller="Home" asp-action="Index" class="btn btn-primary">Go Home</a>
+    </div>
 </div>

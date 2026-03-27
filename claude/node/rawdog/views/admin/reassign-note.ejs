@@ -1,0 +1,79 @@
+<%- include('../partials/header') %>
+
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h1 class="mb-0"><i class="bi bi-arrow-left-right text-primary me-2"></i>Reassign Note</h1>
+      <a href="/admin/users" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Users
+      </a>
+    </div>
+
+    <% if (typeof errors !== 'undefined' && errors && errors.length > 0) { %>
+    <div class="alert alert-danger">
+      <ul class="mb-0">
+        <% errors.forEach(function(err) { %>
+        <li><%= err.msg %></li>
+        <% }); %>
+      </ul>
+    </div>
+    <% } %>
+
+    <!-- Note Info -->
+    <div class="card shadow-sm mb-4">
+      <div class="card-header bg-transparent">
+        <h5 class="mb-0"><i class="bi bi-journal-text me-2"></i>Note to Reassign</h5>
+      </div>
+      <div class="card-body">
+        <p class="mb-1"><strong>Title:</strong> <%= note.title %></p>
+        <p class="mb-1"><strong>Current Owner:</strong>
+          <span class="badge bg-info text-dark">
+            <i class="bi bi-person me-1"></i><%= note.author ? note.author.username : 'Unknown' %>
+          </span>
+        </p>
+        <p class="mb-0 text-muted small">
+          <strong>Preview:</strong> <%= note.content.substring(0, 150) %><%= note.content.length > 150 ? '...' : '' %>
+        </p>
+      </div>
+    </div>
+
+    <!-- Reassign Form -->
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <form action="/admin/reassign-note/<%= note.id %>" method="POST">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+          <div class="mb-4">
+            <label for="newOwnerId" class="form-label fw-semibold">New Owner <span class="text-danger">*</span></label>
+            <select id="newOwnerId" name="newOwnerId" class="form-select" required>
+              <option value="">-- Select a user --</option>
+              <% users.forEach(function(u) { %>
+              <option value="<%= u.id %>" <%= note.userId === u.id ? 'disabled' : '' %>>
+                <%= u.username %>
+                <% if (note.userId === u.id) { %>(current owner)<% } %>
+                <% if (u.isAdmin) { %>[Admin]<% } %>
+              </option>
+              <% }); %>
+            </select>
+          </div>
+
+          <div class="alert alert-warning small">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            This will transfer ownership of the note to the selected user. The original owner will no longer be able to edit or delete this note.
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-arrow-left-right me-2"></i>Reassign Note
+            </button>
+            <a href="/admin/users" class="btn btn-outline-secondary">
+              <i class="bi bi-x-circle me-2"></i>Cancel
+            </a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

@@ -1,0 +1,43 @@
+<div class="page-header">
+  <h1>Reassign Note Ownership</h1>
+</div>
+
+<div class="note-info">
+  <h2><%= note.title %></h2>
+  <p>Current Owner ID: <code><%= note.ownerId %></code></p>
+</div>
+
+<% if (typeof errors !== 'undefined' && errors.length > 0) { %>
+  <div class="alert alert-error">
+    <ul>
+      <% errors.forEach(function(err) { %>
+        <li><%= err.msg %></li>
+      <% }); %>
+    </ul>
+  </div>
+<% } %>
+
+<form method="POST" action="/admin/reassign/<%= note.id %>">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+  <div class="form-group">
+    <label for="newOwnerId">Assign to User</label>
+    <select id="newOwnerId" name="newOwnerId" required>
+      <option value="">-- Select a user --</option>
+      <% if (typeof users !== 'undefined') { %>
+        <% users.forEach(function(user) { %>
+          <option value="<%= user.id %>" <%= user.id === note.ownerId ? 'selected' : '' %>>
+            <%= user.username %> (<%= user.email %>)
+          </option>
+        <% }); %>
+      <% } %>
+    </select>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary" onclick="return confirm('Transfer note ownership to selected user?')">
+      Transfer Ownership
+    </button>
+    <a href="/admin/dashboard" class="btn btn-secondary">Cancel</a>
+  </div>
+</form>

@@ -6,26 +6,19 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>LooseNotes</RootNamespace>
     <AssemblyName>LooseNotes</AssemblyName>
-    <!-- Treat nullable warnings as errors to enforce null-safety (Resilience) -->
+    <!-- Treat nullable warnings as errors to enforce Confidentiality (no accidental null dereference) -->
     <Nullable>enable</Nullable>
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- ASP.NET Core Identity with EF Core (Authenticity) -->
-    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.11" />
-    <!-- EF Core SQLite for portability; swap to SQL Server/PostgreSQL in production -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.11" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.11">
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <!-- Structured logging (Accountability, Transparency) -->
-    <PackageReference Include="Serilog.AspNetCore" Version="8.0.3" />
-    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
-    <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
-    <!-- Rate limiting support (Availability) -->
-    <PackageReference Include="Microsoft.AspNetCore.RateLimiting" Version="8.0.11" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Cookies" Version="2.2.0" />
+    <PackageReference Include="AspNetCoreRateLimit" Version="5.0.0" />
   </ItemGroup>
 
 </Project>

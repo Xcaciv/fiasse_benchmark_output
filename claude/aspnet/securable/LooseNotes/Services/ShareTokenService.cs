@@ -1,29 +1,30 @@
+// ShareTokenService.cs — Generates cryptographically secure share tokens.
+// Authenticity: uses RandomNumberGenerator (CSPRNG) — not Random or Guid.
+// Confidentiality: tokens are opaque — no embedded user or note data.
 using LooseNotes.Configuration;
 using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
 
 namespace LooseNotes.Services;
 
-/// <summary>
-/// Generates URL-safe cryptographically random share link tokens using RNGCryptoServiceProvider.
-/// 32 bytes (256 bits) entropy by default (Authenticity, Integrity).
-/// </summary>
-public class ShareTokenService : IShareTokenService
+/// <summary>Generates URL-safe Base64-encoded CSPRNG tokens for share links.</summary>
+public sealed class ShareTokenService : IShareTokenService
 {
-    private readonly int _tokenSizeBytes;
+    private readonly int _tokenLengthBytes;
 
     public ShareTokenService(IOptions<SecurityOptions> options)
     {
-        _tokenSizeBytes = options.Value.ShareTokenSizeBytes;
+        _tokenLengthBytes = options.Value.ShareTokenLengthBytes;
     }
 
+    /// <inheritdoc/>
     public string GenerateToken()
     {
-        var bytes = RandomNumberGenerator.GetBytes(_tokenSizeBytes);
-        // Base64url encoding: URL-safe and compact
+        // Authenticity + Integrity: 32 bytes = 256 bits of entropy; URL-safe encoding
+        var bytes = RandomNumberGenerator.GetBytes(_tokenLengthBytes);
         return Convert.ToBase64String(bytes)
-                       .TrimEnd('=')
-                       .Replace('+', '-')
-                       .Replace('/', '_');
+            .Replace('+', '-')
+            .Replace('/', '_')
+            .TrimEnd('=');
     }
 }

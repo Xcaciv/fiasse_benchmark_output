@@ -1,100 +1,160 @@
 const express = require('express');
 const router = express.Router();
-const { getDb, logActivity } = require('../database/db');
-const { ensureAuthenticated, ensureAdmin } = require('../middleware/auth');
+const { Op } = require('sequelize');
+const { body, validationResult } = require('express-validator');
+const db = require('../models');
+const { isAdmin } = require('../middleware/auth');
 
-// GET /admin/dashboard
-router.get('/dashboard', ensureAuthenticated, ensureAdmin, (req, res) => {
-  const db = getDb();
-  const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
-  const noteCount = db.prepare('SELECT COUNT(*) as count FROM notes').get().count;
-  const recentActivity = db.prepare(`
-    SELECT a.*, u.username
-    FROM activity_log a
-    LEFT JOIN users u ON a.user_id = u.id
-    ORDER BY a.created_at DESC
-    LIMIT 50
-  `).all();
+// GET /admin - Dashboard
+router.get('/', isAdmin, async (req, res, next) => {
+  try {
+    const userCount = await db.User.count();
+    const noteCount = await db.Note.count();
+    const publicNoteCount = await db.Note.count({ where: { isPublic: true } });
+    const attachmentCount = await db.Attachment.count();
 
-  res.render('admin/dashboard', {
-    title: 'Admin Dashboard',
-    userCount,
-    noteCount,
-    recentActivity
-  });
-});
-
-// GET /admin/users
-router.get('/users', ensureAuthenticated, ensureAdmin, (req, res) => {
-  const db = getDb();
-  const search = (req.query.search || '').trim();
-  let users;
-
-  if (search) {
-    const term = `%${search}%`;
-    users = db.prepare(`
-      SELECT u.*, (SELECT COUNT(*) FROM notes WHERE user_id = u.id) as note_count
-      FROM users u
-      WHERE u.username LIKE ? OR u.email LIKE ?
-      ORDER BY u.created_at DESC
-    `).all(term, term);
-  } else {
-    users = db.prepare(`
-      SELECT u.*, (SELECT COUNT(*) FROM notes WHERE user_id = u.id) as note_count
-      FROM users u
-      ORDER BY u.created_at DESC
-    `).all();
-  }
-
-  res.render('admin/users', { title: 'Manage Users', users, search });
-});
-
-// GET /admin/users/:id/reassign
-router.get('/users/:id/reassign', ensureAuthenticated, ensureAdmin, (req, res) => {
-  const db = getDb();
-  const targetUser = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
-
-  if (!targetUser) {
-    return res.status(404).render('error', {
-      title: 'Not Found', message: 'User not found.', status: 404
+    const recentActivity = await db.AuditLog.findAll({
+      order: [['createdAt', 'DESC']],
+      limit: 20,
+      include: [{ model: db.User, attributes: ['username'] }]
     });
+
+    res.render('admin/dashboard', {
+      title: 'Admin Dashboard',
+      stats: { userCount, noteCount, publicNoteCount, attachmentCount },
+      recentActivity
+    });
+  } catch (err) {
+    next(err);
   }
-
-  const notes = db.prepare('SELECT * FROM notes WHERE user_id = ? ORDER BY created_at DESC').all(targetUser.id);
-  const allUsers = db.prepare('SELECT id, username FROM users WHERE id != ? ORDER BY username').all(targetUser.id);
-
-  res.render('admin/reassign', { title: 'Reassign Notes', targetUser, notes, allUsers });
 });
 
-// POST /admin/users/:id/reassign
-router.post('/users/:id/reassign', ensureAuthenticated, ensureAdmin, (req, res) => {
-  const db = getDb();
-  const { note_id, new_user_id } = req.body;
+// GET /admin/users - User list
+router.get('/users', isAdmin, async (req, res, next) => {
+  try {
+    const { q } = req.query;
+    let whereClause = {};
+    if (q && q.trim()) {
+      whereClause = {
+        [Op.or]: [
+          { username: { [Op.like]: `%${q.trim()}%` } },
+          { email: { [Op.like]: `%${q.trim()}%` } }
+        ]
+      };
+    }
 
-  const targetUser = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
-  const newUser = db.prepare('SELECT * FROM users WHERE id = ?').get(new_user_id);
+    const users = await db.User.findAll({
+      where: whereClause,
+      include: [{ model: db.Note, attributes: ['id'] }],
+      order: [['createdAt', 'DESC']]
+    });
 
-  if (!targetUser || !newUser) {
-    req.flash('error', 'Invalid user selection.');
-    return res.redirect(`/admin/users/${req.params.id}/reassign`);
+    const usersWithCounts = users.map(u => ({
+      ...u.toJSON(),
+      noteCount: (u.Notes || []).length
+    }));
+
+    res.render('admin/users', { title: 'Manage Users', users: usersWithCounts, q: q || '' });
+  } catch (err) {
+    next(err);
   }
+});
 
-  const note = db.prepare('SELECT * FROM notes WHERE id = ? AND user_id = ?').get(note_id, req.params.id);
-  if (!note) {
-    req.flash('error', 'Note not found or does not belong to this user.');
-    return res.redirect(`/admin/users/${req.params.id}/reassign`);
+// GET /admin/reassign-note/:noteId
+router.get('/reassign-note/:noteId', isAdmin, async (req, res, next) => {
+  try {
+    const note = await db.Note.findByPk(req.params.noteId, {
+      include: [{ model: db.User, as: 'author', attributes: ['username', 'id'] }]
+    });
+
+    if (!note) {
+      return res.status(404).render('error', { title: 'Not Found', statusCode: 404, message: 'Note not found.' });
+    }
+
+    const users = await db.User.findAll({ attributes: ['id', 'username', 'isAdmin'], order: [['username', 'ASC']] });
+
+    res.render('admin/reassign-note', { title: 'Reassign Note', note: note.toJSON(), users, errors: [] });
+  } catch (err) {
+    next(err);
   }
+});
 
-  db.prepare('UPDATE notes SET user_id = ? WHERE id = ?').run(new_user_id, note_id);
+// POST /admin/reassign-note/:noteId
+router.post('/reassign-note/:noteId', isAdmin, [
+  body('newOwnerId').notEmpty().withMessage('Please select a new owner.')
+], async (req, res, next) => {
+  try {
+    const note = await db.Note.findByPk(req.params.noteId, {
+      include: [{ model: db.User, as: 'author', attributes: ['username', 'id'] }]
+    });
 
-  logActivity(
-    req.user.id,
-    'note_reassigned',
-    `Admin reassigned note "${note.title}" (id: ${note_id}) from ${targetUser.username} to ${newUser.username}`
-  );
+    if (!note) {
+      return res.status(404).render('error', { title: 'Not Found', statusCode: 404, message: 'Note not found.' });
+    }
 
-  req.flash('success', `Note reassigned to ${newUser.username} successfully.`);
-  res.redirect(`/admin/users/${req.params.id}/reassign`);
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      const users = await db.User.findAll({ attributes: ['id', 'username', 'isAdmin'], order: [['username', 'ASC']] });
+      return res.render('admin/reassign-note', {
+        title: 'Reassign Note',
+        note: note.toJSON(),
+        users,
+        errors: errors.array()
+      });
+    }
+
+    const { newOwnerId } = req.body;
+    const newOwner = await db.User.findByPk(newOwnerId);
+    if (!newOwner) {
+      req.flash('error', 'Selected user not found.');
+      return res.redirect(`/admin/reassign-note/${req.params.noteId}`);
+    }
+
+    const oldOwner = note.author ? note.author.username : 'unknown';
+    await note.update({ userId: newOwnerId });
+
+    await db.AuditLog.create({
+      userId: req.user.id,
+      action: 'note_reassign',
+      details: `Note "${note.title}" (id=${note.id}) reassigned from ${oldOwner} to ${newOwner.username} by admin ${req.user.username}`,
+      ipAddress: req.ip
+    });
+
+    req.flash('success_msg', `Note reassigned to ${newOwner.username}.`);
+    res.redirect('/admin/users');
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /admin/toggle-admin/:userId
+router.post('/toggle-admin/:userId', isAdmin, async (req, res, next) => {
+  try {
+    const user = await db.User.findByPk(req.params.userId);
+    if (!user) {
+      req.flash('error', 'User not found.');
+      return res.redirect('/admin/users');
+    }
+
+    if (user.id === req.user.id) {
+      req.flash('error', 'You cannot change your own admin status.');
+      return res.redirect('/admin/users');
+    }
+
+    await user.update({ isAdmin: !user.isAdmin });
+
+    await db.AuditLog.create({
+      userId: req.user.id,
+      action: 'admin_toggle',
+      details: `Admin status toggled for user ${user.username} (now ${!user.isAdmin ? 'admin' : 'user'}) by ${req.user.username}`,
+      ipAddress: req.ip
+    });
+
+    req.flash('success_msg', `Admin status updated for ${user.username}.`);
+    res.redirect('/admin/users');
+  } catch (err) {
+    next(err);
+  }
 });
 
 module.exports = router;

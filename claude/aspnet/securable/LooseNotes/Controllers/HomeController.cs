@@ -1,19 +1,17 @@
+// HomeController.cs — Landing page and error handler.
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LooseNotes.Controllers;
 
-[AllowAnonymous]
-public class HomeController : Controller
+public sealed class HomeController : Controller
 {
     [HttpGet]
+    [AllowAnonymous]
     public IActionResult Index() => View();
 
     [HttpGet]
-    [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
-    public IActionResult Error()
-    {
-        // Generic error view — no stack traces or internal detail exposed to users (Confidentiality)
-        return View();
-    }
+    [AllowAnonymous]
+    // Resilience: generic error view — stack trace never exposed to end users
+    public IActionResult Error() => View();
 }

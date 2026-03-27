@@ -1,72 +1,102 @@
-<%- include('../partials/header', { title: title }) %>
+<%- include('../partials/header') %>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-  <h1 class="h3 mb-0"><i class="bi bi-people me-2"></i>Manage Users</h1>
-  <a href="/admin/dashboard" class="btn btn-outline-secondary btn-sm">
+  <h1 class="mb-0"><i class="bi bi-people text-primary me-2"></i>Manage Users</h1>
+  <a href="/admin" class="btn btn-outline-secondary">
     <i class="bi bi-arrow-left me-1"></i>Dashboard
   </a>
 </div>
 
+<!-- Search -->
 <form action="/admin/users" method="GET" class="mb-4">
   <div class="input-group">
-    <input type="text" class="form-control" name="search" value="<%= search %>"
-      placeholder="Search by username or email...">
-    <button type="submit" class="btn btn-outline-primary">
+    <input type="text" name="q" class="form-control" placeholder="Search users by username or email..." value="<%= q %>">
+    <button class="btn btn-primary" type="submit">
       <i class="bi bi-search me-1"></i>Search
     </button>
-    <% if (search) { %>
-      <a href="/admin/users" class="btn btn-outline-secondary">Clear</a>
+    <% if (q) { %>
+    <a href="/admin/users" class="btn btn-outline-secondary">
+      <i class="bi bi-x-circle me-1"></i>Clear
+    </a>
     <% } %>
   </div>
 </form>
 
-<% if (search) { %>
-  <p class="text-muted mb-3"><%= users.length %> user(s) found for "<strong><%= search %></strong>"</p>
+<% if (q) { %>
+<p class="text-muted mb-3">
+  <i class="bi bi-filter me-1"></i>Showing results for "<strong><%= q %></strong>" &mdash; <%= users.length %> user<%= users.length !== 1 ? 's' : '' %> found
+</p>
 <% } %>
 
-<div class="card border-0 shadow-sm">
-  <div class="table-responsive">
-    <table class="table table-hover mb-0">
-      <thead class="table-light">
-        <tr>
-          <th>Username</th>
-          <th>Email</th>
-          <th>Role</th>
-          <th>Notes</th>
-          <th>Registered</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% if (users.length === 0) { %>
-          <tr><td colspan="6" class="text-center text-muted py-4">No users found.</td></tr>
-        <% } %>
-        <% users.forEach(u => { %>
+<div class="card shadow-sm">
+  <div class="card-body p-0">
+    <% if (users && users.length > 0) { %>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
           <tr>
+            <th>ID</th>
+            <th>Username</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Notes</th>
+            <th>Joined</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% users.forEach(function(u) { %>
+          <tr>
+            <td class="text-muted small">#<%= u.id %></td>
             <td>
               <strong><%= u.username %></strong>
-              <% if (u.id === user.id) { %>
-                <span class="badge bg-secondary ms-1">You</span>
+              <% if (user && u.id === user.id) { %>
+              <span class="badge bg-info text-dark ms-1 small">You</span>
               <% } %>
             </td>
-            <td><%= u.email %></td>
+            <td class="text-muted small"><%= u.email %></td>
             <td>
-              <span class="badge <%= u.role === 'admin' ? 'bg-danger' : 'bg-secondary' %>">
-                <%= u.role %>
-              </span>
+              <% if (u.isAdmin) { %>
+              <span class="badge bg-warning text-dark"><i class="bi bi-shield-check me-1"></i>Admin</span>
+              <% } else { %>
+              <span class="badge bg-secondary"><i class="bi bi-person me-1"></i>User</span>
+              <% } %>
             </td>
-            <td><%= u.note_count %></td>
-            <td class="text-muted small"><%= new Date(u.created_at).toLocaleDateString() %></td>
             <td>
-              <a href="/admin/users/<%= u.id %>/reassign" class="btn btn-sm btn-outline-primary">
-                <i class="bi bi-arrow-left-right me-1"></i>Reassign Notes
-              </a>
+              <span class="badge bg-light text-dark border"><%= u.noteCount %> note<%= u.noteCount !== 1 ? 's' : '' %></span>
+            </td>
+            <td class="text-muted small"><%= new Date(u.createdAt).toLocaleDateString() %></td>
+            <td>
+              <div class="d-flex gap-1 flex-wrap">
+                <% if (!user || u.id !== user.id) { %>
+                <form action="/admin/toggle-admin/<%= u.id %>" method="POST" class="d-inline">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button type="submit" class="btn btn-sm <%= u.isAdmin ? 'btn-outline-danger' : 'btn-outline-warning' %>"
+                    title="<%= u.isAdmin ? 'Remove Admin' : 'Make Admin' %>">
+                    <i class="bi bi-shield<%= u.isAdmin ? '-x' : '-plus' %>"></i>
+                    <%= u.isAdmin ? 'Remove Admin' : 'Make Admin' %>
+                  </button>
+                </form>
+                <% } %>
+              </div>
             </td>
           </tr>
-        <% }) %>
-      </tbody>
-    </table>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="text-center py-5 text-muted">
+      <i class="bi bi-people display-4 mb-3"></i>
+      <p>No users found.</p>
+    </div>
+    <% } %>
   </div>
+  <% if (!q) { %>
+  <div class="card-footer text-muted small">
+    Total: <%= users.length %> user<%= users.length !== 1 ? 's' : '' %>
+  </div>
+  <% } %>
 </div>
 
 <%- include('../partials/footer') %>

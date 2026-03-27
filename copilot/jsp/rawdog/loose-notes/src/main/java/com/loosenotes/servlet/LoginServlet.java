@@ -1,9 +1,8 @@
 package com.loosenotes.servlet;
 
-import com.loosenotes.dao.ActivityLogDAO;
 import com.loosenotes.dao.UserDAO;
 import com.loosenotes.model.User;
-import com.loosenotes.util.PasswordUtil;
+import org.mindrot.jbcrypt.BCrypt;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -14,34 +13,46 @@ import java.io.IOException;
 public class LoginServlet extends HttpServlet {
 
     private final UserDAO userDAO = new UserDAO();
-    private final ActivityLogDAO activityLogDAO = new ActivityLogDAO();
 
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        req.getRequestDispatcher("/WEB-INF/views/auth/login.jsp").forward(req, resp);
+    protected void doGet(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        HttpSession session = request.getSession(false);
+        if (session != null && session.getAttribute("user") != null) {
+            response.sendRedirect(request.getContextPath() + "/dashboard");
+            return;
+        }
+        request.getRequestDispatcher("/login.jsp").forward(request, response);
     }
 
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        String username = req.getParameter("username");
-        String password = req.getParameter("password");
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        String username = request.getParameter("username");
+        String password = request.getParameter("password");
+
+        if (username == null || username.trim().isEmpty() || password == null || password.isEmpty()) {
+            request.setAttribute("errorMessage", "Please enter username and password.");
+            request.setAttribute("inputUsername", username);
+            request.getRequestDispatcher("/login.jsp").forward(request, response);
+            return;
+        }
 
         try {
-            User user = userDAO.findByUsername(username);
-            if (user != null && PasswordUtil.verify(password, user.getPasswordHash())) {
-                HttpSession session = req.getSession(true);
-                session.setAttribute("userId", user.getId());
-                session.setAttribute("username", user.getUsername());
-                session.setAttribute("isAdmin", user.isAdmin());
-                activityLogDAO.log(user.getId(), "LOGIN", "User logged in: " + username);
-                resp.sendRedirect(req.getContextPath() + "/notes");
-            } else {
-                req.setAttribute("error", "Invalid username or password.");
-                req.getRequestDispatcher("/WEB-INF/views/auth/login.jsp").forward(req, resp);
+            User user = userDAO.findByUsername(username.trim());
+            if (user == null || !BCrypt.checkpw(password, user.getPasswordHash())) {
+                request.setAttribute("errorMessage", "Invalid username or password.");
+                request.setAttribute("inputUsername", username);
+                request.getRequestDispatcher("/login.jsp").forward(request, response);
+                return;
             }
+
+            HttpSession session = request.getSession(true);
+            session.setAttribute("user", user);
+            response.sendRedirect(request.getContextPath() + "/dashboard");
         } catch (Exception e) {
-            req.setAttribute("error", "Login failed: " + e.getMessage());
-            req.getRequestDispatcher("/WEB-INF/views/auth/login.jsp").forward(req, resp);
+            request.setAttribute("errorMessage", "Login failed: " + e.getMessage());
+            request.getRequestDispatcher("/login.jsp").forward(request, response);
         }
     }
 }

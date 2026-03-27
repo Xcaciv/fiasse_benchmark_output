@@ -1,56 +1,47 @@
 package com.loosenotes.model;
 
-import java.time.LocalDateTime;
+/**
+ * Represents a user note. Private by default (isPublic = false).
+ * All timestamps are epoch milliseconds.
+ */
+public class Note {
 
-/** Immutable domain model representing a note. */
-public final class Note {
+    private long id;
+    private long userId;
+    private String title;
+    private String content;
+    private boolean isPublic;
+    private long createdAt;
+    private long updatedAt;
 
-    public enum Visibility { PUBLIC, PRIVATE }
+    /** Transient display field — not stored in notes table. */
+    private String ownerUsername;
 
-    private final long id;
-    private final long userId;
-    private final String title;
-    private final String content;
-    private final Visibility visibility;
-    private final LocalDateTime createdAt;
-    private final LocalDateTime updatedAt;
-    /** Populated via JOIN when needed; not persisted here */
-    private final String authorUsername;
-
-    public Note(long id, long userId, String title, String content,
-                Visibility visibility, LocalDateTime createdAt,
-                LocalDateTime updatedAt, String authorUsername) {
-        this.id             = id;
-        this.userId         = userId;
-        this.title          = title;
-        this.content        = content;
-        this.visibility     = visibility;
-        this.createdAt      = createdAt;
-        this.updatedAt      = updatedAt;
-        this.authorUsername = authorUsername;
+    public Note() {
+        this.isPublic = false;
     }
 
-    public long getId()                  { return id; }
-    public long getUserId()              { return userId; }
-    public String getTitle()             { return title; }
-    public String getContent()           { return content; }
-    public Visibility getVisibility()    { return visibility; }
-    public LocalDateTime getCreatedAt()  { return createdAt; }
-    public LocalDateTime getUpdatedAt()  { return updatedAt; }
-    public String getAuthorUsername()    { return authorUsername; }
+    public long getId() { return id; }
+    public void setId(long id) { this.id = id; }
 
-    public boolean isPublic() {
-        return Visibility.PUBLIC.equals(visibility);
-    }
+    public long getUserId() { return userId; }
+    public void setUserId(long userId) { this.userId = userId; }
 
-    /** Returns first 200 characters as excerpt for search results. */
-    public String getExcerpt() {
-        if (content == null || content.isEmpty()) return "";
-        return content.length() > 200 ? content.substring(0, 200) + "…" : content;
-    }
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
 
-    @Override
-    public String toString() {
-        return "Note{id=" + id + ", userId=" + userId + ", title='" + title + "'}";
-    }
+    public String getContent() { return content; }
+    public void setContent(String content) { this.content = content; }
+
+    public boolean isPublic() { return isPublic; }
+    public void setPublic(boolean isPublic) { this.isPublic = isPublic; }
+
+    public long getCreatedAt() { return createdAt; }
+    public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }
+
+    public long getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(long updatedAt) { this.updatedAt = updatedAt; }
+
+    public String getOwnerUsername() { return ownerUsername; }
+    public void setOwnerUsername(String ownerUsername) { this.ownerUsername = ownerUsername; }
 }

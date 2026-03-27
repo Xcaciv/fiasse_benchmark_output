@@ -1,6 +1,7 @@
 package com.loosenotes.dao;
 
 import com.loosenotes.model.Note;
+
 import java.sql.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -8,158 +9,210 @@ import java.util.List;
 
 public class NoteDAO {
 
-    public int createNote(int userId, String title, String content, boolean isPublic) throws Exception {
-        String sql = "INSERT INTO notes (user_id, title, content, is_public, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)";
-        try (Connection conn = DatabaseUtil.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            String now = LocalDateTime.now().toString();
-            ps.setInt(1, userId);
-            ps.setString(2, title);
-            ps.setString(3, content);
-            ps.setInt(4, isPublic ? 1 : 0);
-            ps.setString(5, now);
-            ps.setString(6, now);
-            ps.executeUpdate();
-            try (ResultSet keys = ps.getGeneratedKeys()) {
-                if (keys.next()) return keys.getInt(1);
-            }
-        }
-        return -1;
+    private Note mapRow(ResultSet rs) throws SQLException {
+        Note note = new Note();
+        note.setId(rs.getInt("id"));
+        note.setUserId(rs.getInt("user_id"));
+        note.setTitle(rs.getString("title"));
+        note.setContent(rs.getString("content"));
+        note.setVisibility(rs.getString("visibility"));
+        note.setCreatedAt(rs.getString("created_at"));
+        note.setUpdatedAt(rs.getString("updated_at"));
+        return note;
     }
 
-    public Note getNoteById(int id) throws Exception {
-        String sql = "SELECT n.*, u.username FROM notes n JOIN users u ON n.user_id = u.id WHERE n.id = ?";
-        try (Connection conn = DatabaseUtil.getConnection();
+    public Note findById(int id) {
+        String sql = "SELECT * FROM notes WHERE id = ?";
+        try (Connection conn = DBUtil.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return mapNote(rs);
+                if (rs.next()) return mapRow(rs);
             }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
         return null;
     }
 
-    public List<Note> getNotesByUser(int userId) throws Exception {
-        String sql = "SELECT n.*, u.username FROM notes n JOIN users u ON n.user_id = u.id WHERE n.user_id = ? ORDER BY n.updated_at DESC";
+    public List<Note> findByUserId(int userId) {
+        String sql = "SELECT * FROM notes WHERE user_id = ? ORDER BY created_at DESC";
         List<Note> notes = new ArrayList<>();
-        try (Connection conn = DatabaseUtil.getConnection();
+        try (Connection conn = DBUtil.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, userId);
             try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) notes.add(mapNote(rs));
+                while (rs.next()) notes.add(mapRow(rs));
             }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
         return notes;
     }
 
-    public void updateNote(int id, String title, String content, boolean isPublic) throws Exception {
-        String sql = "UPDATE notes SET title = ?, content = ?, is_public = ?, updated_at = ? WHERE id = ?";
-        try (Connection conn = DatabaseUtil.getConnection();
+    public List<Note> findRecentByUserId(int userId, int limit) {
+        String sql = "SELECT * FROM notes WHERE user_id = ? ORDER BY updated_at DESC LIMIT ?";
+        List<Note> notes = new ArrayList<>();
+        try (Connection conn = DBUtil.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, title);
-            ps.setString(2, content);
-            ps.setInt(3, isPublic ? 1 : 0);
-            ps.setString(4, LocalDateTime.now().toString());
-            ps.setInt(5, id);
+            ps.setInt(1, userId);
+            ps.setInt(2, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) notes.add(mapRow(rs));
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+        return notes;
+    }
+
+    public int countByUserId(int userId) {
+        String sql = "SELECT COUNT(*) FROM notes WHERE user_id = ?";
+        try (Connection conn = DBUtil.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+        return 0;
+    }
+
+    public void create(Note note) {
+        String sql = "INSERT INTO notes (user_id, title, content, visibility, created_at, updated_at) VALUES (?,?,?,?,?,?)";
+        try (Connection conn = DBUtil.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            String now = LocalDateTime.now().toString();
+            ps.setInt(1, note.getUserId());
+            ps.setString(2, note.getTitle());
+            ps.setString(3, note.getContent());
+            ps.setString(4, note.getVisibility() != null ? note.getVisibility() : "PRIVATE");
+            ps.setString(5, now);
+            ps.setString(6, now);
             ps.executeUpdate();
+            try (ResultSet keys = ps.getGeneratedKeys()) {
+                if (keys.next()) note.setId(keys.getInt(1));
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
     }
 
-    public void deleteNote(int id) throws Exception {
+    public void update(Note note) {
+        String sql = "UPDATE notes SET title = ?, content = ?, visibility = ?, updated_at = ? WHERE id = ?";
+        try (Connection conn = DBUtil.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, note.getTitle());
+            ps.setString(2, note.getContent());
+            ps.setString(3, note.getVisibility());
+            ps.setString(4, LocalDateTime.now().toString());
+            ps.setInt(5, note.getId());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void delete(int id) {
         String sql = "DELETE FROM notes WHERE id = ?";
-        try (Connection conn = DatabaseUtil.getConnection();
+        try (Connection conn = DBUtil.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, id);
             ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
     }
 
-    public List<Note> searchNotes(String keyword, int currentUserId) throws Exception {
-        String sql = "SELECT n.*, u.username FROM notes n JOIN users u ON n.user_id = u.id " +
-                     "WHERE (n.user_id = ? OR n.is_public = 1) " +
-                     "AND (LOWER(n.title) LIKE ? OR LOWER(n.content) LIKE ?) " +
-                     "ORDER BY n.updated_at DESC";
-        List<Note> notes = new ArrayList<>();
-        String kw = "%" + keyword.toLowerCase() + "%";
-        try (Connection conn = DatabaseUtil.getConnection();
+    public void updateUserId(int noteId, int newUserId) {
+        String sql = "UPDATE notes SET user_id = ? WHERE id = ?";
+        try (Connection conn = DBUtil.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, currentUserId);
+            ps.setInt(1, newUserId);
+            ps.setInt(2, noteId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public List<Note> searchNotes(String keyword, int userId) {
+        String sql = "SELECT DISTINCT n.* FROM notes n " +
+                     "WHERE (n.user_id = ? OR n.visibility = 'PUBLIC') " +
+                     "AND (LOWER(n.title) LIKE LOWER(?) OR LOWER(n.content) LIKE LOWER(?)) " +
+                     "ORDER BY n.created_at DESC";
+        List<Note> notes = new ArrayList<>();
+        try (Connection conn = DBUtil.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            String kw = "%" + keyword + "%";
+            ps.setInt(1, userId);
             ps.setString(2, kw);
             ps.setString(3, kw);
             try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) notes.add(mapNote(rs));
+                while (rs.next()) notes.add(mapRow(rs));
             }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
         return notes;
     }
 
-    public List<Note> getPublicNotesSortedByRating(int minRatings) throws Exception {
-        String sql = "SELECT n.*, u.username, " +
-                     "AVG(r.rating) as avg_rating, COUNT(r.id) as rating_count " +
-                     "FROM notes n JOIN users u ON n.user_id = u.id " +
-                     "LEFT JOIN ratings r ON n.id = r.note_id " +
-                     "WHERE n.is_public = 1 " +
+    public List<Note> findPublicTopRated(int minRatings) {
+        String sql = "SELECT n.*, u.username, AVG(r.rating) AS avg_rating, COUNT(r.id) AS rating_count " +
+                     "FROM notes n " +
+                     "JOIN users u ON n.user_id = u.id " +
+                     "JOIN ratings r ON n.id = r.note_id " +
+                     "WHERE n.visibility = 'PUBLIC' " +
                      "GROUP BY n.id " +
                      "HAVING COUNT(r.id) >= ? " +
-                     "ORDER BY avg_rating DESC, rating_count DESC";
+                     "ORDER BY avg_rating DESC";
         List<Note> notes = new ArrayList<>();
-        try (Connection conn = DatabaseUtil.getConnection();
+        try (Connection conn = DBUtil.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, minRatings);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    Note note = mapNote(rs);
+                    Note note = mapRow(rs);
+                    note.setUsername(rs.getString("username"));
                     note.setAvgRating(rs.getDouble("avg_rating"));
                     note.setRatingCount(rs.getInt("rating_count"));
                     notes.add(note);
                 }
             }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
         return notes;
     }
 
-    public int getNoteCount() throws Exception {
-        String sql = "SELECT COUNT(*) FROM notes";
-        try (Connection conn = DatabaseUtil.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
+    public int countAll() {
+        try (Connection conn = DBUtil.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM notes")) {
             if (rs.next()) return rs.getInt(1);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
         return 0;
     }
 
-    public List<Note> getAllNotes() throws Exception {
-        String sql = "SELECT n.*, u.username FROM notes n JOIN users u ON n.user_id = u.id ORDER BY n.updated_at DESC";
+    public List<Note> findAllForAdmin() {
+        String sql = "SELECT n.*, u.username FROM notes n " +
+                     "JOIN users u ON n.user_id = u.id ORDER BY n.created_at DESC";
         List<Note> notes = new ArrayList<>();
-        try (Connection conn = DatabaseUtil.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) notes.add(mapNote(rs));
+        try (Connection conn = DBUtil.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                Note note = mapRow(rs);
+                note.setUsername(rs.getString("username"));
+                notes.add(note);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
         return notes;
-    }
-
-    public void reassignNote(int noteId, int newUserId) throws Exception {
-        String sql = "UPDATE notes SET user_id = ?, updated_at = ? WHERE id = ?";
-        try (Connection conn = DatabaseUtil.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, newUserId);
-            ps.setString(2, LocalDateTime.now().toString());
-            ps.setInt(3, noteId);
-            ps.executeUpdate();
-        }
-    }
-
-    private Note mapNote(ResultSet rs) throws SQLException {
-        Note n = new Note();
-        n.setId(rs.getInt("id"));
-        n.setUserId(rs.getInt("user_id"));
-        n.setTitle(rs.getString("title"));
-        n.setContent(rs.getString("content"));
-        n.setPublic(rs.getInt("is_public") == 1);
-        n.setCreatedAt(rs.getString("created_at"));
-        n.setUpdatedAt(rs.getString("updated_at"));
-        n.setUsername(rs.getString("username"));
-        return n;
     }
 }

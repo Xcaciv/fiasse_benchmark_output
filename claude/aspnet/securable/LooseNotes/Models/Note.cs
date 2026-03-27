@@ -1,36 +1,39 @@
-using System.ComponentModel.DataAnnotations;
-
+// Note.cs — Core domain entity representing a user note.
+// Integrity: required fields use non-nullable types; no defaults that could mask missing data.
 namespace LooseNotes.Models;
 
-/// <summary>
-/// Core note entity. Visibility controls public/private access.
-/// OwnerId is server-assigned on creation (Derived Integrity Principle).
-/// </summary>
-public class Note
+/// <summary>Visibility state of a note.</summary>
+public enum NoteVisibility
+{
+    Private = 0,
+    Public = 1
+}
+
+/// <summary>A user-authored note, optionally public and shareable.</summary>
+public sealed class Note
 {
     public int Id { get; set; }
 
-    [Required, MaxLength(300)]
-    public string Title { get; set; } = string.Empty;
+    // Integrity: required string — EF will enforce NOT NULL in schema
+    public required string Title { get; set; }
 
-    [Required]
-    public string Content { get; set; } = string.Empty;
+    public required string Content { get; set; }
 
-    /// <summary>
-    /// Server-assigned on creation; never accepted from client input.
-    /// Trust boundary: controller sets this from ClaimsPrincipal, not form data.
-    /// </summary>
-    public string OwnerId { get; set; } = string.Empty;
+    /// <summary>Owner FK — Integrity: always set, never nullable.</summary>
+    public required string UserId { get; set; }
 
-    public bool IsPublic { get; set; } = false;
+    public NoteVisibility Visibility { get; set; } = NoteVisibility.Private;
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    // Navigation
-    public ApplicationUser? Owner { get; set; }
-    public ICollection<Attachment> Attachments { get; set; } = new List<Attachment>();
-    public ICollection<Rating> Ratings { get; set; } = new List<Rating>();
-    public ICollection<ShareLink> ShareLinks { get; set; } = new List<ShareLink>();
+    // ── Navigation properties ─────────────────────────────────────────────────
+    public ApplicationUser? User { get; set; }
+
+    public ICollection<Attachment> Attachments { get; init; } = new List<Attachment>();
+
+    public ICollection<Rating> Ratings { get; init; } = new List<Rating>();
+
+    public ICollection<ShareLink> ShareLinks { get; init; } = new List<ShareLink>();
 }

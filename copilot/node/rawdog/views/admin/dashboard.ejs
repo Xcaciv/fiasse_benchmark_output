@@ -1,53 +1,47 @@
-<%- include('../partials/header') %>
-<h2 class="mb-4"><i class="bi bi-shield-lock me-2"></i>Admin Dashboard</h2>
-<div class="row g-3 mb-4">
-  <div class="col-md-3">
-    <div class="card text-white bg-primary shadow-sm">
-      <div class="card-body">
-        <h5 class="card-title">Total Users</h5>
-        <p class="display-6 mb-0"><%= userCount %></p>
+<div class="row">
+  <div class="col-md-4 mb-4">
+    <div class="card shadow-sm text-center">
+      <div class="card-body py-4">
+        <h1 class="display-4 text-primary fw-bold"><%= totalUsers %></h1>
+        <p class="text-muted mb-0">Total Users</p>
       </div>
     </div>
   </div>
-  <div class="col-md-3">
-    <div class="card text-white bg-success shadow-sm">
-      <div class="card-body">
-        <h5 class="card-title">Total Notes</h5>
-        <p class="display-6 mb-0"><%= noteCount %></p>
+  <div class="col-md-4 mb-4">
+    <div class="card shadow-sm text-center">
+      <div class="card-body py-4">
+        <h1 class="display-4 text-success fw-bold"><%= totalNotes %></h1>
+        <p class="text-muted mb-0">Total Notes</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 mb-4">
+    <div class="card shadow-sm text-center">
+      <div class="card-body py-4">
+        <a href="/admin/users" class="btn btn-outline-primary btn-lg">Manage Users</a>
       </div>
     </div>
   </div>
 </div>
 
-<div class="row g-4">
-  <div class="col-md-6">
-    <div class="card shadow-sm">
-      <div class="card-header d-flex justify-content-between">
-        <span>Recent Users</span>
-        <a href="/admin/users" class="btn btn-sm btn-outline-primary">View All</a>
-      </div>
-      <ul class="list-group list-group-flush">
-        <% recentUsers.forEach(u => { %>
-          <li class="list-group-item d-flex justify-content-between">
-            <span><%= u.username %> <small class="text-muted">(<%= u.email %>)</small></span>
-            <span class="badge <%= u.role === 'admin' ? 'bg-danger' : 'bg-secondary' %>"><%= u.role %></span>
-          </li>
-        <% }) %>
-      </ul>
-    </div>
-  </div>
-  <div class="col-md-6">
-    <div class="card shadow-sm">
-      <div class="card-header">Recent Notes</div>
-      <ul class="list-group list-group-flush">
-        <% recentNotes.forEach(n => { %>
-          <li class="list-group-item d-flex justify-content-between">
-            <a href="/notes/<%= n.id %>" class="text-decoration-none"><%= n.title %></a>
-            <small class="text-muted">by <%= n.author ? n.author.username : 'Unknown' %></small>
-          </li>
-        <% }) %>
-      </ul>
-    </div>
-  </div>
+<div class="card shadow-sm">
+  <div class="card-header"><strong>Recent Activity (last 20)</strong></div>
+  <% if (recentActivity.length === 0) { %>
+    <div class="card-body text-muted">No activity yet.</div>
+  <% } else { %>
+    <ul class="list-group list-group-flush">
+      <% recentActivity.forEach(log => { %>
+        <li class="list-group-item">
+          <div class="d-flex justify-content-between">
+            <span>
+              <strong><%= log.User ? log.User.username : 'System' %></strong>
+              — <code><%= log.action %></code>
+              <% if (log.details) { %><span class="text-muted"> — <%= log.details %></span><% } %>
+            </span>
+            <small class="text-muted"><%= new Date(log.createdAt).toLocaleString() %></small>
+          </div>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
 </div>
-<%- include('../partials/footer') %>

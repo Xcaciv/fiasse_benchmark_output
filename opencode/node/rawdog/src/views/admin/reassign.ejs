@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reassign Note - Loose Notes</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <div class="container">
+      <a class="navbar-brand" href="/"><i class="bi bi-journal-text"></i> Loose Notes</a>
+      <div class="navbar-nav ms-auto">
+        <a class="nav-link" href="/notes">My Notes</a>
+        <a class="nav-link" href="/admin">Admin</a>
+        <div class="dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+            <i class="bi bi-person-circle"></i> <%= user.username %>
+          </a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="/auth/profile">Profile</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <form action="/auth/logout" method="POST" class="d-inline">
+                <button type="submit" class="dropdown-item">Logout</button>
+              </form>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container mt-4">
+    <div class="row">
+      <div class="col-md-8 mx-auto">
+        <h2 class="mb-4"><i class="bi bi-arrow-left-right"></i> Reassign Note Ownership</h2>
+
+        <% if (errors && errors.length > 0) { %>
+          <div class="alert alert-danger">
+            <% errors.forEach(function(error) { %>
+              <div><%= error.msg %></div>
+            <% }); %>
+          </div>
+        <% } %>
+
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5 class="mb-0">Current Note</h5>
+          </div>
+          <div class="card-body">
+            <h5><%= note.title %></h5>
+            <p class="text-muted mb-0">Current owner: <strong><%= note.author %></strong></p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">Select New Owner</h5>
+          </div>
+          <div class="card-body">
+            <form method="POST" action="/admin/notes/<%= note.id %>/reassign">
+              <div class="mb-3">
+                <label for="newOwnerId" class="form-label">New Owner</label>
+                <select class="form-select" id="newOwnerId" name="newOwnerId" required>
+                  <option value="">Select a user...</option>
+                  <% users.forEach(function(u) { %>
+                    <option value="<%= u.id %>" <%= formData.newOwnerId == u.id ? 'selected' : '' %>>
+                      <%= u.username %> (<%= u.email %>)
+                    </option>
+                  <% }); %>
+                </select>
+              </div>
+
+              <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-warning">
+                  <i class="bi bi-arrow-left-right"></i> Reassign Note
+                </button>
+                <a href="/admin/notes" class="btn btn-secondary">Cancel</a>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

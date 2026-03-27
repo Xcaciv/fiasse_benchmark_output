@@ -1,51 +1,101 @@
-<%- include('partials/header', { title: title }) %>
+<%- include('./partials/header') %>
 
 <div class="row justify-content-center">
-  <div class="col-lg-8 text-center py-5">
-    <i class="bi bi-journal-text display-1 text-primary mb-4"></i>
-    <h1 class="display-4 fw-bold">Loose Notes</h1>
-    <p class="lead text-muted mb-4">
-      A multi-user note-taking platform. Create, share, and discover notes. Rate and comment on public content.
-    </p>
-    <div class="d-flex gap-3 justify-content-center">
-      <a href="/auth/register" class="btn btn-primary btn-lg px-5">
-        <i class="bi bi-person-plus me-2"></i>Get Started
-      </a>
-      <a href="/notes/top-rated" class="btn btn-outline-secondary btn-lg px-5">
-        <i class="bi bi-star me-2"></i>Top Rated Notes
+  <div class="col-lg-8">
+    <!-- Hero Section -->
+    <div class="text-center py-5">
+      <i class="bi bi-journal-text display-1 text-primary"></i>
+      <h1 class="display-5 fw-bold mt-3">Welcome to Loose Notes</h1>
+      <p class="lead text-muted">
+        A simple, powerful multi-user note-taking platform. Create, share, and organize your notes with ease.
+      </p>
+      <% if (!user) { %>
+      <div class="d-flex gap-3 justify-content-center mt-4">
+        <a href="/auth/register" class="btn btn-primary btn-lg">
+          <i class="bi bi-person-plus me-2"></i>Get Started
+        </a>
+        <a href="/auth/login" class="btn btn-outline-primary btn-lg">
+          <i class="bi bi-box-arrow-in-right me-2"></i>Login
+        </a>
+      </div>
+      <% } else { %>
+      <div class="d-flex gap-3 justify-content-center mt-4">
+        <a href="/notes/create" class="btn btn-primary btn-lg">
+          <i class="bi bi-plus-circle me-2"></i>New Note
+        </a>
+        <a href="/notes" class="btn btn-outline-primary btn-lg">
+          <i class="bi bi-journal-richtext me-2"></i>My Notes
+        </a>
+      </div>
+      <% } %>
+    </div>
+
+    <!-- Features Row -->
+    <div class="row g-4 mt-2 mb-5">
+      <div class="col-md-4 text-center">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-body p-4">
+            <i class="bi bi-lock text-primary display-6 mb-3"></i>
+            <h5 class="card-title">Private &amp; Public</h5>
+            <p class="card-text text-muted small">Keep notes private or share them with the world. Full control over visibility.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4 text-center">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-body p-4">
+            <i class="bi bi-paperclip text-primary display-6 mb-3"></i>
+            <h5 class="card-title">File Attachments</h5>
+            <p class="card-text text-muted small">Attach PDFs, documents, and images directly to your notes.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4 text-center">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-body p-4">
+            <i class="bi bi-star text-primary display-6 mb-3"></i>
+            <h5 class="card-title">Ratings &amp; Sharing</h5>
+            <p class="card-text text-muted small">Rate notes, share via unique links, and discover top-rated content.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Notes (logged in only) -->
+    <% if (user && recentNotes && recentNotes.length > 0) { %>
+    <div class="mt-4">
+      <h3 class="mb-3"><i class="bi bi-clock-history me-2 text-primary"></i>Your Recent Notes</h3>
+      <div class="list-group">
+        <% recentNotes.forEach(function(note) { %>
+        <a href="/notes/<%= note.id %>" class="list-group-item list-group-item-action">
+          <div class="d-flex w-100 justify-content-between align-items-center">
+            <h6 class="mb-1 fw-semibold"><%= note.title %></h6>
+            <div>
+              <% if (note.isPublic) { %>
+              <span class="badge bg-success me-1"><i class="bi bi-globe me-1"></i>Public</span>
+              <% } else { %>
+              <span class="badge bg-secondary me-1"><i class="bi bi-lock me-1"></i>Private</span>
+              <% } %>
+              <small class="text-muted"><%= new Date(note.createdAt).toLocaleDateString() %></small>
+            </div>
+          </div>
+          <p class="mb-1 text-muted small"><%= note.content.substring(0, 100) %><%= note.content.length > 100 ? '...' : '' %></p>
+        </a>
+        <% }); %>
+      </div>
+      <div class="text-end mt-2">
+        <a href="/notes" class="btn btn-sm btn-outline-primary">View All Notes <i class="bi bi-arrow-right ms-1"></i></a>
+      </div>
+    </div>
+    <% } %>
+
+    <!-- Top Rated CTA -->
+    <div class="text-center mt-5">
+      <a href="/notes/top-rated" class="btn btn-outline-warning">
+        <i class="bi bi-trophy me-2"></i>Browse Top Rated Notes
       </a>
     </div>
   </div>
 </div>
 
-<div class="row mt-4 g-4">
-  <div class="col-md-4">
-    <div class="card h-100 border-0 shadow-sm">
-      <div class="card-body text-center p-4">
-        <i class="bi bi-pencil-square display-5 text-primary mb-3"></i>
-        <h5 class="card-title">Create & Manage</h5>
-        <p class="card-text text-muted">Create notes with rich content, attach files, and control visibility with public or private settings.</p>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-4">
-    <div class="card h-100 border-0 shadow-sm">
-      <div class="card-body text-center p-4">
-        <i class="bi bi-share display-5 text-success mb-3"></i>
-        <h5 class="card-title">Share Easily</h5>
-        <p class="card-text text-muted">Generate unique share links so anyone can view your notes without needing an account.</p>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-4">
-    <div class="card h-100 border-0 shadow-sm">
-      <div class="card-body text-center p-4">
-        <i class="bi bi-star display-5 text-warning mb-3"></i>
-        <h5 class="card-title">Rate & Discover</h5>
-        <p class="card-text text-muted">Rate public notes, leave comments, and discover top-rated content from the community.</p>
-      </div>
-    </div>
-  </div>
-</div>
-
-<%- include('partials/footer') %>
+<%- include('./partials/footer') %>

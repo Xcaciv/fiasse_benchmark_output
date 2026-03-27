@@ -1,0 +1,47 @@
+<%- include('layout', { body: `
+<div class="row justify-content-center">
+  <div class="col-md-8 text-center">
+    <h1 class="display-4 mb-4">Welcome to Loose Notes</h1>
+    <p class="lead mb-4">A multi-user note-taking platform for creating, sharing, and discovering notes.</p>
+    
+    <div class="row g-4 mb-5">
+      <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-body">
+            <i class="bi bi-journal-plus display-5 text-primary"></i>
+            <h5 class="card-title mt-3">Create Notes</h5>
+            <p class="card-text text-muted">Create and manage your personal notes with ease.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-body">
+            <i class="bi bi-share display-5 text-success"></i>
+            <h5 class="card-title mt-3">Share Notes</h5>
+            <p class="card-text text-muted">Share your notes with others using unique links.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-body">
+            <i class="bi bi-star display-5 text-warning"></i>
+            <h5 class="card-title mt-3">Rate & Review</h5>
+            <p class="card-text text-muted">Rate notes and provide feedback to the community.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <% if (!user) { %>
+      <div class="d-flex gap-3 justify-content-center">
+        <a href="/auth/register" class="btn btn-primary btn-lg">Get Started</a>
+        <a href="/auth/login" class="btn btn-outline-secondary btn-lg">Login</a>
+      </div>
+    <% } else { %>
+      <a href="/notes" class="btn btn-primary btn-lg">Go to My Notes</a>
+    <% } %>
+  </div>
+</div>
+` }) %>

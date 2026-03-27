@@ -2,9 +2,14 @@
     ViewData["Title"] = "Error";
 }
 <div class="row justify-content-center">
-    <div class="col-md-6 text-center mt-5">
-        <h1 class="display-4">Something went wrong</h1>
-        <p class="text-muted">An unexpected error occurred. Please try again or contact support if the problem persists.</p>
-        <a asp-controller="Home" asp-action="Index" class="btn btn-primary">Return Home</a>
+    <div class="col-md-6">
+        <div class="alert alert-danger mt-5">
+            <h4 class="alert-heading">An error occurred</h4>
+            <p>We're sorry, something went wrong. Please try again later.</p>
+            <hr />
+            <p class="mb-0">
+                <a asp-controller="Home" asp-action="Index" class="btn btn-outline-danger">Return Home</a>
+            </p>
+        </div>
     </div>
 </div>

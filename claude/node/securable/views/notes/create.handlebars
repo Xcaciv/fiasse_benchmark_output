@@ -1,0 +1,18 @@
+<h2 class="mb-4">New Note</h2>
+<form action="/notes/create" method="POST">
+  <input type="hidden" name="_csrf" value="{{csrfToken}}">
+  <div class="mb-3">
+    <label for="title" class="form-label">Title <span class="text-danger">*</span></label>
+    <input type="text" id="title" name="title" class="form-control" required maxlength="200">
+  </div>
+  <div class="mb-3">
+    <label for="content" class="form-label">Content <span class="text-danger">*</span></label>
+    <textarea id="content" name="content" class="form-control" rows="10" required maxlength="50000"></textarea>
+  </div>
+  <div class="mb-3 form-check">
+    <input type="checkbox" id="isPublic" name="isPublic" class="form-check-input" value="true">
+    <label for="isPublic" class="form-check-label">Make this note public</label>
+  </div>
+  <button type="submit" class="btn btn-primary">Create Note</button>
+  <a href="/notes" class="btn btn-outline-secondary ms-2">Cancel</a>
+</form>

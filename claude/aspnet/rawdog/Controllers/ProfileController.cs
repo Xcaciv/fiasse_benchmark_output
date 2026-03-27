@@ -10,17 +10,10 @@ namespace LooseNotes.Controllers;
 public class ProfileController : Controller
 {
     private readonly UserManager<ApplicationUser> _userManager;
-    private readonly SignInManager<ApplicationUser> _signInManager;
-    private readonly ILogger<ProfileController> _logger;
 
-    public ProfileController(
-        UserManager<ApplicationUser> userManager,
-        SignInManager<ApplicationUser> signInManager,
-        ILogger<ProfileController> logger)
+    public ProfileController(UserManager<ApplicationUser> userManager)
     {
         _userManager = userManager;
-        _signInManager = signInManager;
-        _logger = logger;
     }
 
     [HttpGet]
@@ -36,8 +29,7 @@ public class ProfileController : Controller
         });
     }
 
-    [HttpPost]
-    [ValidateAntiForgeryToken]
+    [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(EditProfileViewModel model)
     {
         if (!ModelState.IsValid) return View(model);
@@ -51,30 +43,22 @@ public class ProfileController : Controller
         var updateResult = await _userManager.UpdateAsync(user);
         if (!updateResult.Succeeded)
         {
-            foreach (var error in updateResult.Errors)
-                ModelState.AddModelError(string.Empty, error.Description);
+            foreach (var e in updateResult.Errors)
+                ModelState.AddModelError(string.Empty, e.Description);
             return View(model);
         }
 
-        if (!string.IsNullOrEmpty(model.NewPassword))
+        if (!string.IsNullOrEmpty(model.NewPassword) && !string.IsNullOrEmpty(model.CurrentPassword))
         {
-            if (string.IsNullOrEmpty(model.CurrentPassword))
+            var pwResult = await _userManager.ChangePasswordAsync(user, model.CurrentPassword, model.NewPassword);
+            if (!pwResult.Succeeded)
             {
-                ModelState.AddModelError(nameof(model.CurrentPassword), "Current password is required to set a new password.");
-                return View(model);
-            }
-
-            var passResult = await _userManager.ChangePasswordAsync(user, model.CurrentPassword, model.NewPassword);
-            if (!passResult.Succeeded)
-            {
-                foreach (var error in passResult.Errors)
-                    ModelState.AddModelError(string.Empty, error.Description);
+                foreach (var e in pwResult.Errors)
+                    ModelState.AddModelError(string.Empty, e.Description);
                 return View(model);
             }
         }
 
-        await _signInManager.RefreshSignInAsync(user);
-        _logger.LogInformation("Profile updated for user: {UserId}", user.Id);
         TempData["Success"] = "Profile updated successfully.";
         return RedirectToAction(nameof(Edit));
     }

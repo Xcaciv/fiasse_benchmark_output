@@ -1,14 +1,10 @@
+using System.Security.Cryptography;
 using LooseNotes.Data;
 using LooseNotes.Models;
-using LooseNotes.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace LooseNotes.Services;
 
-/// <summary>
-/// Share link lifecycle: create, revoke, resolve.
-/// Token uniqueness enforced by DB unique index (Authenticity).
-/// </summary>
 public class ShareLinkService : IShareLinkService
 {
     private readonly ApplicationDbContext _db;
@@ -20,75 +16,91 @@ public class ShareLinkService : IShareLinkService
         _logger = logger;
     }
 
-    /// <inheritdoc />
-    public async Task<ShareLink> CreateShareLinkAsync(int noteId, string userId)
+    // Generates a cryptographically random base64url token
+    private static string GenerateToken()
     {
-        ArgumentNullException.ThrowIfNull(userId);
+        var bytes = RandomNumberGenerator.GetBytes(32);
+        return Convert.ToBase64String(bytes)
+            .Replace('+', '-')
+            .Replace('/', '_')
+            .TrimEnd('=');
+    }
 
-        var note = await _db.Notes.AsNoTracking()
-            .FirstOrDefaultAsync(n => n.Id == noteId && n.UserId == userId);
+    public async Task<ShareLink> GenerateShareLinkAsync(int noteId, string ownerId, CancellationToken cancellationToken = default)
+    {
+        // Verify ownership — Derived Integrity Principle: never trust client-supplied ownership
+        var note = await _db.Notes
+            .FirstOrDefaultAsync(n => n.Id == noteId && n.OwnerId == ownerId, cancellationToken);
 
         if (note is null)
         {
-            throw new InvalidOperationException("Note not found or access denied.");
+            throw new UnauthorizedAccessException("Note not found or access denied.");
         }
 
-        var link = new ShareLink
+        // Revoke any existing active links before creating a new one
+        var existingLinks = await _db.ShareLinks
+            .Where(s => s.NoteId == noteId && s.IsActive)
+            .ToListAsync(cancellationToken);
+
+        foreach (var existing in existingLinks)
+        {
+            existing.IsActive = false;
+        }
+
+        var shareLink = new ShareLink
         {
             NoteId = noteId,
-            Token = Guid.NewGuid().ToString("N"),
-            CreatedAt = DateTime.UtcNow
+            Token = GenerateToken(),
+            CreatedAt = DateTime.UtcNow,
+            IsActive = true
         };
 
-        _db.ShareLinks.Add(link);
-        await _db.SaveChangesAsync();
+        _db.ShareLinks.Add(shareLink);
+        await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Share link created for note {NoteId} by user {UserId}", noteId, userId);
-        return link;
+        _logger.LogInformation("Share link generated for NoteId={NoteId} by Owner={OwnerId}", noteId, ownerId);
+        return shareLink;
     }
 
-    /// <inheritdoc />
-    public async Task<bool> RevokeShareLinkAsync(int noteId, string userId)
+    public async Task<bool> RevokeShareLinkAsync(int noteId, string ownerId, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(userId);
+        var note = await _db.Notes
+            .FirstOrDefaultAsync(n => n.Id == noteId && n.OwnerId == ownerId, cancellationToken);
 
-        var links = await _db.ShareLinks
-            .Where(s => s.NoteId == noteId && !s.IsRevoked)
-            .Include(s => s.Note)
-            .ToListAsync();
-
-        var ownedLinks = links.Where(s => s.Note?.UserId == userId).ToList();
-
-        if (!ownedLinks.Any()) return false;
-
-        foreach (var link in ownedLinks)
+        if (note is null)
         {
-            link.IsRevoked = true;
+            return false;
         }
 
-        await _db.SaveChangesAsync();
+        var activeLinks = await _db.ShareLinks
+            .Where(s => s.NoteId == noteId && s.IsActive)
+            .ToListAsync(cancellationToken);
 
-        _logger.LogInformation("Revoked {Count} share link(s) for note {NoteId}", ownedLinks.Count, noteId);
+        foreach (var link in activeLinks)
+        {
+            link.IsActive = false;
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("Share links revoked for NoteId={NoteId} by Owner={OwnerId}", noteId, ownerId);
         return true;
     }
 
-    /// <inheritdoc />
-    public async Task<Note?> GetNoteByShareTokenAsync(string token)
+    public async Task<Note?> GetNoteByTokenAsync(string token, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(token);
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return null;
+        }
 
-        // Trust boundary: validate token format before hitting DB
-        if (token.Length > 64) return null;
-
-        var now = DateTime.UtcNow;
         var shareLink = await _db.ShareLinks
-            .AsNoTracking()
+            .Include(s => s.Note)
+                .ThenInclude(n => n!.Owner)
             .Include(s => s.Note)
                 .ThenInclude(n => n!.Attachments)
-            .FirstOrDefaultAsync(s =>
-                s.Token == token &&
-                !s.IsRevoked &&
-                (s.ExpiresAt == null || s.ExpiresAt > now));
+            .Include(s => s.Note)
+                .ThenInclude(n => n!.Ratings)
+            .FirstOrDefaultAsync(s => s.Token == token && s.IsActive, cancellationToken);
 
         return shareLink?.Note;
     }

@@ -1,8 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace rawdog.Models;
+namespace LooseNotes.Models;
 
-public sealed class Note
+public class Note
 {
     public int Id { get; set; }
 
@@ -11,23 +11,17 @@ public sealed class Note
     public string Title { get; set; } = string.Empty;
 
     [Required]
-    [StringLength(20000)]
     public string Content { get; set; } = string.Empty;
 
-    public bool IsPublic { get; set; }
+    public bool IsPublic { get; set; } = false;
 
-    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    public DateTime? UpdatedAtUtc { get; set; }
+    public string UserId { get; set; } = string.Empty;
+    public ApplicationUser? User { get; set; }
 
-    [Required]
-    public string OwnerId { get; set; } = string.Empty;
-
-    public ApplicationUser? Owner { get; set; }
-
-    public ICollection<NoteAttachment> Attachments { get; set; } = new List<NoteAttachment>();
-
-    public ICollection<NoteRating> Ratings { get; set; } = new List<NoteRating>();
-
-    public ICollection<NoteShareLink> ShareLinks { get; set; } = new List<NoteShareLink>();
+    public ICollection<Attachment> Attachments { get; set; } = new List<Attachment>();
+    public ICollection<Rating> Ratings { get; set; } = new List<Rating>();
+    public ICollection<ShareLink> ShareLinks { get; set; } = new List<ShareLink>();
 }

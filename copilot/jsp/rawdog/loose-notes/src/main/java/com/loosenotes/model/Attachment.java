@@ -5,6 +5,7 @@ public class Attachment {
     private int noteId;
     private String originalFilename;
     private String storedFilename;
+    private long fileSize;
     private String uploadedAt;
 
     public Attachment() {}
@@ -20,6 +21,9 @@ public class Attachment {
 
     public String getStoredFilename() { return storedFilename; }
     public void setStoredFilename(String storedFilename) { this.storedFilename = storedFilename; }
+
+    public long getFileSize() { return fileSize; }
+    public void setFileSize(long fileSize) { this.fileSize = fileSize; }
 
     public String getUploadedAt() { return uploadedAt; }
     public void setUploadedAt(String uploadedAt) { this.uploadedAt = uploadedAt; }

@@ -1,25 +1,23 @@
 'use strict';
+
 const { Sequelize } = require('sequelize');
 const path = require('path');
 
-// Trust boundary: DB connection config from env only
-function createSequelizeInstance(dbPath) {
-  const resolvedPath = path.resolve(dbPath || process.env.DB_PATH || './data/loose-notes.db');
-  return new Sequelize({
-    dialect: 'sqlite',
-    storage: resolvedPath,
-    logging: false,
-    define: {
-      underscored: false,
-      freezeTableName: false
-    }
-  });
-}
+// DB_PATH resolved from env; defaults to project root database.sqlite
+const dbPath = path.resolve(process.env.DB_PATH || './database.sqlite');
 
-const sequelize = createSequelizeInstance();
+const sequelize = new Sequelize({
+  dialect: 'sqlite',
+  storage: dbPath,
+  // Only log SQL in development to avoid leaking query data in production logs
+  logging: process.env.NODE_ENV === 'development'
+    ? (msg) => require('./logger').logger.debug(msg)
+    : false,
+  define: {
+    underscored: false,
+    freezeTableName: false,
+    charset: 'utf8',
+  },
+});
 
-async function syncDatabase() {
-  await sequelize.sync({ alter: true });
-}
-
-module.exports = { sequelize, syncDatabase, createSequelizeInstance };
+module.exports = { sequelize };

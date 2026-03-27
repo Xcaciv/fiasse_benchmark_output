@@ -4,12 +4,11 @@
 }
 
 <h2>Reassign Note</h2>
-<dl class="row">
-    <dt class="col-sm-3">Note</dt>
-    <dd class="col-sm-9">@Model.NoteTitle</dd>
-    <dt class="col-sm-3">Current Owner</dt>
-    <dd class="col-sm-9">@Model.CurrentOwner</dd>
-</dl>
+
+<div class="mb-3">
+    <strong>Note:</strong> @Model.NoteTitle<br />
+    <strong>Current Owner:</strong> @Model.CurrentOwnerName
+</div>
 
 <form asp-action="ReassignNote" method="post">
     @Html.AntiForgeryToken()
@@ -19,9 +18,9 @@
         <label asp-for="NewOwnerId" class="form-label">New Owner</label>
         <select asp-for="NewOwnerId" class="form-select">
             <option value="">-- Select User --</option>
-            @foreach (var user in Model.Users)
+            @foreach (var user in Model.AllUsers)
             {
-                <option value="@user.Id">@user.Username (@user.Email)</option>
+                <option value="@user.Id">@user.UserName (@user.Email)</option>
             }
         </select>
         <span asp-validation-for="NewOwnerId" class="text-danger"></span>

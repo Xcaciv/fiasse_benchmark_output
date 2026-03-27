@@ -1,0 +1,39 @@
+@model LooseNotes.ViewModels.Notes.NoteSearchViewModel
+@{
+    ViewData["Title"] = "Search Notes";
+}
+<div class="search-page">
+    <h2>Search Notes</h2>
+    <form asp-action="Search" method="get">
+        <div class="search-bar">
+            <input asp-for="Query" class="form-control" placeholder="Search by title or content..." maxlength="200" />
+            <button type="submit" class="btn btn-primary">Search</button>
+        </div>
+        <span asp-validation-for="Query" class="field-error"></span>
+    </form>
+
+    @if (Model.HasSearched)
+    {
+        <p>@Model.Results.Count result(s) found.</p>
+        @if (Model.Results.Any())
+        {
+            <div class="notes-grid">
+                @foreach (var note in Model.Results)
+                {
+                    <div class="note-card">
+                        <a asp-action="Details" asp-route-id="@note.Id" class="note-title">@Html.Encode(note.Title)</a>
+                        <!-- Preview output-encoded; Razor default encoding prevents XSS (GSR-07) -->
+                        <p class="note-preview">@note.Preview</p>
+                        <span class="badge @(note.IsPublic ? "badge-public" : "badge-private")">
+                            @(note.IsPublic ? "Public" : "Private")
+                        </span>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <p class="empty-state">No notes found matching your search.</p>
+        }
+    }
+</div>

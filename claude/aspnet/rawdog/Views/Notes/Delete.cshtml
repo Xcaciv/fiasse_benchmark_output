@@ -1,20 +1,11 @@
-@model LooseNotes.Models.Note
+@model Note
 @{
     ViewData["Title"] = "Delete Note";
 }
 
-<h2>Delete Note</h2>
-<div class="alert alert-danger">
-    <strong>Are you sure you want to delete this note?</strong>
-    This will permanently remove the note, all attachments, ratings, and share links.
-</div>
-
-<dl class="row">
-    <dt class="col-sm-3">Title</dt>
-    <dd class="col-sm-9">@Model.Title</dd>
-    <dt class="col-sm-3">Created</dt>
-    <dd class="col-sm-9">@Model.CreatedAt.ToString("MMM d, yyyy")</dd>
-</dl>
+<h2 class="text-danger">Delete Note</h2>
+<p>Are you sure you want to delete <strong>@Model.Title</strong>? This action cannot be undone.</p>
+<p class="text-muted">All attachments, ratings, and share links will be permanently removed.</p>
 
 <form asp-action="Delete" method="post">
     @Html.AntiForgeryToken()

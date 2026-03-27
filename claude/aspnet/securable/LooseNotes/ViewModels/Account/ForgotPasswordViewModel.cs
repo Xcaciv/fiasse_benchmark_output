@@ -1,9 +1,11 @@
+// ForgotPasswordViewModel.cs — Requests a password reset by email.
 using System.ComponentModel.DataAnnotations;
 
 namespace LooseNotes.ViewModels.Account;
 
-public class ForgotPasswordViewModel
+public sealed class ForgotPasswordViewModel
 {
-    [Required, EmailAddress, MaxLength(256)]
+    [Required]
+    [EmailAddress]
     public string Email { get; set; } = string.Empty;
 }

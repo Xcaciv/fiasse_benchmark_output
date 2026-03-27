@@ -1,0 +1,99 @@
+/*!
+ * Bootstrap v5.3.2 (https://getbootstrap.com/)
+ * Copyright 2011-2023 The Bootstrap Authors
+ * Licensed under MIT (https://github.com/twbs/bootstrap/blob/main/LICENSE)
+ */
+
+/* General Styles */
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1;
+}
+
+/* Note Content */
+.note-content {
+    white-space: pre-wrap;
+    font-family: inherit;
+    line-height: 1.6;
+}
+
+/* Card Improvements */
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    transition: box-shadow 0.15s ease-in-out;
+}
+
+.card:hover {
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+}
+
+/* Star Rating */
+.text-warning {
+    color: #ffc107 !important;
+}
+
+/* Footer */
+.footer {
+    margin-top: auto;
+    padding: 1rem 0;
+    background-color: #f8f9fa;
+    border-top: 1px solid #e9ecef;
+}
+
+/* Form Improvements */
+.form-floating > label {
+    padding: 1rem 0.75rem;
+}
+
+.form-floating > .form-control:focus ~ label,
+.form-floating > .form-control:not(:placeholder-shown) ~ label {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+}
+
+/* Table Improvements */
+.table th {
+    font-weight: 600;
+    border-top: none;
+}
+
+.table > tbody > tr:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+/* Alert Improvements */
+.alert {
+    border-radius: 0.375rem;
+}
+
+/* Button Improvements */
+.btn {
+    font-weight: 500;
+}
+
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+/* Badge Improvements */
+.badge {
+    font-weight: 500;
+    padding: 0.35em 0.65em;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .navbar-brand {
+        font-size: 1.25rem;
+    }
+    
+    .card {
+        margin-bottom: 1rem;
+    }
+}

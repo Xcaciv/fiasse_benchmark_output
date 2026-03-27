@@ -1,0 +1,36 @@
+@model LooseNotes.Models.Note
+@{
+    ViewData["Title"] = "Delete Note";
+}
+
+<h1>@ViewData["Title"]</h1>
+
+<div class="alert alert-danger">
+    <h4>Are you sure you want to delete this note?</h4>
+    <p>This action cannot be undone. All attachments and ratings will also be permanently deleted.</p>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <h5 class="card-title">@Model.Title</h5>
+        <p class="card-text">@Model.Content</p>
+        <p class="text-muted">
+            @if (Model.IsPublic)
+            {
+                <span class="badge bg-success">Public</span>
+            }
+            else
+            {
+                <span class="badge bg-secondary">Private</span>
+            }
+            Created: @Model.CreatedAt.ToString("MMMM dd, yyyy")
+        </p>
+    </div>
+</div>
+
+<form asp-action="Delete" method="post">
+    <input type="hidden" name="id" value="@Model.Id" />
+    @Html.AntiForgeryToken()
+    <button type="submit" class="btn btn-danger">Delete</button>
+    <a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary">Cancel</a>
+</form>

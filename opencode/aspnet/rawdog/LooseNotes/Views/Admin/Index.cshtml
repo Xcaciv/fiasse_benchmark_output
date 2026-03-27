@@ -1,0 +1,88 @@
+@model AdminDashboardViewModel
+@{
+    ViewData["Title"] = "Admin Dashboard";
+}
+
+<h1>@ViewData["Title"]</h1>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <h5 class="card-title">Total Users</h5>
+                <h2>@Model.TotalUsers</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <h5 class="card-title">Total Notes</h5>
+                <h2>@Model.TotalNotes</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <h5 class="card-title">Total Ratings</h5>
+                <h2>@Model.TotalRatings</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark">
+            <div class="card-body">
+                <h5 class="card-title">Attachments</h5>
+                <h2>@Model.TotalAttachments</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-12">
+        <a asp-action="Users" class="btn btn-primary">Manage Users</a>
+        <a asp-action="ActivityLogs" class="btn btn-outline-secondary">View Activity Logs</a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Recent Activity</h5>
+            </div>
+            <div class="card-body">
+                @if (Model.RecentActivity.Any())
+                {
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Action</th>
+                                <th>User</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var log in Model.RecentActivity.Take(20))
+                            {
+                                <tr>
+                                    <td>@log.CreatedAt.ToString("MMM dd, HH:mm")</td>
+                                    <td>@log.Action</td>
+                                    <td>@(log.UserId ?? "System")</td>
+                                    <td>@log.Details</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                else
+                {
+                    <p class="text-muted">No recent activity.</p>
+                }
+            </div>
+        </div>
+    </div>
+</div>

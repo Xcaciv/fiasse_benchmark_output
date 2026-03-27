@@ -1,10 +1,12 @@
 @model CreateNoteViewModel
 @{
-    ViewData["Title"] = "New Note";
+    ViewData["Title"] = "Create Note";
 }
 
 <h2>Create Note</h2>
+
 <form asp-action="Create" method="post" enctype="multipart/form-data">
+    @Html.AntiForgeryToken()
     <div asp-validation-summary="All" class="text-danger mb-3"></div>
     <div class="mb-3">
         <label asp-for="Title" class="form-label"></label>
@@ -21,11 +23,13 @@
         <label asp-for="IsPublic" class="form-check-label">Make Public</label>
     </div>
     <div class="mb-3">
-        <label class="form-label">Attachments (PDF, DOC, DOCX, TXT, PNG, JPG, JPEG; max 10MB each)</label>
-        <input type="file" name="Attachments" class="form-control" multiple accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" />
+        <label class="form-label">Attachments</label>
+        <input type="file" name="Attachments" class="form-control" multiple
+               accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" />
+        <small class="text-muted">Allowed: PDF, DOC, DOCX, TXT, PNG, JPG, JPEG</small>
     </div>
     <button type="submit" class="btn btn-primary">Create Note</button>
     <a asp-action="Index" class="btn btn-secondary ms-2">Cancel</a>
 </form>
 
-@section Scripts { <partial name="_ValidationScripts" /> }
+@section Scripts { @await Html.PartialAsync("_ValidationScripts") }

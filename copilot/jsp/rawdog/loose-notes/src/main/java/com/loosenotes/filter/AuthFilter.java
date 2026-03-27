@@ -1,11 +1,11 @@
 package com.loosenotes.filter;
 
 import javax.servlet.*;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpSession;
+import javax.servlet.annotation.WebFilter;
+import javax.servlet.http.*;
 import java.io.IOException;
 
+@WebFilter("/*")
 public class AuthFilter implements Filter {
 
     @Override
@@ -14,49 +14,37 @@ public class AuthFilter implements Filter {
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
             throws IOException, ServletException {
-        HttpServletRequest req = (HttpServletRequest) request;
-        HttpServletResponse res = (HttpServletResponse) response;
-        HttpSession session = req.getSession(false);
+        HttpServletRequest  req  = (HttpServletRequest)  request;
+        HttpServletResponse resp = (HttpServletResponse) response;
 
-        String path = req.getServletPath();
         String contextPath = req.getContextPath();
+        String uri         = req.getRequestURI();
+        String relative    = uri.substring(contextPath.length());
 
-        // Paths that don't require authentication
-        if (isPublicPath(path)) {
+        // Public paths – no authentication required
+        if (relative.isEmpty() || relative.equals("/")
+                || relative.startsWith("/login")
+                || relative.startsWith("/register")
+                || relative.startsWith("/shared/")
+                || relative.startsWith("/password-reset")
+                || relative.endsWith(".css")
+                || relative.endsWith(".js")
+                || relative.endsWith(".png")
+                || relative.endsWith(".jpg")
+                || relative.endsWith(".jpeg")
+                || relative.endsWith(".gif")
+                || relative.endsWith(".ico")) {
             chain.doFilter(request, response);
             return;
         }
 
-        boolean loggedIn = (session != null && session.getAttribute("userId") != null);
-
-        if (!loggedIn) {
-            res.sendRedirect(contextPath + "/login");
+        HttpSession session = req.getSession(false);
+        if (session == null || session.getAttribute("user") == null) {
+            resp.sendRedirect(contextPath + "/login");
             return;
         }
 
-        // Admin-only paths
-        if (path.startsWith("/admin")) {
-            Boolean isAdmin = (Boolean) session.getAttribute("isAdmin");
-            if (isAdmin == null || !isAdmin) {
-                res.sendError(HttpServletResponse.SC_FORBIDDEN, "Access denied");
-                return;
-            }
-        }
-
         chain.doFilter(request, response);
-    }
-
-    private boolean isPublicPath(String path) {
-        return path.equals("/login") ||
-               path.equals("/register") ||
-               path.equals("/forgot-password") ||
-               path.equals("/reset-password") ||
-               path.startsWith("/share") ||
-               path.equals("/top-rated") ||
-               path.equals("/search") ||
-               path.startsWith("/css/") ||
-               path.equals("/index.jsp") ||
-               path.equals("/error.jsp");
     }
 
     @Override

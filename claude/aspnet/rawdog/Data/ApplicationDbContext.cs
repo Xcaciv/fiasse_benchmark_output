@@ -11,53 +11,51 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
     }
 
-    public DbSet<Note> Notes { get; set; }
-    public DbSet<Attachment> Attachments { get; set; }
-    public DbSet<Rating> Ratings { get; set; }
-    public DbSet<ShareLink> ShareLinks { get; set; }
+    public DbSet<Note> Notes => Set<Note>();
+    public DbSet<Attachment> Attachments => Set<Attachment>();
+    public DbSet<Rating> Ratings => Set<Rating>();
+    public DbSet<ShareLink> ShareLinks => Set<ShareLink>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
 
-        builder.Entity<Note>(entity =>
+        builder.Entity<Note>(e =>
         {
-            entity.HasIndex(n => n.UserId);
-            entity.HasIndex(n => n.IsPublic);
-            entity.HasOne(n => n.User)
-                  .WithMany(u => u.Notes)
-                  .HasForeignKey(n => n.UserId)
-                  .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(n => n.UserId);
+            e.HasOne(n => n.User)
+             .WithMany(u => u.Notes)
+             .HasForeignKey(n => n.UserId)
+             .OnDelete(DeleteBehavior.Cascade);
         });
 
-        builder.Entity<Attachment>(entity =>
+        builder.Entity<Attachment>(e =>
         {
-            entity.HasOne(a => a.Note)
-                  .WithMany(n => n.Attachments)
-                  .HasForeignKey(a => a.NoteId)
-                  .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(a => a.Note)
+             .WithMany(n => n.Attachments)
+             .HasForeignKey(a => a.NoteId)
+             .OnDelete(DeleteBehavior.Cascade);
         });
 
-        builder.Entity<Rating>(entity =>
+        builder.Entity<Rating>(e =>
         {
-            entity.HasIndex(r => new { r.NoteId, r.UserId }).IsUnique();
-            entity.HasOne(r => r.Note)
-                  .WithMany(n => n.Ratings)
-                  .HasForeignKey(r => r.NoteId)
-                  .OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(r => r.User)
-                  .WithMany(u => u.Ratings)
-                  .HasForeignKey(r => r.UserId)
-                  .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(r => r.Note)
+             .WithMany(n => n.Ratings)
+             .HasForeignKey(r => r.NoteId)
+             .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(r => r.User)
+             .WithMany(u => u.Ratings)
+             .HasForeignKey(r => r.UserId)
+             .OnDelete(DeleteBehavior.Cascade);
         });
 
-        builder.Entity<ShareLink>(entity =>
+        builder.Entity<ShareLink>(e =>
         {
-            entity.HasIndex(s => s.Token).IsUnique();
-            entity.HasOne(s => s.Note)
-                  .WithMany(n => n.ShareLinks)
-                  .HasForeignKey(s => s.NoteId)
-                  .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(s => s.Token).IsUnique();
+            e.HasOne(s => s.Note)
+             .WithMany(n => n.ShareLinks)
+             .HasForeignKey(s => s.NoteId)
+             .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

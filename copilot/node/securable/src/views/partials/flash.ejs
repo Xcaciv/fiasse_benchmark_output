@@ -1,12 +1,8 @@
-<% if (success && success.length) { %>
-  <div class="alert alert-success alert-dismissible fade show" role="alert">
-    <%= success %>
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-  </div>
-<% } %>
-<% if (error && error.length) { %>
-  <div class="alert alert-danger alert-dismissible fade show" role="alert">
-    <%= error %>
+<% if (locals.flash) { %>
+  <% const typeMap = { success: 'success', error: 'danger', info: 'info', warning: 'warning' }; %>
+  <% const bsType = typeMap[flash.type] || 'info'; %>
+  <div class="alert alert-<%= bsType %> alert-dismissible fade show" role="alert">
+    <%= flash.message %>
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
   </div>
 <% } %>

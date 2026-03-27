@@ -1,45 +1,55 @@
 package com.loosenotes.model;
 
-import java.time.LocalDateTime;
-
 /**
- * Immutable domain model for application users.
- * password_hash is never surfaced to views (Confidentiality).
+ * Represents an application user.
+ * Role is an enum to prevent injection of arbitrary role strings.
  */
-public final class User {
+public class User {
 
-    private final long id;
-    private final String username;
-    private final String email;
-    /** Never exposed outside service layer */
-    private final String passwordHash;
-    private final String role;
-    private final LocalDateTime createdAt;
-
-    public User(long id, String username, String email,
-                String passwordHash, String role, LocalDateTime createdAt) {
-        this.id           = id;
-        this.username     = username;
-        this.email        = email;
-        this.passwordHash = passwordHash;
-        this.role         = role;
-        this.createdAt    = createdAt;
+    public enum Role {
+        USER, ADMIN
     }
 
-    public long getId()            { return id; }
-    public String getUsername()    { return username; }
-    public String getEmail()       { return email; }
-    public String getPasswordHash(){ return passwordHash; }
-    public String getRole()        { return role; }
-    public LocalDateTime getCreatedAt() { return createdAt; }
+    private long id;
+    private String username;
+    private String email;
+    private String passwordHash;
+    private Role role;
+    private String resetToken;
+    private Long resetTokenExpiry;
+    private long createdAt;
+
+    public User() {
+        this.role = Role.USER;
+    }
+
+    public long getId() { return id; }
+    public void setId(long id) { this.id = id; }
+
+    public String getUsername() { return username; }
+    public void setUsername(String username) { this.username = username; }
+
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+
+    /** Never log or expose passwordHash. */
+    public String getPasswordHash() { return passwordHash; }
+    public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
+
+    public Role getRole() { return role; }
+    public void setRole(Role role) { this.role = role; }
+
+    /** Single-use reset token — cleared after use. */
+    public String getResetToken() { return resetToken; }
+    public void setResetToken(String resetToken) { this.resetToken = resetToken; }
+
+    public Long getResetTokenExpiry() { return resetTokenExpiry; }
+    public void setResetTokenExpiry(Long resetTokenExpiry) { this.resetTokenExpiry = resetTokenExpiry; }
+
+    public long getCreatedAt() { return createdAt; }
+    public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }
 
     public boolean isAdmin() {
-        return "ADMIN".equalsIgnoreCase(role);
-    }
-
-    @Override
-    public String toString() {
-        // Intentionally excludes passwordHash (Confidentiality)
-        return "User{id=" + id + ", username='" + username + "', role='" + role + "'}";
+        return Role.ADMIN.equals(this.role);
     }
 }

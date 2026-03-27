@@ -1,10 +1,11 @@
 const { DataTypes } = require('sequelize');
+const { v4: uuidv4 } = require('uuid');
 const sequelize = require('../config/database');
 
 const User = sequelize.define('User', {
   id: {
     type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
+    defaultValue: () => uuidv4(),
     primaryKey: true,
   },
   username: {
@@ -17,7 +18,7 @@ const User = sequelize.define('User', {
     allowNull: false,
     unique: true,
   },
-  passwordHash: {
+  password: {
     type: DataTypes.STRING,
     allowNull: false,
   },
@@ -25,16 +26,14 @@ const User = sequelize.define('User', {
     type: DataTypes.ENUM('user', 'admin'),
     defaultValue: 'user',
   },
-  resetToken: {
+  passwordResetToken: {
     type: DataTypes.STRING,
     allowNull: true,
   },
-  resetExpires: {
+  passwordResetExpires: {
     type: DataTypes.DATE,
     allowNull: true,
   },
-}, {
-  tableName: 'users',
 });
 
 module.exports = User;

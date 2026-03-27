@@ -1,10 +1,11 @@
 const { DataTypes } = require('sequelize');
+const { v4: uuidv4 } = require('uuid');
 const sequelize = require('../config/database');
 
 const Note = sequelize.define('Note', {
   id: {
     type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
+    defaultValue: () => uuidv4(),
     primaryKey: true,
   },
   title: {
@@ -23,8 +24,6 @@ const Note = sequelize.define('Note', {
     type: DataTypes.UUID,
     allowNull: false,
   },
-}, {
-  tableName: 'notes',
 });
 
 module.exports = Note;

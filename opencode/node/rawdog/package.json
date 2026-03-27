@@ -1,0 +1,26 @@
+{
+  "name": "loose-notes-app",
+  "version": "1.0.0",
+  "description": "Loose Notes Web Application - Multi-user note-taking platform",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "init-db": "node src/scripts/init-db.js",
+    "seed": "node src/scripts/seed.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "express-session": "^1.17.3",
+    "bcrypt": "^5.1.1",
+    "better-sqlite3": "^9.4.3",
+    "uuid": "^9.0.1",
+    "multer": "^1.4.5-lts.1",
+    "connect-flash": "^0.1.1",
+    "express-validator": "^7.0.1",
+    "ejs": "^3.1.9"
+  },
+  "keywords": ["notes", "express", "webapp"],
+  "author": "",
+  "license": "MIT"
+}

@@ -1,39 +1,45 @@
 package com.loosenotes.model;
 
-import java.time.LocalDateTime;
+/**
+ * A user's rating for a note (1–5 stars with optional comment).
+ * UNIQUE constraint on (note_id, user_id) is enforced at the DB level.
+ */
+public class Rating {
 
-/** Immutable domain model for a note rating. */
-public final class Rating {
+    private long id;
+    private long noteId;
+    private long userId;
+    private int ratingValue;
+    private String comment;
+    private long createdAt;
+    private long updatedAt;
 
-    private final long id;
-    private final long noteId;
-    private final long userId;
-    private final int stars;
-    private final String comment;
-    private final LocalDateTime createdAt;
-    private final LocalDateTime updatedAt;
-    /** Populated via JOIN */
-    private final String raterUsername;
+    /** Transient display field joined from users table. */
+    private String username;
 
-    public Rating(long id, long noteId, long userId, int stars,
-                  String comment, LocalDateTime createdAt,
-                  LocalDateTime updatedAt, String raterUsername) {
-        this.id             = id;
-        this.noteId         = noteId;
-        this.userId         = userId;
-        this.stars          = stars;
-        this.comment        = comment;
-        this.createdAt      = createdAt;
-        this.updatedAt      = updatedAt;
-        this.raterUsername  = raterUsername;
-    }
+    public Rating() {}
 
-    public long getId()                  { return id; }
-    public long getNoteId()              { return noteId; }
-    public long getUserId()              { return userId; }
-    public int getStars()                { return stars; }
-    public String getComment()           { return comment; }
-    public LocalDateTime getCreatedAt()  { return createdAt; }
-    public LocalDateTime getUpdatedAt()  { return updatedAt; }
-    public String getRaterUsername()     { return raterUsername; }
+    public long getId() { return id; }
+    public void setId(long id) { this.id = id; }
+
+    public long getNoteId() { return noteId; }
+    public void setNoteId(long noteId) { this.noteId = noteId; }
+
+    public long getUserId() { return userId; }
+    public void setUserId(long userId) { this.userId = userId; }
+
+    public int getRatingValue() { return ratingValue; }
+    public void setRatingValue(int ratingValue) { this.ratingValue = ratingValue; }
+
+    public String getComment() { return comment; }
+    public void setComment(String comment) { this.comment = comment; }
+
+    public long getCreatedAt() { return createdAt; }
+    public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }
+
+    public long getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(long updatedAt) { this.updatedAt = updatedAt; }
+
+    public String getUsername() { return username; }
+    public void setUsername(String username) { this.username = username; }
 }

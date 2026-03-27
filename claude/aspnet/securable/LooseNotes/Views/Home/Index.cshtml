@@ -1,31 +1,61 @@
 @{
     ViewData["Title"] = "Welcome";
 }
-<div class="text-center py-5">
-    <h1 class="display-4">Loose Notes</h1>
-    <p class="lead">Capture, organize, and share your notes with the world.</p>
-    @if (User.Identity?.IsAuthenticated == true)
-    {
-        <a asp-controller="Notes" asp-action="Index" class="btn btn-primary btn-lg me-2">My Notes</a>
-        <a asp-controller="Notes" asp-action="Create" class="btn btn-success btn-lg">New Note</a>
-    }
-    else
-    {
-        <a asp-controller="Account" asp-action="Register" class="btn btn-primary btn-lg me-2">Get Started</a>
-        <a asp-controller="Account" asp-action="Login" class="btn btn-outline-primary btn-lg">Log In</a>
-    }
+
+<div class="row align-items-center py-5">
+    <div class="col-md-7">
+        <h1 class="display-5 fw-bold">Welcome to Loose Notes</h1>
+        <p class="lead">
+            A secure multi-user note-taking platform. Create, share, and rate notes
+            with confidence.
+        </p>
+        @if (!User.Identity?.IsAuthenticated ?? true)
+        {
+            <a asp-controller="Account" asp-action="Register" class="btn btn-primary btn-lg me-2">
+                Get Started
+            </a>
+            <a asp-controller="Account" asp-action="Login" class="btn btn-outline-secondary btn-lg">
+                Login
+            </a>
+        }
+        else
+        {
+            <a asp-controller="Notes" asp-action="Create" class="btn btn-primary btn-lg me-2">
+                New Note
+            </a>
+            <a asp-controller="Notes" asp-action="Index" class="btn btn-outline-secondary btn-lg">
+                My Notes
+            </a>
+        }
+    </div>
+    <div class="col-md-5 text-center">
+        <div class="display-1">📝</div>
+    </div>
 </div>
-<div class="row mt-4 text-center">
+
+<div class="row g-4 mt-2">
     <div class="col-md-4">
-        <h4>Create</h4>
-        <p>Write notes with titles and rich content. Keep them private or share with the world.</p>
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">🔒 Private by Default</h5>
+                <p class="card-text">All notes are private until you choose to share them.</p>
+            </div>
+        </div>
     </div>
     <div class="col-md-4">
-        <h4>Share</h4>
-        <p>Generate shareable links for any note. Revoke access at any time.</p>
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">🔗 Shareable Links</h5>
+                <p class="card-text">Generate revocable share links to let others view your notes.</p>
+            </div>
+        </div>
     </div>
     <div class="col-md-4">
-        <h4>Discover</h4>
-        <p>Search public notes or browse the top-rated collection.</p>
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">⭐ Community Ratings</h5>
+                <p class="card-text">Rate public notes and discover the best content.</p>
+            </div>
+        </div>
     </div>
 </div>

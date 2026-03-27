@@ -1,73 +1,69 @@
 # Loose Notes
 
-A multi-user note-taking platform built with Node.js, Express.js, SQLite, and Bootstrap 5.
+A multi-user note-taking platform built with Node.js and Express.js.
 
-## Prerequisites
-- Node.js 18+
-- npm
+## Features
 
-## Installation
+- **Multi-user authentication** — Register, login, password reset via email
+- **Note management** — Create, edit, delete, view notes with public/private visibility
+- **File attachments** — Upload PDF, DOC, DOCX, TXT, PNG, JPG files (max 10MB)
+- **Ratings & comments** — Rate public notes (1–5 stars) with optional comments
+- **Public share links** — Generate unique share links for notes (no auth required to view)
+- **Full-text search** — Search your notes and public notes by title/content
+- **Top-rated view** — Public notes with ≥3 ratings sorted by average rating
+- **Admin dashboard** — View stats, manage users, reassign notes
+- **Activity logging** — All key actions are logged for admin review
+
+## Setup
 
 ```bash
 # 1. Install dependencies
 npm install
 
-# 2. Copy example env file
-cp .env.example .env
-# (Edit .env to configure session secret, SMTP, etc.)
-```
+# 2. Copy environment template (optional — app runs with defaults)
+copy .env.example .env
 
-## Running
-
-```bash
-# Start the server
-node app.js
-# or
+# 3. Start the server
 npm start
+# or for development with auto-reload:
+npm run dev
 ```
 
-The app will be available at http://localhost:3000
+The app will create the SQLite database automatically at `data/loose-notes.db`.
 
 ## Default Admin Credentials
 
-On first run, a default admin account is created:
+| Username | Password   |
+|----------|------------|
+| admin    | Admin1234! |
 
-- **Email:** admin@example.com
-- **Password:** admin123
-- **Username:** admin
-
-> **Important:** Change the admin password after first login!
-
-## Features
-
-- **REQ-001:** User Registration — username, email, password
-- **REQ-002:** User Login/Logout — Passport.js local strategy, cookie session
-- **REQ-003:** Password Reset — token-based, logged to console (configurable via SMTP)
-- **REQ-004:** Note Creation — title, content, private by default
-- **REQ-005:** File Attachments — pdf, doc, docx, txt, png, jpg, jpeg (max 10MB)
-- **REQ-006:** Note Editing — owner/admin only, full update
-- **REQ-007:** Note Deletion — owner/admin, deletes files from disk
-- **REQ-008:** Note Sharing — UUID share links, public access without auth
-- **REQ-009:** Public/Private Visibility — toggle on create/edit
-- **REQ-010:** Note Rating — 1–5 stars + comment, one per user per note
-- **REQ-011:** Rating Management — owner sees all ratings with average
-- **REQ-012:** Note Search — case-insensitive, title + content, owned + public
-- **REQ-013:** Admin Dashboard — user/note counts, recent activity, user management
-- **REQ-014:** User Profile Management — update username, email, password
-- **REQ-015:** Top Rated Notes — public notes with ≥3 ratings, sorted by avg
-- **REQ-016:** Note Ownership Reassignment — admin can reassign notes to other users
+> ⚠️ Change the admin password after first login.
 
 ## Environment Variables
 
 See `.env.example` for all available configuration options.
 
-| Variable | Description | Default |
-|---|---|---|
-| `PORT` | HTTP port | `3000` |
-| `SESSION_SECRET` | Session signing secret | (insecure default) |
-| `SMTP_HOST` | SMTP server host | (none, logs to console) |
-| `APP_URL` | Base URL for reset links | `http://localhost:3000` |
+| Variable         | Default                    | Description              |
+|-----------------|----------------------------|--------------------------|
+| `PORT`          | `3000`                     | HTTP port                |
+| `SESSION_SECRET`| `loose-notes-secret-key`   | Session signing secret   |
+| `EMAIL_HOST`    | `smtp.ethereal.email`      | SMTP host for resets     |
+| `EMAIL_PORT`    | `587`                      | SMTP port                |
+| `EMAIL_USER`    | —                          | SMTP username            |
+| `EMAIL_PASS`    | —                          | SMTP password            |
+| `BASE_URL`      | `http://localhost:3000`    | Used in reset email links|
 
-## Logs
+## Security Notice
 
-Application logs (auth events, admin actions) are written to `logs/app.log`.
+> ⚠️ **CSRF protection is NOT implemented** in this demo application. This app is intended for development/demo purposes only and should not be deployed to production without adding CSRF middleware (e.g., `csurf` or `csrf-csrf`).
+
+## Tech Stack
+
+- **Runtime**: Node.js
+- **Framework**: Express.js
+- **Database**: SQLite via Sequelize ORM
+- **Auth**: express-session + bcryptjs
+- **Views**: EJS + express-ejs-layouts
+- **CSS**: Bootstrap 5 (CDN)
+- **Email**: nodemailer (Ethereal test SMTP)
+- **File uploads**: multer

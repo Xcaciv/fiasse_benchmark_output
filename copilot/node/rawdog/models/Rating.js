@@ -1,10 +1,11 @@
 const { DataTypes } = require('sequelize');
+const { v4: uuidv4 } = require('uuid');
 const sequelize = require('../config/database');
 
 const Rating = sequelize.define('Rating', {
   id: {
     type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
+    defaultValue: () => uuidv4(),
     primaryKey: true,
   },
   noteId: {
@@ -28,7 +29,6 @@ const Rating = sequelize.define('Rating', {
     allowNull: true,
   },
 }, {
-  tableName: 'ratings',
   indexes: [
     {
       unique: true,

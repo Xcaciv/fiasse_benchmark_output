@@ -1,127 +1,80 @@
 const express = require('express');
-const router = express.Router();
-const { User, Note } = require('../models');
-const { ensureAuthenticated, ensureAdmin } = require('../middleware/auth');
 const { Op } = require('sequelize');
-const bcrypt = require('bcrypt');
-const logger = require('../config/logger');
+const { User, Note, ActivityLog } = require('../models');
+const { isAuthenticated, isAdmin } = require('../middleware/auth');
+
+const router = express.Router();
 
 // GET /admin
-router.get('/', ensureAuthenticated, ensureAdmin, async (req, res, next) => {
+router.get('/', isAuthenticated, isAdmin, async (req, res) => {
   try {
-    const userCount = await User.count();
-    const noteCount = await Note.count();
-    const recentUsers = await User.findAll({
+    const totalUsers = await User.count();
+    const totalNotes = await Note.count();
+    const recentActivity = await ActivityLog.findAll({
+      include: [{ model: User, attributes: ['username'], required: false }],
       order: [['createdAt', 'DESC']],
-      limit: 5,
-      attributes: ['id', 'username', 'email', 'role', 'createdAt'],
+      limit: 20,
     });
-    const recentNotes = await Note.findAll({
-      order: [['createdAt', 'DESC']],
-      limit: 5,
-      include: [{ model: User, as: 'author', attributes: ['username'] }],
-    });
-    logger.info(`Admin dashboard accessed by: ${req.user.email}`);
-    res.render('admin/dashboard', {
-      title: 'Admin Dashboard',
-      user: req.user,
-      userCount,
-      noteCount,
-      recentUsers,
-      recentNotes,
-      messages: req.flash(),
-    });
+    res.render('admin/dashboard', { title: 'Admin Dashboard', totalUsers, totalNotes, recentActivity });
   } catch (err) {
-    next(err);
+    console.error(err);
+    req.flash('error', 'Failed to load dashboard.');
+    res.redirect('/notes');
   }
 });
 
 // GET /admin/users
-router.get('/users', ensureAuthenticated, ensureAdmin, async (req, res, next) => {
-  const q = (req.query.q || '').trim();
+router.get('/users', isAuthenticated, isAdmin, async (req, res) => {
   try {
-    const where = q
-      ? { [Op.or]: [{ username: { [Op.like]: `%${q}%` } }, { email: { [Op.like]: `%${q}%` } }] }
+    const { search } = req.query;
+    const where = search
+      ? {
+          [Op.or]: [
+            { username: { [Op.like]: `%${search}%` } },
+            { email: { [Op.like]: `%${search}%` } },
+          ],
+        }
       : {};
     const users = await User.findAll({
       where,
+      include: [{ model: Note, attributes: ['id'] }],
       order: [['createdAt', 'DESC']],
-      attributes: ['id', 'username', 'email', 'role', 'createdAt'],
     });
-    // Get note counts
-    const noteCountsRaw = await Note.findAll({
-      attributes: ['userId', [require('sequelize').fn('COUNT', require('sequelize').col('id')), 'count']],
-      group: ['userId'],
-    });
-    const noteCounts = {};
-    noteCountsRaw.forEach(n => { noteCounts[n.userId] = parseInt(n.get('count')); });
-
-    res.render('admin/users', {
-      title: 'User Management',
-      user: req.user,
-      users,
-      noteCounts,
-      q,
-      messages: req.flash(),
-    });
+    res.render('admin/users', { title: 'Manage Users', users, search: search || '' });
   } catch (err) {
-    next(err);
-  }
-});
-
-// POST /admin/users/:id/delete
-router.post('/users/:id/delete', ensureAuthenticated, ensureAdmin, async (req, res, next) => {
-  try {
-    if (req.params.id === req.user.id) {
-      req.flash('error', 'You cannot delete your own account.');
-      return res.redirect('/admin/users');
-    }
-    await User.destroy({ where: { id: req.params.id } });
-    logger.info(`Admin ${req.user.email} deleted user ${req.params.id}`);
-    req.flash('success', 'User deleted.');
-    res.redirect('/admin/users');
-  } catch (err) {
-    next(err);
-  }
-});
-
-// POST /admin/users/:id/toggle-role
-router.post('/users/:id/toggle-role', ensureAuthenticated, ensureAdmin, async (req, res, next) => {
-  try {
-    const target = await User.findByPk(req.params.id);
-    if (!target) {
-      req.flash('error', 'User not found.');
-      return res.redirect('/admin/users');
-    }
-    const newRole = target.role === 'admin' ? 'user' : 'admin';
-    await target.update({ role: newRole });
-    logger.info(`Admin ${req.user.email} changed role of ${target.email} to ${newRole}`);
-    req.flash('success', `User role changed to ${newRole}.`);
-    res.redirect('/admin/users');
-  } catch (err) {
-    next(err);
+    console.error(err);
+    req.flash('error', 'Failed to load users.');
+    res.redirect('/admin');
   }
 });
 
 // POST /admin/notes/:id/reassign
-router.post('/notes/:id/reassign', ensureAuthenticated, ensureAdmin, async (req, res, next) => {
+router.post('/notes/:id/reassign', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const note = await Note.findByPk(req.params.id);
     if (!note) {
       req.flash('error', 'Note not found.');
       return res.redirect('/admin');
     }
-    const newOwner = await User.findOne({ where: { username: req.body.newOwner } });
-    if (!newOwner) {
+    const { newUserId } = req.body;
+    const newUser = await User.findByPk(newUserId);
+    if (!newUser) {
       req.flash('error', 'Target user not found.');
       return res.redirect('/admin');
     }
-    await note.update({ userId: newOwner.id });
-    logger.info(`Admin ${req.user.email} reassigned note ${note.id} to ${newOwner.email}`);
-    req.flash('success', `Note reassigned to ${newOwner.username}.`);
-    res.redirect('/admin');
+    const oldUserId = note.userId;
+    await note.update({ userId: newUserId });
+    await ActivityLog.create({
+      userId: req.session.userId,
+      action: 'admin_reassign',
+      details: `Admin reassigned note "${note.title}" from ${oldUserId} to ${newUser.username}`,
+    });
+    req.flash('success', `Note reassigned to ${newUser.username}.`);
+    res.redirect('/admin/users');
   } catch (err) {
-    next(err);
+    console.error(err);
+    req.flash('error', 'Reassignment failed.');
+    res.redirect('/admin');
   }
 });
 

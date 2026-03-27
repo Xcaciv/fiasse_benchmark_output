@@ -1,20 +1,18 @@
+// AccountController.cs — Authentication and account management.
+// Trust boundary: ALL user input is validated via ModelState before processing.
+// Authenticity: uses ASP.NET Core Identity (PBKDF2 hashing, lockout, token validation).
+// Accountability: all auth events are audited.
+// Confidentiality: errors are generic — do not reveal whether an email exists.
 using LooseNotes.Models;
 using LooseNotes.Services;
 using LooseNotes.ViewModels.Account;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 
 namespace LooseNotes.Controllers;
 
-/// <summary>
-/// Handles authentication flows: register, login, logout, password reset.
-/// Trust boundary: all user-supplied input is validated via model binding + Identity.
-/// Rate limiting applied at login and register (Availability).
-/// </summary>
-[AllowAnonymous]
-public class AccountController : Controller
+public sealed class AccountController : Controller
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
@@ -36,184 +34,179 @@ public class AccountController : Controller
         _logger = logger;
     }
 
-    // ── Register ─────────────────────────────────────────────────────────────
-
-    [HttpGet]
+    // ── GET /Account/Register ─────────────────────────────────────────────────
+    [HttpGet, AllowAnonymous]
     public IActionResult Register() => View();
 
-    [HttpPost, ValidateAntiForgeryToken]
-    [EnableRateLimiting("register")]
+    // ── POST /Account/Register ────────────────────────────────────────────────
+    [HttpPost, AllowAnonymous]
     public async Task<IActionResult> Register(RegisterViewModel model)
     {
-        if (!ModelState.IsValid)
-            return View(model);
+        // Trust boundary: reject invalid input before touching Identity
+        if (!ModelState.IsValid) return View(model);
 
         var user = new ApplicationUser
         {
-            UserName = model.Email,
-            Email = model.Email,
-            DisplayName = model.DisplayName,
-            CreatedAt = DateTime.UtcNow
+            UserName = model.UserName,
+            Email = model.Email
         };
 
+        // Authenticity: Identity hashes the password with PBKDF2
         var result = await _userManager.CreateAsync(user, model.Password);
-        if (!result.Succeeded)
-        {
-            AddIdentityErrors(result);
-            await _auditService.RecordAsync("Register", succeeded: false,
-                metadataJson: $"{{\"email\":\"{SanitizeForLog(model.Email)}\"}}",
-                ipAddress: GetClientIp());
-            return View(model);
-        }
-
-        await _userManager.AddToRoleAsync(user, Data.DbInitializer.UserRoleName);
-        await _auditService.RecordAsync("Register", userId: user.Id, succeeded: true,
-            metadataJson: $"{{\"email\":\"{SanitizeForLog(model.Email)}\"}}",
-            ipAddress: GetClientIp());
-
-        await _signInManager.SignInAsync(user, isPersistent: false);
-        return RedirectToAction("Index", "Notes");
-    }
-
-    // ── Login ─────────────────────────────────────────────────────────────────
-
-    [HttpGet]
-    public IActionResult Login(string? returnUrl = null)
-    {
-        ViewData["ReturnUrl"] = returnUrl;
-        return View(new LoginViewModel { ReturnUrl = returnUrl });
-    }
-
-    [HttpPost, ValidateAntiForgeryToken]
-    [EnableRateLimiting("login")]
-    public async Task<IActionResult> Login(LoginViewModel model)
-    {
-        if (!ModelState.IsValid)
-            return View(model);
-
-        var result = await _signInManager.PasswordSignInAsync(
-            model.Email, model.Password, model.RememberMe, lockoutOnFailure: true);
 
         if (result.Succeeded)
         {
-            var user = await _userManager.FindByEmailAsync(model.Email);
-            await _auditService.RecordAsync("Login", userId: user?.Id, succeeded: true,
-                ipAddress: GetClientIp());
+            await _userManager.AddToRoleAsync(user, "User");
+            await _auditService.LogAsync(user.Id, "User.Registered", "User", user.Id,
+                $"Username={user.UserName}");
 
-            return RedirectToSafeUrl(model.ReturnUrl);
+            await _signInManager.SignInAsync(user, isPersistent: false);
+            return RedirectToAction("Index", "Notes");
+        }
+
+        // Resilience: surface only safe error descriptions (Identity codes, not internals)
+        foreach (var error in result.Errors)
+            ModelState.AddModelError(string.Empty, error.Description);
+
+        return View(model);
+    }
+
+    // ── GET /Account/Login ────────────────────────────────────────────────────
+    [HttpGet, AllowAnonymous]
+    public IActionResult Login(string? returnUrl = null)
+    {
+        ViewData["ReturnUrl"] = returnUrl;
+        return View();
+    }
+
+    // ── POST /Account/Login ───────────────────────────────────────────────────
+    [HttpPost, AllowAnonymous]
+    public async Task<IActionResult> Login(LoginViewModel model, string? returnUrl = null)
+    {
+        if (!ModelState.IsValid) return View(model);
+
+        // Authenticity: lockoutOnFailure prevents brute force
+        var result = await _signInManager.PasswordSignInAsync(
+            model.UserName, model.Password, model.RememberMe, lockoutOnFailure: true);
+
+        if (result.Succeeded)
+        {
+            var user = await _userManager.FindByNameAsync(model.UserName);
+            await _auditService.LogAsync(user?.Id, "User.Login", "User", user?.Id);
+            _logger.LogInformation("User {User} logged in", model.UserName);
+            return RedirectToSafeUrl(returnUrl);
         }
 
         if (result.IsLockedOut)
         {
-            await _auditService.RecordAsync("LoginLockedOut", succeeded: false,
-                metadataJson: $"{{\"email\":\"{SanitizeForLog(model.Email)}\"}}",
-                ipAddress: GetClientIp());
+            await _auditService.LogAsync(null, "User.Login.LockedOut", "User",
+                details: $"Username={model.UserName}");
             return RedirectToAction(nameof(Lockout));
         }
 
-        // Use generic error — do not reveal whether email exists (Confidentiality)
-        ModelState.AddModelError(string.Empty, "Invalid login attempt.");
-        await _auditService.RecordAsync("LoginFailed", succeeded: false,
-            metadataJson: $"{{\"email\":\"{SanitizeForLog(model.Email)}\"}}",
-            ipAddress: GetClientIp());
+        // Confidentiality: generic error — do not reveal which field was wrong
+        await _auditService.LogAsync(null, "User.Login.Failed", details: $"Username={model.UserName}");
+        ModelState.AddModelError(string.Empty, "Invalid username or password.");
         return View(model);
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
-    [Authorize]
+    // ── POST /Account/Logout ──────────────────────────────────────────────────
+    [HttpPost, Authorize]
     public async Task<IActionResult> Logout()
     {
         var userId = _userManager.GetUserId(User);
         await _signInManager.SignOutAsync();
-        await _auditService.RecordAsync("Logout", userId: userId, ipAddress: GetClientIp());
+        await _auditService.LogAsync(userId, "User.Logout");
         return RedirectToAction("Index", "Home");
     }
 
-    [HttpGet]
+    // ── GET /Account/Lockout ──────────────────────────────────────────────────
+    [HttpGet, AllowAnonymous]
     public IActionResult Lockout() => View();
 
-    // ── Password Reset ────────────────────────────────────────────────────────
+    // ── GET /Account/AccessDenied ─────────────────────────────────────────────
+    [HttpGet, AllowAnonymous]
+    public IActionResult AccessDenied() => View();
 
-    [HttpGet]
+    // ── GET /Account/ForgotPassword ───────────────────────────────────────────
+    [HttpGet, AllowAnonymous]
     public IActionResult ForgotPassword() => View();
 
-    [HttpPost, ValidateAntiForgeryToken]
+    // ── POST /Account/ForgotPassword ──────────────────────────────────────────
+    [HttpPost, AllowAnonymous]
     public async Task<IActionResult> ForgotPassword(ForgotPasswordViewModel model)
     {
-        if (!ModelState.IsValid)
-            return View(model);
+        if (!ModelState.IsValid) return View(model);
 
-        // Always show confirmation to prevent email enumeration (Confidentiality)
         var user = await _userManager.FindByEmailAsync(model.Email);
-        if (user is not null && await _userManager.IsEmailConfirmedAsync(user))
-        {
-            var token = await _userManager.GeneratePasswordResetTokenAsync(user);
-            var resetLink = Url.Action(nameof(ResetPassword), "Account",
-                new { token, email = model.Email }, protocol: Request.Scheme)!;
 
-            await _emailService.SendPasswordResetAsync(model.Email, resetLink);
-            await _auditService.RecordAsync("PasswordResetRequested", userId: user.Id,
-                ipAddress: GetClientIp());
-        }
+        // Confidentiality + Availability: always redirect, whether user exists or not
+        // (prevents email enumeration)
+        if (user is null)
+            return RedirectToAction(nameof(ForgotPasswordConfirmation));
+
+        var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+        var resetLink = Url.Action(
+            nameof(ResetPassword),
+            "Account",
+            new { token, email = model.Email },
+            protocol: Request.Scheme)!;
+
+        await _emailService.SendPasswordResetAsync(model.Email, resetLink);
+        await _auditService.LogAsync(user.Id, "User.PasswordResetRequested", "User", user.Id);
 
         return RedirectToAction(nameof(ForgotPasswordConfirmation));
     }
 
-    [HttpGet]
+    // ── GET /Account/ForgotPasswordConfirmation ───────────────────────────────
+    [HttpGet, AllowAnonymous]
     public IActionResult ForgotPasswordConfirmation() => View();
 
-    [HttpGet]
+    // ── GET /Account/ResetPassword ────────────────────────────────────────────
+    [HttpGet, AllowAnonymous]
     public IActionResult ResetPassword(string? token, string? email)
     {
         if (token is null || email is null)
             return BadRequest("Invalid password reset link.");
 
-        return View(new ResetPasswordViewModel { Token = token, Email = email });
-    }
-
-    [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> ResetPassword(ResetPasswordViewModel model)
-    {
-        if (!ModelState.IsValid)
-            return View(model);
-
-        var user = await _userManager.FindByEmailAsync(model.Email);
-        // Generic message prevents email enumeration (Confidentiality)
-        if (user is null)
-            return RedirectToAction(nameof(ResetPasswordConfirmation));
-
-        var result = await _userManager.ResetPasswordAsync(user, model.Token, model.Password);
-        if (result.Succeeded)
-        {
-            await _auditService.RecordAsync("PasswordReset", userId: user.Id,
-                succeeded: true, ipAddress: GetClientIp());
-            return RedirectToAction(nameof(ResetPasswordConfirmation));
-        }
-
-        AddIdentityErrors(result);
-        await _auditService.RecordAsync("PasswordResetFailed", userId: user.Id,
-            succeeded: false, ipAddress: GetClientIp());
+        var model = new ResetPasswordViewModel { Token = token, Email = email };
         return View(model);
     }
 
-    [HttpGet]
-    public IActionResult ResetPasswordConfirmation() => View();
+    // ── POST /Account/ResetPassword ───────────────────────────────────────────
+    [HttpPost, AllowAnonymous]
+    public async Task<IActionResult> ResetPassword(ResetPasswordViewModel model)
+    {
+        if (!ModelState.IsValid) return View(model);
 
-    [HttpGet]
-    public IActionResult AccessDenied() => View();
+        var user = await _userManager.FindByEmailAsync(model.Email);
+
+        // Confidentiality: redirect even if user not found — no enumeration
+        if (user is null)
+            return RedirectToAction(nameof(ResetPasswordConfirmation));
+
+        // Authenticity: Identity validates token expiry and integrity
+        var result = await _userManager.ResetPasswordAsync(user, model.Token, model.Password);
+
+        if (result.Succeeded)
+        {
+            await _auditService.LogAsync(user.Id, "User.PasswordReset", "User", user.Id);
+            return RedirectToAction(nameof(ResetPasswordConfirmation));
+        }
+
+        foreach (var error in result.Errors)
+            ModelState.AddModelError(string.Empty, error.Description);
+
+        return View(model);
+    }
+
+    // ── GET /Account/ResetPasswordConfirmation ────────────────────────────────
+    [HttpGet, AllowAnonymous]
+    public IActionResult ResetPasswordConfirmation() => View();
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private void AddIdentityErrors(IdentityResult result)
-    {
-        foreach (var error in result.Errors)
-            ModelState.AddModelError(string.Empty, error.Description);
-    }
-
-    /// <summary>
-    /// Validates returnUrl is local before redirecting (prevents open redirect).
-    /// Only local URLs are accepted (Integrity).
-    /// </summary>
+    /// <summary>Redirect to returnUrl only if it is a local URL (prevents open redirect).</summary>
     private IActionResult RedirectToSafeUrl(string? returnUrl)
     {
         if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
@@ -221,14 +214,4 @@ public class AccountController : Controller
 
         return RedirectToAction("Index", "Notes");
     }
-
-    /// <summary>
-    /// Strips characters that could break structured log formats.
-    /// Email addresses are loggable; tokens/passwords must never be passed here.
-    /// </summary>
-    private static string SanitizeForLog(string value)
-        => value.Replace("\"", "").Replace("\n", "").Replace("\r", "")[..Math.Min(value.Length, 256)];
-
-    private string GetClientIp()
-        => HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 }

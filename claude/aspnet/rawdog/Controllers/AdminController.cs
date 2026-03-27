@@ -15,9 +15,7 @@ public class AdminController : Controller
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ILogger<AdminController> _logger;
 
-    public AdminController(
-        ApplicationDbContext db,
-        UserManager<ApplicationUser> userManager,
+    public AdminController(ApplicationDbContext db, UserManager<ApplicationUser> userManager,
         ILogger<AdminController> logger)
     {
         _db = db;
@@ -25,47 +23,43 @@ public class AdminController : Controller
         _logger = logger;
     }
 
-    public async Task<IActionResult> Index()
+    public async Task<IActionResult> Index(string? search)
     {
+        var usersQuery = _userManager.Users.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var lower = search.ToLower();
+            usersQuery = usersQuery.Where(u =>
+                u.UserName!.ToLower().Contains(lower) ||
+                u.Email!.ToLower().Contains(lower));
+        }
+
+        var users = await usersQuery.ToListAsync();
+        var noteCounts = await _db.Notes
+            .GroupBy(n => n.UserId)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Key, x => x.Count);
+
         var vm = new AdminDashboardViewModel
         {
-            TotalUsers = await _db.Users.CountAsync(),
+            TotalUsers = await _userManager.Users.CountAsync(),
             TotalNotes = await _db.Notes.CountAsync(),
-            RecentActivity = new List<ActivityLogEntry>()
+            SearchQuery = search,
+            Users = users.Select(u => new AdminUserRow
+            {
+                Id = u.Id,
+                UserName = u.UserName ?? string.Empty,
+                Email = u.Email ?? string.Empty,
+                CreatedAt = u.CreatedAt,
+                NoteCount = noteCounts.GetValueOrDefault(u.Id, 0)
+            }).ToList()
         };
         return View(vm);
     }
 
-    [HttpGet]
-    public async Task<IActionResult> Users(string? q)
+    public async Task<IActionResult> Users(string? search)
     {
-        var query = _db.Users.AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(q))
-        {
-            var lowerQ = q.ToLower();
-            query = query.Where(u => u.UserName!.ToLower().Contains(lowerQ) || u.Email!.ToLower().Contains(lowerQ));
-        }
-
-        var users = await query.ToListAsync();
-        var items = new List<AdminUserItemViewModel>();
-
-        foreach (var user in users)
-        {
-            var noteCount = await _db.Notes.CountAsync(n => n.UserId == user.Id);
-            var isAdmin = await _userManager.IsInRoleAsync(user, "Admin");
-            items.Add(new AdminUserItemViewModel
-            {
-                Id = user.Id,
-                Username = user.UserName ?? string.Empty,
-                Email = user.Email ?? string.Empty,
-                CreatedAt = user.CreatedAt,
-                NoteCount = noteCount,
-                IsAdmin = isAdmin
-            });
-        }
-
-        return View(new AdminUsersViewModel { SearchQuery = q, Users = items });
+        return await Index(search);
     }
 
     [HttpGet]
@@ -74,40 +68,27 @@ public class AdminController : Controller
         var note = await _db.Notes.Include(n => n.User).FirstOrDefaultAsync(n => n.Id == noteId);
         if (note == null) return NotFound();
 
-        var allUsers = await _db.Users.ToListAsync();
-        var users = new List<AdminUserItemViewModel>();
-        foreach (var u in allUsers)
-        {
-            users.Add(new AdminUserItemViewModel
-            {
-                Id = u.Id,
-                Username = u.UserName ?? string.Empty,
-                Email = u.Email ?? string.Empty
-            });
-        }
-
+        var allUsers = await _userManager.Users.ToListAsync();
         return View(new ReassignNoteViewModel
         {
-            NoteId = noteId,
+            NoteId = note.Id,
             NoteTitle = note.Title,
-            CurrentOwner = note.User?.UserName ?? string.Empty,
-            Users = users
+            CurrentOwnerName = note.User?.UserName ?? "Unknown",
+            AllUsers = allUsers
         });
     }
 
-    [HttpPost]
-    [ValidateAntiForgeryToken]
+    [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> ReassignNote(ReassignNoteViewModel model)
     {
-        if (!ModelState.IsValid) return View(model);
-
-        var note = await _db.Notes.FirstOrDefaultAsync(n => n.Id == model.NoteId);
+        var note = await _db.Notes.FindAsync(model.NoteId);
         if (note == null) return NotFound();
 
         var newOwner = await _userManager.FindByIdAsync(model.NewOwnerId);
         if (newOwner == null)
         {
             ModelState.AddModelError(string.Empty, "User not found.");
+            model.AllUsers = await _userManager.Users.ToListAsync();
             return View(model);
         }
 
@@ -115,9 +96,10 @@ public class AdminController : Controller
         note.UserId = model.NewOwnerId;
         await _db.SaveChangesAsync();
 
-        _logger.LogInformation("Admin {Admin} reassigned note {NoteId} from {OldOwner} to {NewOwner}",
-            User.Identity?.Name, model.NoteId, oldOwner, model.NewOwnerId);
+        _logger.LogInformation("Admin {Admin} reassigned note {NoteId} from {Old} to {New}.",
+            User.Identity?.Name, note.Id, oldOwner, model.NewOwnerId);
 
+        TempData["Success"] = "Note reassigned successfully.";
         return RedirectToAction(nameof(Index));
     }
 }

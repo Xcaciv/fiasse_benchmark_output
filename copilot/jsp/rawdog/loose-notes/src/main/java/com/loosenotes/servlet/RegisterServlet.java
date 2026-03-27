@@ -1,7 +1,8 @@
 package com.loosenotes.servlet;
 
 import com.loosenotes.dao.UserDAO;
-import com.loosenotes.util.PasswordUtil;
+import com.loosenotes.model.User;
+import org.mindrot.jbcrypt.BCrypt;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -14,48 +15,71 @@ public class RegisterServlet extends HttpServlet {
     private final UserDAO userDAO = new UserDAO();
 
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        req.getRequestDispatcher("/WEB-INF/views/auth/register.jsp").forward(req, resp);
+    protected void doGet(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        request.getRequestDispatcher("/register.jsp").forward(request, response);
     }
 
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        String username = req.getParameter("username");
-        String email = req.getParameter("email");
-        String password = req.getParameter("password");
-        String confirmPassword = req.getParameter("confirmPassword");
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        String username = request.getParameter("username");
+        String email    = request.getParameter("email");
+        String password = request.getParameter("password");
+
+        // Validate
+        if (username == null || username.trim().length() < 3) {
+            request.setAttribute("errorMessage", "Username must be at least 3 characters.");
+            request.setAttribute("inputUsername", username);
+            request.setAttribute("inputEmail", email);
+            request.getRequestDispatcher("/register.jsp").forward(request, response);
+            return;
+        }
+        if (email == null || !email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) {
+            request.setAttribute("errorMessage", "Please provide a valid email address.");
+            request.setAttribute("inputUsername", username);
+            request.setAttribute("inputEmail", email);
+            request.getRequestDispatcher("/register.jsp").forward(request, response);
+            return;
+        }
+        if (password == null || password.length() < 6) {
+            request.setAttribute("errorMessage", "Password must be at least 6 characters.");
+            request.setAttribute("inputUsername", username);
+            request.setAttribute("inputEmail", email);
+            request.getRequestDispatcher("/register.jsp").forward(request, response);
+            return;
+        }
 
         try {
-            if (username == null || username.trim().isEmpty() ||
-                email == null || email.trim().isEmpty() ||
-                password == null || password.isEmpty()) {
-                req.setAttribute("error", "All fields are required.");
-                req.getRequestDispatcher("/WEB-INF/views/auth/register.jsp").forward(req, resp);
+            if (userDAO.findByUsername(username.trim()) != null) {
+                request.setAttribute("errorMessage", "Username already taken.");
+                request.setAttribute("inputUsername", username);
+                request.setAttribute("inputEmail", email);
+                request.getRequestDispatcher("/register.jsp").forward(request, response);
                 return;
             }
-            if (!password.equals(confirmPassword)) {
-                req.setAttribute("error", "Passwords do not match.");
-                req.getRequestDispatcher("/WEB-INF/views/auth/register.jsp").forward(req, resp);
+            if (userDAO.findByEmail(email.trim()) != null) {
+                request.setAttribute("errorMessage", "Email already registered.");
+                request.setAttribute("inputUsername", username);
+                request.setAttribute("inputEmail", email);
+                request.getRequestDispatcher("/register.jsp").forward(request, response);
                 return;
             }
-            if (userDAO.findByUsername(username) != null) {
-                req.setAttribute("error", "Username already taken.");
-                req.getRequestDispatcher("/WEB-INF/views/auth/register.jsp").forward(req, resp);
-                return;
-            }
-            if (userDAO.findByEmail(email) != null) {
-                req.setAttribute("error", "Email already registered.");
-                req.getRequestDispatcher("/WEB-INF/views/auth/register.jsp").forward(req, resp);
-                return;
-            }
-            String hash = PasswordUtil.hash(password);
-            userDAO.createUser(username.trim(), email.trim(), hash);
-            HttpSession session = req.getSession(true);
-            session.setAttribute("successMessage", "Registration successful! Please log in.");
-            resp.sendRedirect(req.getContextPath() + "/login");
+
+            User user = new User();
+            user.setUsername(username.trim());
+            user.setEmail(email.trim());
+            user.setPasswordHash(BCrypt.hashpw(password, BCrypt.gensalt()));
+            user.setRole("USER");
+            userDAO.create(user);
+
+            request.getSession().setAttribute("successMessage", "Registration successful! Please log in.");
+            response.sendRedirect(request.getContextPath() + "/login");
         } catch (Exception e) {
-            req.setAttribute("error", "Registration failed: " + e.getMessage());
-            req.getRequestDispatcher("/WEB-INF/views/auth/register.jsp").forward(req, resp);
+            request.setAttribute("errorMessage", "Registration failed: " + e.getMessage());
+            request.setAttribute("inputUsername", username);
+            request.setAttribute("inputEmail", email);
+            request.getRequestDispatcher("/register.jsp").forward(request, response);
         }
     }
 }

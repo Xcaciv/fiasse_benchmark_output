@@ -1,34 +1,24 @@
 'use strict';
+
 const express = require('express');
-const authRoutes = require('./auth');
-const noteRoutes = require('./notes');
-const attachmentRoutes = require('./attachments');
-const ratingRoutes = require('./ratings');
-const shareRoutes = require('./share');
-const searchRoutes = require('./search');
-const profileRoutes = require('./profile');
-const adminRoutes = require('./admin');
+const authRouter = require('./auth');
+const notesRouter = require('./notes');
+const shareRouter = require('./share');
+const profileRouter = require('./profile');
+const adminRouter = require('./admin');
 
-function mountRoutes(app) {
-  app.use('/auth', authRoutes);
-  app.use('/notes', noteRoutes);
-  app.use('/notes/:noteId/attachments', attachmentRoutes);
-  app.use('/notes/:noteId/ratings', ratingRoutes);
-  app.use('/attachments', createAttachmentDownloadRouter());
-  app.use('/', shareRoutes);
-  app.use('/search', searchRoutes);
-  app.use('/profile', profileRoutes);
-  app.use('/admin', adminRoutes);
-  app.get('/', (req, res) => res.render('index'));
-}
+const router = express.Router();
 
-function createAttachmentDownloadRouter() {
-  const router = express.Router();
-  const attachmentController = require('../controllers/attachmentController');
-  const { requireAuthenticated } = require('../middleware/requireAuth');
-  router.get('/:id/download', requireAuthenticated, attachmentController.download);
-  router.post('/:id/delete', requireAuthenticated, attachmentController.deleteAttachment);
-  return router;
-}
+// Root redirect
+router.get('/', (req, res) => {
+  if (req.session && req.session.userId) return res.redirect('/notes');
+  res.redirect('/auth/login');
+});
 
-module.exports = { mountRoutes };
+router.use('/auth', authRouter);
+router.use('/notes', notesRouter);
+router.use('/share', shareRouter);
+router.use('/profile', profileRouter);
+router.use('/admin', adminRouter);
+
+module.exports = router;

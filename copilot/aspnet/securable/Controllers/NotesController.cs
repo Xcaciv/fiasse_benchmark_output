@@ -1,253 +1,214 @@
-using LooseNotes.Data;
-using LooseNotes.Models;
-using LooseNotes.Services.Interfaces;
+using LooseNotes.Services;
 using LooseNotes.ViewModels.Notes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using LooseNotes.Models;
 
 namespace LooseNotes.Controllers;
 
-/// <summary>
-/// Note CRUD, sharing, and search. All state-changing actions require auth
-/// and verify ownership before proceeding (Authenticity + Integrity).
-/// </summary>
 [Authorize]
-[Route("[controller]/[action]")]
 public class NotesController : Controller
 {
     private readonly INoteService _noteService;
-    private readonly IFileStorageService _fileStorage;
-    private readonly IAuditService _auditService;
+    private readonly IShareLinkService _shareLinkService;
+    private readonly IAuditService _audit;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ILogger<NotesController> _logger;
-    private readonly ApplicationDbContext _db;
 
     public NotesController(
         INoteService noteService,
-        IFileStorageService fileStorage,
-        IAuditService auditService,
+        IShareLinkService shareLinkService,
+        IAuditService audit,
         UserManager<ApplicationUser> userManager,
-        ILogger<NotesController> logger,
-        ApplicationDbContext db)
+        ILogger<NotesController> logger)
     {
         _noteService = noteService;
-        _fileStorage = fileStorage;
-        _auditService = auditService;
+        _shareLinkService = shareLinkService;
+        _audit = audit;
         _userManager = userManager;
         _logger = logger;
-        _db = db;
     }
 
-    [HttpGet("/Notes")]
+    private string GetCurrentUserId() => _userManager.GetUserId(User)!;
+
+    [HttpGet]
     public async Task<IActionResult> Index()
     {
-        var userId = _userManager.GetUserId(User)!;
-        _logger.LogInformation("Notes/Index called by {UserId}", userId);
-        var notes = await _noteService.GetUserNotesAsync(userId);
-        return View(new NoteListViewModel { Notes = notes });
-    }
-
-    [HttpGet]
-    [AllowAnonymous]
-    public async Task<IActionResult> Details(int id)
-    {
-        var userId = _userManager.GetUserId(User);
-        _logger.LogInformation("Notes/Details/{NoteId} requested by {UserId}", id, userId ?? "anonymous");
-
-        var note = await _noteService.GetNoteAsync(id, userId);
-        if (note is null) return NotFound();
-
-        var vm = BuildDetailsViewModel(note, userId);
-        return View(vm);
-    }
-
-    private NoteDetailsViewModel BuildDetailsViewModel(Note note, string? userId)
-    {
-        var avgRating = note.Ratings.Any() ? note.Ratings.Average(r => r.Stars) : 0;
-        var activeToken = note.ShareLinks
-            .FirstOrDefault(s => !s.IsRevoked && (s.ExpiresAt == null || s.ExpiresAt > DateTime.UtcNow))
-            ?.Token;
-
-        return new NoteDetailsViewModel
-        {
-            Note = note,
-            AverageRating = Math.Round(avgRating, 1),
-            RatingCount = note.Ratings.Count,
-            ActiveShareToken = activeToken,
-            CanEdit = note.UserId == userId,
-            CanDelete = note.UserId == userId || User.IsInRole("Admin")
-        };
-    }
-
-    [HttpGet]
-    public IActionResult Create() => View();
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(NoteCreateViewModel model)
-    {
-        // Trust boundary: full model validation before any DB or file I/O
-        _logger.LogInformation("Notes/Create called by {UserId}", _userManager.GetUserId(User));
-
-        if (!ModelState.IsValid) return View(model);
-
-        var userId = _userManager.GetUserId(User)!;
-        var note = await _noteService.CreateNoteAsync(model, userId);
-
-        if (model.Attachments is not null && model.Attachments.Count > 0)
-        {
-            await ProcessAttachments(note.Id, model.Attachments);
-        }
-
-        await _auditService.LogAsync("NoteCreated", userId, $"NoteId={note.Id}", GetClientIp());
-        return RedirectToAction(nameof(Details), new { id = note.Id });
-    }
-
-    [HttpGet]
-    public async Task<IActionResult> Edit(int id)
-    {
-        var userId = _userManager.GetUserId(User)!;
-        var note = await _noteService.GetNoteAsync(id, userId);
-        if (note is null || note.UserId != userId) return Forbid();
-
-        var vm = new NoteEditViewModel
-        {
-            Id = note.Id,
-            Title = note.Title,
-            Content = note.Content,
-            IsPublic = note.IsPublic
-        };
-        return View(vm);
-    }
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(int id, NoteEditViewModel model)
-    {
-        _logger.LogInformation("Notes/Edit/{NoteId} called by {UserId}", id, _userManager.GetUserId(User));
-
-        if (!ModelState.IsValid) return View(model);
-
-        var userId = _userManager.GetUserId(User)!;
-        var updated = await _noteService.UpdateNoteAsync(id, model, userId);
-
-        if (!updated) return Forbid();
-
-        if (model.NewAttachments is not null && model.NewAttachments.Count > 0)
-        {
-            await ProcessAttachments(id, model.NewAttachments);
-        }
-
-        await _auditService.LogAsync("NoteUpdated", userId, $"NoteId={id}", GetClientIp());
-        return RedirectToAction(nameof(Details), new { id });
-    }
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Delete(int id)
-    {
-        _logger.LogInformation("Notes/Delete/{NoteId} called by {UserId}", id, _userManager.GetUserId(User));
-
-        var userId = _userManager.GetUserId(User)!;
-        var isAdmin = User.IsInRole("Admin");
-        var deleted = await _noteService.DeleteNoteAsync(id, userId, isAdmin);
-
-        if (!deleted) return Forbid();
-
-        await _auditService.LogAsync("NoteDeleted", userId, $"NoteId={id}", GetClientIp());
-        return RedirectToAction(nameof(Index));
-    }
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> GenerateShareLink(int id, [FromServices] IShareLinkService shareLinkService)
-    {
-        var userId = _userManager.GetUserId(User)!;
-
-        try
-        {
-            var link = await shareLinkService.CreateShareLinkAsync(id, userId);
-            TempData["ShareUrl"] = Url.Action("ViewNote", "Share", new { token = link.Token }, Request.Scheme);
-        }
-        catch (InvalidOperationException)
-        {
-            return Forbid();
-        }
-
-        return RedirectToAction(nameof(Details), new { id });
-    }
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> RevokeShareLink(int id, [FromServices] IShareLinkService shareLinkService)
-    {
-        var userId = _userManager.GetUserId(User)!;
-        await shareLinkService.RevokeShareLinkAsync(id, userId);
-        return RedirectToAction(nameof(Details), new { id });
+        var notes = await _noteService.GetUserNotesAsync(GetCurrentUserId());
+        return View(notes);
     }
 
     [HttpGet]
     [AllowAnonymous]
     public async Task<IActionResult> Search(string? q)
     {
-        if (string.IsNullOrWhiteSpace(q))
-        {
-            return View(new NoteSearchResultViewModel { Query = string.Empty });
-        }
+        string? userId = User.Identity?.IsAuthenticated == true ? GetCurrentUserId() : null;
+        var results = await _noteService.SearchNotesAsync(q ?? string.Empty, userId);
+        ViewBag.Query = q;
+        return View(results);
+    }
 
-        var userId = _userManager.GetUserId(User);
-        var results = await _noteService.SearchNotesAsync(q, userId);
+    [HttpGet]
+    public IActionResult Create() => View(new NoteViewModel());
 
-        return View(new NoteSearchResultViewModel
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Create([Bind("Title,Content,IsPublic")] NoteViewModel model)
+    {
+        if (!ModelState.IsValid) return View(model);
+
+        var note = await _noteService.CreateNoteAsync(GetCurrentUserId(), model);
+        TempData["Success"] = "Note created successfully.";
+        return RedirectToAction(nameof(Detail), new { id = note.Id });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Edit(int id)
+    {
+        var note = await _noteService.GetNoteForEditAsync(id, GetCurrentUserId());
+        if (note is null) return NotFound();
+
+        return View(new NoteViewModel
         {
-            Query = q,
-            Results = results,
-            TotalCount = results.Count()
+            Title = note.Title,
+            Content = note.Content,
+            IsPublic = note.IsPublic
         });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Edit(int id, [Bind("Title,Content,IsPublic")] NoteViewModel model)
+    {
+        if (!ModelState.IsValid) return View(model);
+
+        var updated = await _noteService.UpdateNoteAsync(id, GetCurrentUserId(), model);
+        if (!updated) return NotFound();
+
+        TempData["Success"] = "Note updated successfully.";
+        return RedirectToAction(nameof(Detail), new { id });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var deleted = await _noteService.DeleteNoteAsync(id, GetCurrentUserId());
+        if (!deleted) return NotFound();
+
+        TempData["Success"] = "Note deleted.";
+        return RedirectToAction(nameof(Index));
     }
 
     [HttpGet]
     [AllowAnonymous]
-    public async Task<IActionResult> TopRated()
+    public async Task<IActionResult> Detail(int id)
     {
-        var notes = await _noteService.GetTopRatedNotesAsync(minRatings: 3);
-        return View(new NoteListViewModel { Notes = notes });
+        string? userId = User.Identity?.IsAuthenticated == true ? GetCurrentUserId() : null;
+        var detail = await _noteService.GetNoteDetailAsync(id, userId);
+        if (detail is null) return NotFound();
+        return View(detail);
     }
 
-    private async Task ProcessAttachments(int noteId, IFormFileCollection files)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UploadAttachment(int noteId, IFormFile file)
     {
-        foreach (var file in files)
+        if (file is null || file.Length == 0)
         {
-            if (!_fileStorage.IsAllowedFileType(file.FileName)) continue;
-
-            try
-            {
-                var (storedName, size) = await _fileStorage.StoreFileAsync(file);
-                await SaveAttachmentRecord(noteId, file, storedName, size);
-            }
-            catch (ArgumentException ex)
-            {
-                _logger.LogWarning("Attachment rejected for note {NoteId}: {Reason}", noteId, ex.Message);
-            }
+            TempData["Error"] = "No file provided.";
+            return RedirectToAction(nameof(Detail), new { id = noteId });
         }
-    }
 
-    private async Task SaveAttachmentRecord(int noteId, IFormFile file, string storedName, long size)
-    {
-        var attachment = new Attachment
+        var userId = GetCurrentUserId();
+        var success = await _noteService.AddAttachmentAsync(noteId, userId, file);
+
+        if (!success)
         {
-            NoteId = noteId,
-            OriginalFileName = Path.GetFileName(file.FileName),
-            StoredFileName = storedName,
-            ContentType = file.ContentType,
-            FileSizeBytes = size,
-            UploadedAt = DateTime.UtcNow
-        };
-        _db.Attachments.Add(attachment);
-        await _db.SaveChangesAsync();
+            TempData["Error"] = "File upload failed. Check extension and size limits.";
+        }
+        else
+        {
+            _audit.LogFileEvent("ATTACHMENT_UPLOADED", userId, $"NoteId={noteId}, File={file.FileName}");
+            TempData["Success"] = "Attachment uploaded.";
+        }
+
+        return RedirectToAction(nameof(Detail), new { id = noteId });
     }
 
-    private string? GetClientIp() =>
-        HttpContext.Connection.RemoteIpAddress?.ToString();
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteAttachment(int attachmentId, int noteId)
+    {
+        var userId = GetCurrentUserId();
+        var deleted = await _noteService.DeleteAttachmentAsync(attachmentId, userId);
+
+        if (deleted)
+        {
+            _audit.LogFileEvent("ATTACHMENT_DELETED", userId, $"AttachmentId={attachmentId}");
+            TempData["Success"] = "Attachment deleted.";
+        }
+        else
+        {
+            TempData["Error"] = "Could not delete attachment.";
+        }
+
+        return RedirectToAction(nameof(Detail), new { id = noteId });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> DownloadAttachment(int id)
+    {
+        var userId = GetCurrentUserId();
+        var attachment = await _noteService.GetAttachmentAsync(id, userId);
+        if (attachment is null) return NotFound();
+
+        var fileStorage = HttpContext.RequestServices.GetRequiredService<IFileStorageService>();
+        var (stream, contentType, fileName) = await fileStorage.GetFileAsync(
+            attachment.StoredFileName, attachment.OriginalFileName);
+
+        return File(stream, contentType, fileName);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> GenerateShareLink(int noteId)
+    {
+        try
+        {
+            var shareLink = await _shareLinkService.GenerateShareLinkAsync(noteId, GetCurrentUserId());
+            TempData["Success"] = "Share link generated.";
+        }
+        catch (UnauthorizedAccessException)
+        {
+            TempData["Error"] = "You do not own this note.";
+        }
+
+        return RedirectToAction(nameof(Detail), new { id = noteId });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RevokeShareLink(int noteId)
+    {
+        await _shareLinkService.RevokeShareLinkAsync(noteId, GetCurrentUserId());
+        TempData["Success"] = "Share link revoked.";
+        return RedirectToAction(nameof(Detail), new { id = noteId });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Rate([Bind("NoteId,Value,Comment")] RatingViewModel model)
+    {
+        if (!ModelState.IsValid)
+        {
+            TempData["Error"] = "Invalid rating.";
+            return RedirectToAction(nameof(Detail), new { id = model.NoteId });
+        }
+
+        var success = await _noteService.AddOrUpdateRatingAsync(GetCurrentUserId(), model);
+        TempData[success ? "Success" : "Error"] = success ? "Rating submitted." : "Could not submit rating.";
+        return RedirectToAction(nameof(Detail), new { id = model.NoteId });
+    }
 }

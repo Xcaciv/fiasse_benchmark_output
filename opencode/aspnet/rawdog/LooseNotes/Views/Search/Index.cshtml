@@ -1,0 +1,64 @@
+@model IEnumerable<SearchResultViewModel>
+@{
+    ViewData["Title"] = "Search Notes";
+}
+
+<h1>@ViewData["Title"]</h1>
+
+<div class="row mb-4">
+    <div class="col-md-8">
+        <form asp-action="Search" method="post" class="d-flex gap-2">
+            @Html.AntiForgeryToken()
+            <input type="text" name="query" class="form-control" placeholder="Search by title or content..." value="@ViewBag.Query" />
+            <button type="submit" class="btn btn-primary">Search</button>
+        </form>
+    </div>
+</div>
+
+@if (Model != null && Model.Any())
+{
+    <p>@Model.Count() result(s) found for "@ViewBag.Query"</p>
+    
+    <div class="row">
+        @foreach (var result in Model)
+        {
+            <div class="col-md-6 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <a asp-controller="Notes" asp-action="Details" asp-route-id="@result.Id">@result.Title</a>
+                        </h5>
+                        <p class="card-text text-muted">
+                            by @result.Author | @result.CreatedAt.ToString("MMM dd, yyyy")
+                        </p>
+                        <p class="card-text">@result.Excerpt</p>
+                        <div>
+                            @if (result.RatingCount > 0)
+                            {
+                                <span class="badge bg-warning text-dark">
+                                    @result.AverageRating.ToString("F1") / 5
+                                </span>
+                                <small class="text-muted">(@result.RatingCount ratings)</small>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">No ratings</span>
+                            }
+                            
+                            @if (result.IsPublic)
+                            {
+                                <span class="badge bg-success ms-2">Public</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+else if (ViewBag.Query != null)
+{
+    <div class="alert alert-info">
+        No notes found matching "@ViewBag.Query".
+    </div>
+}

@@ -1,34 +1,35 @@
 const { DataTypes } = require('sequelize');
+const { v4: uuidv4 } = require('uuid');
 const sequelize = require('../config/database');
 
 const Attachment = sequelize.define('Attachment', {
   id: {
     type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
+    defaultValue: () => uuidv4(),
     primaryKey: true,
   },
   noteId: {
     type: DataTypes.UUID,
     allowNull: false,
   },
-  originalFilename: {
+  originalName: {
     type: DataTypes.STRING,
     allowNull: false,
   },
-  storedFilename: {
+  storedName: {
     type: DataTypes.STRING,
     allowNull: false,
   },
-  mimeType: {
+  mimetype: {
     type: DataTypes.STRING,
     allowNull: false,
   },
-  fileSize: {
+  size: {
     type: DataTypes.INTEGER,
     allowNull: false,
   },
 }, {
-  tableName: 'attachments',
+  timestamps: true,
   updatedAt: false,
 });
 

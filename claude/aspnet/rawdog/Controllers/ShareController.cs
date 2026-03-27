@@ -13,24 +13,15 @@ public class ShareController : Controller
         _db = db;
     }
 
-    [HttpGet]
-    [ActionName("View")]
-    public async Task<IActionResult> ViewNote(string token)
+    public async Task<IActionResult> View(string token)
     {
-        if (string.IsNullOrWhiteSpace(token)) return NotFound();
-
-        var shareLink = await _db.ShareLinks
-            .Include(s => s.Note)
-                .ThenInclude(n => n!.User)
-            .Include(s => s.Note)
-                .ThenInclude(n => n!.Attachments)
-            .Include(s => s.Note)
-                .ThenInclude(n => n!.Ratings)
-                    .ThenInclude(r => r.User)
+        var link = await _db.ShareLinks
+            .Include(s => s.Note).ThenInclude(n => n!.User)
+            .Include(s => s.Note).ThenInclude(n => n!.Attachments)
+            .Include(s => s.Note).ThenInclude(n => n!.Ratings).ThenInclude(r => r.User)
             .FirstOrDefaultAsync(s => s.Token == token);
 
-        if (shareLink?.Note == null) return NotFound();
-
-        return View(shareLink.Note);
+        if (link == null) return NotFound();
+        return View(link.Note);
     }
 }

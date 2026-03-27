@@ -1,80 +1,120 @@
-<%- include('../partials/header', { title: title }) %>
+<%- include('../partials/header') %>
 
 <div class="row justify-content-center">
-  <div class="col-lg-9">
+  <div class="col-lg-8">
     <div class="d-flex justify-content-between align-items-center mb-4">
-      <h1 class="h3 mb-0"><i class="bi bi-pencil me-2"></i>Edit Note</h1>
-      <a href="/notes/<%= note.id %>" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-eye me-1"></i>View Note
+      <h1 class="mb-0"><i class="bi bi-pencil text-primary me-2"></i>Edit Note</h1>
+      <a href="/notes/<%= note.id %>" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to Note
       </a>
     </div>
-    <div class="card shadow-sm border-0">
+
+    <% if (typeof errors !== 'undefined' && errors && errors.length > 0) { %>
+    <div class="alert alert-danger">
+      <ul class="mb-0">
+        <% errors.forEach(function(err) { %>
+        <li><%= err.msg %></li>
+        <% }); %>
+      </ul>
+    </div>
+    <% } %>
+
+    <div class="card shadow-sm">
       <div class="card-body p-4">
-        <form action="/notes/<%= note.id %>/edit" method="POST" enctype="multipart/form-data">
+        <form action="/notes/<%= note.id %>/edit" method="POST" enctype="multipart/form-data" novalidate>
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
           <div class="mb-3">
             <label for="title" class="form-label fw-semibold">Title <span class="text-danger">*</span></label>
-            <input type="text" class="form-control form-control-lg" id="title" name="title"
-              value="<%= note.title %>" required maxlength="255">
+            <input
+              type="text"
+              id="title"
+              name="title"
+              class="form-control"
+              value="<%= note.title %>"
+              maxlength="255"
+              required
+            >
           </div>
+
           <div class="mb-3">
             <label for="content" class="form-label fw-semibold">Content <span class="text-danger">*</span></label>
-            <textarea class="form-control" id="content" name="content" rows="12" required><%= note.content %></textarea>
+            <textarea
+              id="content"
+              name="content"
+              class="form-control"
+              rows="10"
+              required
+            ><%= note.content %></textarea>
           </div>
+
           <div class="mb-3">
-            <label class="form-label fw-semibold">Visibility</label>
-            <div>
-              <div class="form-check form-check-inline">
-                <input class="form-check-input" type="radio" name="visibility" id="visPrivate" value="private"
-                  <%= note.visibility === 'private' ? 'checked' : '' %>>
-                <label class="form-check-label" for="visPrivate">
-                  <i class="bi bi-lock me-1"></i>Private
-                </label>
-              </div>
-              <div class="form-check form-check-inline">
-                <input class="form-check-input" type="radio" name="visibility" id="visPublic" value="public"
-                  <%= note.visibility === 'public' ? 'checked' : '' %>>
-                <label class="form-check-label" for="visPublic">
-                  <i class="bi bi-globe me-1"></i>Public
-                </label>
-              </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="isPublic" name="isPublic"
+                <%= note.isPublic ? 'checked' : '' %>>
+              <label class="form-check-label fw-semibold" for="isPublic">
+                <i class="bi bi-globe me-1 text-success"></i>Make this note public
+              </label>
             </div>
           </div>
 
-          <% if (attachments.length > 0) { %>
-            <div class="mb-3">
-              <label class="form-label fw-semibold">Current Attachments</label>
-              <ul class="list-group list-group-flush">
-                <% attachments.forEach(att => { %>
-                  <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                    <span>
-                      <i class="bi bi-paperclip me-2 text-muted"></i>
-                      <a href="/uploads/<%= att.stored_filename %>" target="_blank"><%= att.original_filename %></a>
-                      <span class="text-muted small ms-2">(<%= (att.file_size / 1024).toFixed(1) %> KB)</span>
-                    </span>
-                    <form action="/notes/<%= note.id %>/attachments/<%= att.id %>/delete" method="POST" class="d-inline">
-                      <button type="submit" class="btn btn-sm btn-outline-danger"
-                        onclick="return confirm('Delete this attachment?')">
-                        <i class="bi bi-trash"></i>
-                      </button>
-                    </form>
-                  </li>
-                <% }) %>
-              </ul>
+          <!-- Existing Attachments -->
+          <% if (note.Attachments && note.Attachments.length > 0) { %>
+          <div class="mb-3">
+            <label class="form-label fw-semibold"><i class="bi bi-paperclip me-1"></i>Existing Attachments</label>
+            <div class="list-group mb-2">
+              <% note.Attachments.forEach(function(att) { %>
+              <div class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                  <i class="bi bi-file-earmark me-2 text-muted"></i>
+                  <a href="/uploads/<%= att.storedName %>" download="<%= att.originalName %>" class="text-decoration-none">
+                    <%= att.originalName %>
+                  </a>
+                  <small class="text-muted ms-2">(<%= (att.size / 1024).toFixed(1) %> KB)</small>
+                </div>
+                <div class="form-check mb-0">
+                  <input class="form-check-input" type="checkbox" name="deleteAttachments" value="<%= att.id %>" id="del_<%= att.id %>">
+                  <label class="form-check-label text-danger small" for="del_<%= att.id %>">
+                    <i class="bi bi-trash me-1"></i>Delete
+                  </label>
+                </div>
+              </div>
+              <% }); %>
             </div>
+            <div class="form-text text-warning">
+              <i class="bi bi-exclamation-triangle me-1"></i>Checked attachments will be permanently deleted when you save.
+            </div>
+          </div>
           <% } %>
 
+          <!-- Add New Attachments -->
           <div class="mb-4">
-            <label for="attachments" class="form-label fw-semibold">Add Attachments</label>
-            <input type="file" class="form-control" id="attachments" name="attachments" multiple
-              accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg">
-            <div class="form-text">Allowed: PDF, DOC, DOCX, TXT, PNG, JPG, JPEG. Max 10 MB per file.</div>
+            <label for="attachments" class="form-label fw-semibold">
+              <i class="bi bi-plus-circle me-1"></i>Add New Attachments (optional)
+            </label>
+            <input
+              type="file"
+              id="attachments"
+              name="attachments"
+              class="form-control"
+              multiple
+              accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
+            >
+            <div class="form-text">
+              Allowed: PDF, DOC, DOCX, TXT, PNG, JPG, JPEG. Max 10MB per file.
+            </div>
           </div>
 
           <div class="d-flex gap-2">
             <button type="submit" class="btn btn-primary">
-              <i class="bi bi-check2 me-1"></i>Save Changes
+              <i class="bi bi-check-circle me-2"></i>Save Changes
             </button>
-            <a href="/notes/<%= note.id %>" class="btn btn-outline-secondary">Cancel</a>
+            <a href="/notes/<%= note.id %>" class="btn btn-outline-secondary">
+              <i class="bi bi-x-circle me-2"></i>Cancel
+            </a>
+            <a href="/notes/<%= note.id %>/delete" class="btn btn-outline-danger ms-auto">
+              <i class="bi bi-trash me-2"></i>Delete Note
+            </a>
           </div>
         </form>
       </div>

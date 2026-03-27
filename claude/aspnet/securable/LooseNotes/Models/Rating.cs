@@ -1,32 +1,32 @@
+// Rating.cs — 1–5 star rating with optional comment.
+// Integrity: Value is constrained via DataAnnotations and DB check constraint.
 using System.ComponentModel.DataAnnotations;
 
 namespace LooseNotes.Models;
 
-/// <summary>
-/// User rating (1–5) for a note, with optional comment.
-/// One rating per user per note enforced at DB and service level.
-/// </summary>
-public class Rating
+/// <summary>A star rating (1–5) and optional comment left by a user on a note.</summary>
+public sealed class Rating
 {
     public int Id { get; set; }
 
     public int NoteId { get; set; }
 
-    /// <summary>Server-assigned from ClaimsPrincipal (Derived Integrity).</summary>
-    public string RaterId { get; set; } = string.Empty;
+    public required string UserId { get; set; }
 
-    /// <summary>Valid range 1–5; validated at trust boundary before persist.</summary>
+    /// <summary>Rating value; must be 1–5. Validated at trust boundary in controller.</summary>
     [Range(1, 5)]
     public int Value { get; set; }
 
+    /// <summary>Optional comment — max length enforced at DB level.</summary>
     [MaxLength(1000)]
     public string? Comment { get; set; }
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    // Navigation
+    // ── Navigation ────────────────────────────────────────────────────────────
     public Note? Note { get; set; }
-    public ApplicationUser? Rater { get; set; }
+
+    public ApplicationUser? User { get; set; }
 }

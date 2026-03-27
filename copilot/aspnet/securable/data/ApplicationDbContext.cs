@@ -1,13 +1,9 @@
+using LooseNotes.Models;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-using LooseNotes.Models;
 
 namespace LooseNotes.Data;
 
-/// <summary>
-/// Primary EF Core context. Inherits Identity tables.
-/// Indexes defined here to keep schema decisions centralized (Modifiability).
-/// </summary>
 public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 {
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
@@ -19,61 +15,44 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Attachment> Attachments => Set<Attachment>();
     public DbSet<Rating> Ratings => Set<Rating>();
     public DbSet<ShareLink> ShareLinks => Set<ShareLink>();
-    public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
-        ConfigureNoteEntity(builder);
-        ConfigureRatingEntity(builder);
-        ConfigureShareLinkEntity(builder);
-        ConfigureActivityLogEntity(builder);
-    }
 
-    private static void ConfigureNoteEntity(ModelBuilder builder)
-    {
-        builder.Entity<Note>(e =>
+        builder.Entity<Note>(entity =>
         {
-            e.HasIndex(n => n.UserId);
-            e.HasIndex(n => n.IsPublic);
-            e.HasIndex(n => n.Title);
-            e.HasOne(n => n.User)
-             .WithMany(u => u.Notes)
-             .HasForeignKey(n => n.UserId)
-             .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(n => n.OwnerId);
+            entity.HasIndex(n => n.IsPublic);
+            entity.Property(n => n.Title).HasMaxLength(200).IsRequired();
+            entity.Property(n => n.Content).HasMaxLength(50000).IsRequired();
+            entity.Property(n => n.OwnerId).IsRequired();
         });
-    }
 
-    private static void ConfigureRatingEntity(ModelBuilder builder)
-    {
-        builder.Entity<Rating>(e =>
+        builder.Entity<Attachment>(entity =>
         {
-            // Enforce one rating per user per note at DB level (Integrity)
-            e.HasIndex(r => new { r.NoteId, r.UserId }).IsUnique();
-            e.HasOne(r => r.User)
-             .WithMany(u => u.Ratings)
-             .HasForeignKey(r => r.UserId)
-             .OnDelete(DeleteBehavior.Cascade);
+            entity.Property(a => a.OriginalFileName).HasMaxLength(260).IsRequired();
+            entity.Property(a => a.StoredFileName).HasMaxLength(260).IsRequired();
+            entity.Property(a => a.ContentType).HasMaxLength(100).IsRequired();
         });
-    }
 
-    private static void ConfigureShareLinkEntity(ModelBuilder builder)
-    {
-        builder.Entity<ShareLink>(e =>
+        builder.Entity<Rating>(entity =>
         {
-            // Token must be unique across all share links (Authenticity)
-            e.HasIndex(s => s.Token).IsUnique();
+            entity.HasIndex(r => r.NoteId);
+            entity.HasIndex(r => new { r.NoteId, r.RaterId }).IsUnique();
+            entity.Property(r => r.Value).IsRequired();
+            entity.Property(r => r.Comment).HasMaxLength(1000);
         });
-    }
 
-    private static void ConfigureActivityLogEntity(ModelBuilder builder)
-    {
-        builder.Entity<ActivityLog>(e =>
+        builder.Entity<ShareLink>(entity =>
         {
-            e.HasOne(a => a.User)
-             .WithMany(u => u.ActivityLogs)
-             .HasForeignKey(a => a.UserId)
-             .OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(s => s.Token).IsUnique();
+            entity.Property(s => s.Token).HasMaxLength(100).IsRequired();
+        });
+
+        builder.Entity<ApplicationUser>(entity =>
+        {
+            entity.Property(u => u.DisplayName).HasMaxLength(100);
         });
     }
 }

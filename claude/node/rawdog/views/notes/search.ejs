@@ -1,60 +1,74 @@
-<%- include('../partials/header', { title: title }) %>
+<%- include('../partials/header') %>
 
 <div class="mb-4">
-  <h1 class="h3 mb-3"><i class="bi bi-search me-2"></i>Search Notes</h1>
-  <form action="/notes/search" method="GET">
+  <h1 class="mb-3"><i class="bi bi-search text-primary me-2"></i>Search Notes</h1>
+
+  <form action="/notes/search" method="GET" class="mb-4">
     <div class="input-group input-group-lg">
-      <input type="text" class="form-control" name="q" value="<%= query %>"
-        placeholder="Search by title or content..." autofocus>
-      <button type="submit" class="btn btn-primary">
+      <input
+        type="text"
+        name="q"
+        class="form-control"
+        placeholder="Search by keyword in title or content..."
+        value="<%= q %>"
+        autocomplete="off"
+      >
+      <button class="btn btn-primary" type="submit">
         <i class="bi bi-search me-1"></i>Search
       </button>
     </div>
+    <div class="form-text mt-1">
+      <i class="bi bi-info-circle me-1"></i>Searches your own notes and all public notes.
+    </div>
   </form>
-</div>
 
-<% if (query) { %>
-  <p class="text-muted mb-3">
-    <%= notes.length %> result<%= notes.length !== 1 ? 's' : '' %> for "<strong><%= query %></strong>"
-  </p>
-<% } %>
-
-<% if (notes.length === 0 && query) { %>
-  <div class="text-center py-5">
-    <i class="bi bi-search display-4 text-muted mb-3"></i>
-    <p class="text-muted">No notes found matching "<%= query %>".</p>
+  <% if (q) { %>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">
+      Results for "<strong><%= q %></strong>"
+      <span class="badge bg-secondary ms-2"><%= results.length %> found</span>
+    </h5>
   </div>
-<% } else { %>
-  <div class="row g-3">
-    <% notes.forEach(note => { %>
-      <div class="col-md-6">
-        <div class="card h-100 note-card border-0 shadow-sm">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start mb-2">
-              <h5 class="card-title mb-0">
-                <a href="/notes/<%= note.id %>" class="text-decoration-none text-dark"><%= note.title %></a>
-              </h5>
-              <span class="badge ms-2 flex-shrink-0 visibility-badge-<%= note.visibility %>">
-                <%= note.visibility %>
-              </span>
-            </div>
-            <p class="note-excerpt mb-2">
-              <%= note.content.substring(0, 200) %><%= note.content.length > 200 ? '...' : '' %>
-            </p>
-            <div class="d-flex justify-content-between align-items-center small text-muted">
-              <span>By <strong><%= note.username %></strong></span>
-              <div>
-                <% if (note.avg_rating) { %>
-                  <span class="star-rating me-2"><i class="bi bi-star-fill"></i> <%= note.avg_rating %></span>
-                <% } %>
-                <%= new Date(note.created_at).toLocaleDateString() %>
-              </div>
-            </div>
-          </div>
+
+  <% if (results && results.length > 0) { %>
+  <div class="list-group">
+    <% results.forEach(function(note) { %>
+    <a href="/notes/<%= note.id %>" class="list-group-item list-group-item-action">
+      <div class="d-flex w-100 justify-content-between align-items-center mb-1">
+        <h5 class="mb-0 fw-semibold"><%= note.title %></h5>
+        <div class="ms-2 flex-shrink-0">
+          <% if (note.isPublic) { %>
+          <span class="badge bg-success me-1"><i class="bi bi-globe me-1"></i>Public</span>
+          <% } else { %>
+          <span class="badge bg-secondary me-1"><i class="bi bi-lock me-1"></i>Private</span>
+          <% } %>
+          <small class="text-muted"><%= new Date(note.createdAt).toLocaleDateString() %></small>
         </div>
       </div>
-    <% }) %>
+      <p class="mb-1 text-muted small"><%= note.content.substring(0, 200) %><%= note.content.length > 200 ? '...' : '' %></p>
+      <small class="text-muted">
+        <i class="bi bi-person me-1"></i>
+        <%= note.author ? note.author.username : 'Unknown' %>
+        <% if (user && note.userId === user.id) { %>
+        <span class="badge bg-info text-dark ms-1">Your note</span>
+        <% } %>
+      </small>
+    </a>
+    <% }); %>
   </div>
-<% } %>
+  <% } else { %>
+  <div class="text-center py-5">
+    <i class="bi bi-search display-3 text-muted mb-3"></i>
+    <h5 class="text-muted">No results found</h5>
+    <p class="text-muted">Try different keywords or check your spelling.</p>
+  </div>
+  <% } %>
+  <% } else { %>
+  <div class="text-center py-5 text-muted">
+    <i class="bi bi-search display-3 mb-3"></i>
+    <p class="lead">Enter a keyword above to search your notes and public notes.</p>
+  </div>
+  <% } %>
+</div>
 
 <%- include('../partials/footer') %>

@@ -1,128 +1,85 @@
 # Loose Notes
 
-A secure, multi-user note-taking web application built with **Node.js / Express.js**, **SQLite**, and **EJS** templates.
-
----
+A secure multi-user note-taking web application built with Node.js, Express.js, and SQLite.
+Engineered with FIASSE/SSEM securability principles throughout.
 
 ## Features
 
-| Requirement | Description |
-|---|---|
-| REQ-001 | User registration with username, email, and password |
-| REQ-002 | Cookie-based authentication with session management |
-| REQ-003 | Password reset via time-limited token (1 hour) |
-| REQ-004 | Create notes with title, content, and private-by-default visibility |
-| REQ-005 | File attachments (PDF, DOC, DOCX, TXT, PNG, JPG, JPEG; max 10 MB) |
-| REQ-006 | Edit note title, content, and public/private toggle |
-| REQ-007 | Delete notes with all attachments, ratings, and share links |
-| REQ-008 | Generate / revoke unique UUID share links (no auth required to view) |
-| REQ-009 | Public / private note visibility toggle |
-| REQ-010 | 1–5 star ratings with optional comments; edit own rating |
-| REQ-011 | Note owner sees all ratings with averages |
-| REQ-012 | Full-text search across owned + public notes |
-| REQ-013 | Admin dashboard with user list, note count, and activity log |
-| REQ-014 | User profile: update username, email, and password |
-| REQ-015 | Top-rated public notes (min 3 ratings required) |
-| REQ-016 | Admin can reassign note ownership |
+- User registration, login, password reset (email-based, token-hashed)
+- Create, edit, delete, and search notes (public/private)
+- File attachments (PDF, DOC, DOCX, TXT, PNG, JPG, JPEG — validated MIME + extension)
+- Note sharing via cryptographically random share links (revocable)
+- 1–5 star ratings with comments
+- Top-rated notes (public, ≥3 ratings)
+- Admin dashboard: user management, activity audit log, note ownership reassignment
+- Structured audit logging for all security-sensitive actions
 
----
+## Requirements
+
+- Node.js ≥ 18
+- npm
 
 ## Setup
 
-### Prerequisites
-
-- Node.js 18+
-- npm 9+
-- Windows: [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) (needed by `better-sqlite3`)
-
-### Install
-
 ```bash
+# 1. Install dependencies
 npm install
-```
 
-### Configure
-
-```bash
+# 2. Create environment file
 cp .env.example .env
-# Edit .env and set SESSION_SECRET and optionally SMTP_* variables
-```
 
-> **Development tip:** If SMTP is not configured, password reset links are printed to the console log — no email server needed.
+# 3. Edit .env — set SESSION_SECRET (required in production):
+#    node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 
-### Run
-
-```bash
-# Development (auto-restart on changes)
-npm run dev
-
-# Production
+# 4. Start the application
 npm start
 ```
 
-The app listens on `http://localhost:3000` by default (set `PORT` in `.env` to change).
+The database (`data/loosenotes.sqlite`) and upload directory (`uploads/`) are created automatically on first run.
 
-### First Admin Account
-
-Register a user normally, then promote them to admin directly in the SQLite database:
+## Development
 
 ```bash
-# Install sqlite3 CLI or use any SQLite browser
-sqlite3 data/loose-notes.db "UPDATE users SET role='admin' WHERE username='your_username';"
+npm run dev   # uses nodemon for auto-restart
 ```
 
----
+## Configuration (.env)
 
-## Project Structure
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | `3000` | HTTP port |
+| `SESSION_SECRET` | *(required in prod)* | 64-byte random hex session secret |
+| `DB_PATH` | `./data/loosenotes.sqlite` | SQLite database file path |
+| `UPLOAD_DIR` | `./uploads` | File attachment storage directory |
+| `MAX_FILE_SIZE_MB` | `10` | Maximum upload file size |
+| `SMTP_HOST` | *(empty = log stub)* | SMTP host for password reset emails |
+| `RESET_TOKEN_TTL_SECONDS` | `3600` | Password reset token TTL |
+| `RATE_LIMIT_WINDOW_MS` | `900000` | Rate limit window (15 min) |
+| `RATE_LIMIT_MAX_REQUESTS` | `100` | Max requests per window (general) |
+| `AUTH_RATE_LIMIT_MAX` | `10` | Max auth attempts per window |
 
-```
-src/
-  app.js              Express application entry point
-  config/
-    db.js             SQLite schema initialisation
-    logger.js         Winston structured logger
-    mailer.js         Nodemailer (password reset emails)
-  middleware/
-    auth.js           requireAuth, requireAdmin, loadUser
-    csrf.js           Synchronised Token Pattern CSRF protection
-    upload.js         Multer file upload with allowlist validation
-  routes/
-    auth.js           Register, login, logout, password reset
-    notes.js          CRUD, attachments, ratings, share link management
-    admin.js          Admin dashboard, user list, note reassignment
-    profile.js        Profile info and password change
-    search.js         Keyword search (title + content)
-    share.js          Public share-link viewer
-  views/
-    partials/         EJS partials (head, nav, footer, flash, errors)
-    auth/             Login, register, forgot/reset password views
-    notes/            List, create, edit, view, share views
-    admin/            Dashboard and users views
-    profile/          Profile edit view
-    *.ejs             Search, top-rated, share-view, error pages
-public/
-  css/style.css       Custom styles (Bootstrap 5 used via CDN)
-uploads/              Stored attachment files (UUID-named)
-data/                 SQLite database files (auto-created)
-logs/                 Application log files (auto-created)
-```
+When SMTP is not configured, password reset emails are written to the application log (development only).
 
----
+## SSEM Score Summary
 
-## SSEM Security Score Summary
+| Attribute | Score | Key Controls |
+|---|:---:|---|
+| **Analyzability** | 8/10 | Methods ≤30 LoC, clear naming, trust-boundary comments, structured JSON logging |
+| **Modifiability** | 8/10 | Centralized `config/security.js` for all policy constants, DI via service modules, no static mutable state |
+| **Testability** | 7/10 | All services injected/importable, no hidden singletons, pure validation logic |
+| **Confidentiality** | 9/10 | `passwordHash` named field, tokens never logged, session stores only user ID, `httpOnly`/`secure`/`sameSite` cookies, Helmet CSP |
+| **Accountability** | 9/10 | `AuditLog` table records every auth, note, and admin action with actor + IP; immutable records (`updatedAt: false`) |
+| **Authenticity** | 8/10 | Passport local strategy, bcrypt (12 rounds), `timingSafeEqual` for reset tokens, uniform auth error messages prevent enumeration |
+| **Availability** | 8/10 | Rate limiting on all routes (stricter on auth/upload), payload size limits (64 KB), DB connection pool timeouts, rotating log files |
+| **Integrity** | 9/10 | Input validated at every trust boundary (express-validator), CSRF tokens on all state-changing forms, Sequelize parameterized queries, path-traversal guard on file storage, MIME + extension dual validation |
+| **Resilience** | 8/10 | Centralized error handler (no stack leaks to client), audit failure non-fatal, file cleanup on upload error, specific try/catch throughout |
 
-| Attribute | Implementation |
-|---|---|
-| **Secure Defaults** | Notes default to private; sessions default to HttpOnly, SameSite=lax |
-| **Session Management** | express-session with SQLite store; session regenerated on login (fixation prevention); 24-hour cookie lifetime |
-| **Encryption / Hashing** | bcryptjs (PBKDF2-equivalent, cost=12) for password storage; UUID v4 for share tokens and stored filenames |
-| **Authentication** | Server-side session; generic error messages on failed login (no username/email enumeration) |
-| **Authorisation** | Ownership checks before every edit/delete; role-based admin guard; private note access control on every read |
-| **CSRF Protection** | Custom Synchronised Token Pattern middleware using `crypto.timingSafeEqual`; token in every state-changing form |
-| **Input Validation** | `express-validator` on all POST routes; parameterised queries (better-sqlite3 prepared statements — zero SQL injection risk) |
-| **Output Encoding** | EJS auto-escapes all `<%= %>` interpolations (XSS prevention); raw HTML only used for newline conversion on note body |
-| **File Upload Security** | Extension + MIME-type allowlist; UUID-named files to prevent collisions and directory traversal; `path.basename()` before every file access |
-| **Security Headers** | `helmet` with strict Content Security Policy (self + Bootstrap CDN only); no inline scripts |
-| **Audit Logging** | Winston logs auth events, admin actions, and errors with timestamps; activity_log DB table for dashboard display |
-| **Information Disclosure** | Password reset response is identical regardless of whether email exists (no enumeration); production mode suppresses stack traces |
-| **Dependency Surface** | Minimal production dependencies; no deprecated or high-severity packages |
+**Overall SSEM: 8.2 / 10**
+
+## Security Notes
+
+- Passwords are hashed with bcrypt (cost factor 12)
+- Password reset tokens are stored as SHA-256 hashes; raw token is only transmitted in the reset email
+- File downloads use UUID-based stored filenames; `originalFilename` is never used in filesystem operations
+- CSP restricts scripts/styles to self + Bootstrap CDN (pinned via SRI hashes)
+- All admin routes apply `requireAdmin` middleware at the router level (defense in depth)

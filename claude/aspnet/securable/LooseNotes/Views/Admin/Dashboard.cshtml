@@ -2,60 +2,60 @@
 @{
     ViewData["Title"] = "Admin Dashboard";
 }
+
 <h2>Admin Dashboard</h2>
 
 <div class="row g-3 mb-4">
-    <div class="col-md-4">
-        <div class="card text-center">
+    <div class="col-md-3">
+        <div class="card text-center bg-primary text-white">
             <div class="card-body">
-                <h5 class="card-title">Total Users</h5>
-                <p class="display-6">@Model.TotalUsers</p>
-                <a asp-action="Users" class="btn btn-sm btn-outline-primary">Manage Users</a>
+                <h3>@Model.TotalUsers</h3>
+                <p class="mb-0">Total Users</p>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card text-center">
+    <div class="col-md-3">
+        <div class="card text-center bg-success text-white">
             <div class="card-body">
-                <h5 class="card-title">Total Notes</h5>
-                <p class="display-6">@Model.TotalNotes</p>
+                <h3>@Model.TotalNotes</h3>
+                <p class="mb-0">Total Notes</p>
             </div>
         </div>
     </div>
 </div>
 
-<h4>Recent Activity</h4>
-@if (!Model.RecentActivity.Any())
+<div class="d-flex gap-2 mb-4">
+    <a asp-action="Users" class="btn btn-outline-primary">Manage Users</a>
+</div>
+
+<h5>Recent Activity</h5>
+@if (!Model.RecentAuditEntries.Any())
 {
-    <p class="text-muted">No activity recorded yet.</p>
+    <p class="text-muted">No audit entries yet.</p>
 }
 else
 {
-    <table class="table table-sm table-striped">
-        <thead>
-            <tr>
-                <th>Action</th>
-                <th>User</th>
-                <th>Resource</th>
-                <th>Result</th>
-                <th>Time</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var item in Model.RecentActivity)
-            {
+    <div class="table-responsive">
+        <table class="table table-sm table-hover">
+            <thead>
                 <tr>
-                    <td>@item.Action</td>
-                    <td>@(item.UserId ?? "anonymous")</td>
-                    <td>@item.ResourceType/@item.ResourceId</td>
-                    <td>
-                        <span class="badge @(item.Succeeded ? "bg-success" : "bg-danger")">
-                            @(item.Succeeded ? "OK" : "FAIL")
-                        </span>
-                    </td>
-                    <td>@item.OccurredAt.ToString("MMM d HH:mm")</td>
+                    <th>Time</th>
+                    <th>Actor</th>
+                    <th>Action</th>
+                    <th>Resource</th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var entry in Model.RecentAuditEntries)
+                {
+                    <tr>
+                        <td><small class="text-muted">@entry.OccurredAt.ToString("yyyy-MM-dd HH:mm")</small></td>
+                        <td>@(entry.ActorUserName ?? "—")</td>
+                        <td><code>@entry.Action</code></td>
+                        <td>@(entry.ResourceType)/@(entry.ResourceId)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 }

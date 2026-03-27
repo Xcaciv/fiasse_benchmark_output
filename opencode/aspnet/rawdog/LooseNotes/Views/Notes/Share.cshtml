@@ -1,0 +1,118 @@
+@model IEnumerable<LooseNotes.Models.ShareLink>
+@{
+    ViewData["Title"] = "Share Note";
+    var noteId = ViewBag.Note?.Id ?? 0;
+}
+
+<h1>Share: @ViewBag.Note?.Title</h1>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+}
+
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Share Link</h5>
+            </div>
+            <div class="card-body">
+                <p>Share this link with others to let them view your note:</p>
+                @if (!string.IsNullOrEmpty(ViewBag.ShareUrl))
+                {
+                    <div class="input-group mb-3">
+                        <input type="text" class="form-control" value="@ViewBag.ShareUrl" readonly id="shareUrl" />
+                        <button class="btn btn-outline-secondary" type="button" onclick="copyToClipboard()">Copy</button>
+                    </div>
+                }
+                <form asp-action="RegenerateShareLink" asp-route-id="@noteId" method="post" class="d-inline">
+                    <button type="submit" class="btn btn-outline-warning">Regenerate Link</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Share Link History</h5>
+            </div>
+            <div class="card-body">
+                @if (Model.Any())
+                {
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Created</th>
+                                <th>Status</th>
+                                <th>Access Count</th>
+                                <th>Last Accessed</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var link in Model)
+                            {
+                                <tr>
+                                    <td>@link.CreatedAt.ToString("MMM dd, yyyy HH:mm")</td>
+                                    <td>
+                                        @if (link.IsActive)
+                                        {
+                                            <span class="badge bg-success">Active</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">Revoked</span>
+                                        }
+                                    </td>
+                                    <td>@link.AccessCount</td>
+                                    <td>
+                                        @if (link.LastAccessedAt.HasValue)
+                                        {
+                                            @link.LastAccessedAt.Value.ToString("MMM dd, yyyy HH:mm")
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">Never</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (link.IsActive)
+                                        {
+                                            <form asp-action="RevokeShareLink" asp-route-token="@link.Token" asp-route-noteId="@noteId" method="post" class="d-inline">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">Revoke</button>
+                                            </form>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                else
+                {
+                    <p class="text-muted">No share links generated yet.</p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-3">
+    <a asp-action="Details" asp-route-id="@noteId" class="btn btn-outline-secondary">Back to Note</a>
+</div>
+
+@section Scripts {
+    <script>
+        function copyToClipboard() {
+            var copyText = document.getElementById("shareUrl");
+            copyText.select();
+            copyText.setSelectionRange(0, 99999);
+            navigator.clipboard.writeText(copyText.value);
+            alert("Link copied to clipboard!");
+        }
+    </script>
+}

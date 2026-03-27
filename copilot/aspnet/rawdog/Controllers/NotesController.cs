@@ -1,524 +1,375 @@
-using System.Security.Claims;
-using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using rawdog.Data;
-using rawdog.Models;
-using rawdog.Services;
-using rawdog.ViewModels;
+using LooseNotes.Data;
+using LooseNotes.Models;
+using LooseNotes.ViewModels.Notes;
 
-namespace rawdog.Controllers;
+namespace LooseNotes.Controllers;
 
-public sealed class NotesController(
-    ApplicationDbContext dbContext,
-    IFileStorageService fileStorageService,
-    IActivityLogger activityLogger) : Controller
+[Authorize]
+public class NotesController : Controller
 {
-    [Authorize]
-    public async Task<IActionResult> Index(CancellationToken cancellationToken)
+    private readonly ApplicationDbContext _context;
+    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IWebHostEnvironment _env;
+    private readonly IConfiguration _config;
+    private static readonly string[] AllowedExtensions = { ".pdf", ".doc", ".docx", ".txt", ".png", ".jpg", ".jpeg" };
+
+    public NotesController(
+        ApplicationDbContext context,
+        UserManager<ApplicationUser> userManager,
+        IWebHostEnvironment env,
+        IConfiguration config)
     {
-        var currentUserId = GetCurrentUserId();
-
-        var notes = await dbContext.Notes
-            .Where(note => note.OwnerId == currentUserId)
-            .OrderByDescending(note => note.UpdatedAtUtc ?? note.CreatedAtUtc)
-            .Select(note => new NoteListItemViewModel
-            {
-                Id = note.Id,
-                Title = note.Title,
-                IsPublic = note.IsPublic,
-                CreatedAtUtc = note.CreatedAtUtc,
-                UpdatedAtUtc = note.UpdatedAtUtc,
-                AttachmentCount = note.Attachments.Count,
-                RatingCount = note.Ratings.Count,
-                AverageRating = note.Ratings.Any() ? note.Ratings.Average(rating => (double)rating.Score) : 0
-            })
-            .ToListAsync(cancellationToken);
-
-        return View(new NoteIndexViewModel { Notes = notes });
+        _context = context;
+        _userManager = userManager;
+        _env = env;
+        _config = config;
     }
 
-    [Authorize]
-    public IActionResult Create()
+    private async Task LogActivityAsync(string action, string entityType, string entityId, string? userId)
     {
-        return View(new NoteFormViewModel());
+        _context.ActivityLogs.Add(new ActivityLog
+        {
+            Action = action,
+            EntityType = entityType,
+            EntityId = entityId,
+            Timestamp = DateTime.UtcNow,
+            UserId = userId
+        });
+        await _context.SaveChangesAsync();
     }
+
+    public async Task<IActionResult> Index(int page = 1)
+    {
+        var userId = _userManager.GetUserId(User);
+        const int pageSize = 10;
+
+        var query = _context.Notes
+            .Include(n => n.Ratings)
+            .Where(n => n.UserId == userId)
+            .OrderByDescending(n => n.UpdatedAt);
+
+        var total = await query.CountAsync();
+        var notes = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+
+        var vm = new NoteListViewModel
+        {
+            Notes = notes,
+            CurrentPage = page,
+            TotalPages = (int)Math.Ceiling(total / (double)pageSize)
+        };
+        return View(vm);
+    }
+
+    [HttpGet]
+    public IActionResult Create() => View(new NoteViewModel());
 
     [HttpPost]
-    [Authorize]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(NoteFormViewModel model, CancellationToken cancellationToken)
+    public async Task<IActionResult> Create(NoteViewModel model)
     {
-        if (!ModelState.IsValid)
-        {
-            return View(model);
-        }
+        if (!ModelState.IsValid) return View(model);
 
+        var userId = _userManager.GetUserId(User)!;
         var note = new Note
         {
-            Title = model.Title.Trim(),
-            Content = model.Content.Trim(),
+            Title = model.Title,
+            Content = model.Content,
             IsPublic = model.IsPublic,
-            CreatedAtUtc = DateTime.UtcNow,
-            OwnerId = GetCurrentUserId()
+            UserId = userId,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
 
-        dbContext.Notes.Add(note);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        _context.Notes.Add(note);
+        await _context.SaveChangesAsync();
 
-        if (model.UploadedFiles.Count > 0)
-        {
-            var storedFiles = await fileStorageService.SaveFilesAsync(model.UploadedFiles, cancellationToken);
-            foreach (var storedFile in storedFiles)
-            {
-                note.Attachments.Add(new NoteAttachment
-                {
-                    OriginalFileName = storedFile.OriginalFileName,
-                    StoredFileName = storedFile.StoredFileName,
-                    ContentType = storedFile.ContentType,
-                    SizeBytes = storedFile.SizeBytes,
-                    UploadedAtUtc = DateTime.UtcNow
-                });
-            }
+        await HandleFileUploads(model.Attachments, note.Id);
+        await LogActivityAsync("Create", "Note", note.Id.ToString(), userId);
 
-            await dbContext.SaveChangesAsync(cancellationToken);
-        }
-
-        await activityLogger.LogAsync("notes.create", $"Created note '{note.Title}'.", note.OwnerId, cancellationToken);
-        TempData["StatusMessage"] = "Note created successfully.";
-        return RedirectToAction(nameof(Details), new { id = note.Id });
-    }
-
-    [AllowAnonymous]
-    public async Task<IActionResult> Details(int id, CancellationToken cancellationToken)
-    {
-        var note = await dbContext.Notes
-            .Include(item => item.Owner)
-            .Include(item => item.Attachments)
-            .Include(item => item.Ratings)
-                .ThenInclude(rating => rating.User)
-            .Include(item => item.ShareLinks)
-            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
-
-        if (note is null)
-        {
-            return NotFound();
-        }
-
-        if (!CanViewNote(note))
-        {
-            return User.Identity?.IsAuthenticated == true ? Forbid() : Challenge();
-        }
-
-        return View(ToDetailsViewModel(note, attachmentToken: null, accessedByShareLink: false));
-    }
-
-    [Authorize]
-    public async Task<IActionResult> Edit(int id, CancellationToken cancellationToken)
-    {
-        var note = await dbContext.Notes
-            .Include(item => item.Attachments)
-            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
-
-        if (note is null)
-        {
-            return NotFound();
-        }
-
-        if (!CanManageNote(note))
-        {
-            return Forbid();
-        }
-
-        var model = new NoteFormViewModel
-        {
-            Id = note.Id,
-            Title = note.Title,
-            Content = note.Content,
-            IsPublic = note.IsPublic,
-            ExistingAttachments = note.Attachments
-                .OrderByDescending(attachment => attachment.UploadedAtUtc)
-                .Select(attachment => new NoteAttachmentItemViewModel
-                {
-                    Id = attachment.Id,
-                    OriginalFileName = attachment.OriginalFileName,
-                    ContentType = attachment.ContentType,
-                    SizeBytes = attachment.SizeBytes
-                })
-                .ToList()
-        };
-
-        return View(model);
-    }
-
-    [HttpPost]
-    [Authorize]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(int id, NoteFormViewModel model, CancellationToken cancellationToken)
-    {
-        var note = await dbContext.Notes
-            .Include(item => item.Attachments)
-            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
-
-        if (note is null)
-        {
-            return NotFound();
-        }
-
-        if (!CanManageNote(note))
-        {
-            return Forbid();
-        }
-
-        if (!ModelState.IsValid)
-        {
-            model.ExistingAttachments = note.Attachments
-                .Select(attachment => new NoteAttachmentItemViewModel
-                {
-                    Id = attachment.Id,
-                    OriginalFileName = attachment.OriginalFileName,
-                    ContentType = attachment.ContentType,
-                    SizeBytes = attachment.SizeBytes
-                })
-                .ToList();
-
-            return View(model);
-        }
-
-        note.Title = model.Title.Trim();
-        note.Content = model.Content.Trim();
-        note.IsPublic = model.IsPublic;
-        note.UpdatedAtUtc = DateTime.UtcNow;
-
-        if (model.UploadedFiles.Count > 0)
-        {
-            var storedFiles = await fileStorageService.SaveFilesAsync(model.UploadedFiles, cancellationToken);
-            foreach (var storedFile in storedFiles)
-            {
-                note.Attachments.Add(new NoteAttachment
-                {
-                    OriginalFileName = storedFile.OriginalFileName,
-                    StoredFileName = storedFile.StoredFileName,
-                    ContentType = storedFile.ContentType,
-                    SizeBytes = storedFile.SizeBytes,
-                    UploadedAtUtc = DateTime.UtcNow
-                });
-            }
-        }
-
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await activityLogger.LogAsync("notes.edit", $"Updated note '{note.Title}'.", note.OwnerId, cancellationToken);
-
-        TempData["StatusMessage"] = "Note updated successfully.";
-        return RedirectToAction(nameof(Details), new { id = note.Id });
-    }
-
-    [Authorize]
-    public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
-    {
-        var note = await dbContext.Notes
-            .Include(item => item.Owner)
-            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
-
-        if (note is null)
-        {
-            return NotFound();
-        }
-
-        if (!CanManageNote(note))
-        {
-            return Forbid();
-        }
-
-        return View(note);
-    }
-
-    [HttpPost, ActionName(nameof(Delete))]
-    [Authorize]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> DeleteConfirmed(int id, CancellationToken cancellationToken)
-    {
-        var note = await dbContext.Notes
-            .Include(item => item.Attachments)
-            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
-
-        if (note is null)
-        {
-            return NotFound();
-        }
-
-        if (!CanManageNote(note))
-        {
-            return Forbid();
-        }
-
-        foreach (var attachment in note.Attachments)
-        {
-            await fileStorageService.DeleteFileAsync(attachment.StoredFileName, cancellationToken);
-        }
-
-        dbContext.Notes.Remove(note);
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        await activityLogger.LogAsync("notes.delete", $"Deleted note '{note.Title}'.", GetCurrentUserId(), cancellationToken);
-        TempData["StatusMessage"] = "Note deleted permanently.";
+        TempData["Success"] = "Note created successfully.";
         return RedirectToAction(nameof(Index));
     }
 
-    [HttpPost]
-    [Authorize]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> DeleteAttachment(int noteId, int attachmentId, CancellationToken cancellationToken)
+    [HttpGet]
+    public async Task<IActionResult> Edit(int id)
     {
-        var attachment = await dbContext.Attachments
-            .Include(item => item.Note)
-            .SingleOrDefaultAsync(item => item.Id == attachmentId && item.NoteId == noteId, cancellationToken);
+        var userId = _userManager.GetUserId(User);
+        var note = await _context.Notes.Include(n => n.Attachments).FirstOrDefaultAsync(n => n.Id == id);
+        if (note == null) return NotFound();
+        if (note.UserId != userId && !User.IsInRole("Admin")) return Forbid();
 
-        if (attachment is null || attachment.Note is null)
-        {
-            return NotFound();
-        }
-
-        if (!CanManageNote(attachment.Note))
-        {
-            return Forbid();
-        }
-
-        await fileStorageService.DeleteFileAsync(attachment.StoredFileName, cancellationToken);
-        dbContext.Attachments.Remove(attachment);
-        attachment.Note.UpdatedAtUtc = DateTime.UtcNow;
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        TempData["StatusMessage"] = "Attachment removed.";
-        return RedirectToAction(nameof(Edit), new { id = noteId });
-    }
-
-    [HttpPost]
-    [Authorize]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> GenerateShareLink(int noteId, CancellationToken cancellationToken)
-    {
-        var note = await dbContext.Notes
-            .Include(item => item.ShareLinks)
-            .SingleOrDefaultAsync(item => item.Id == noteId, cancellationToken);
-
-        if (note is null)
-        {
-            return NotFound();
-        }
-
-        if (!CanManageNote(note))
-        {
-            return Forbid();
-        }
-
-        foreach (var link in note.ShareLinks.Where(link => link.RevokedAtUtc is null))
-        {
-            link.RevokedAtUtc = DateTime.UtcNow;
-        }
-
-        note.ShareLinks.Add(new NoteShareLink
-        {
-            Token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant(),
-            CreatedAtUtc = DateTime.UtcNow
-        });
-        note.UpdatedAtUtc = DateTime.UtcNow;
-
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await activityLogger.LogAsync("notes.share_generated", $"Generated a share link for note '{note.Title}'.", GetCurrentUserId(), cancellationToken);
-
-        TempData["StatusMessage"] = "A new share link has been generated.";
-        return RedirectToAction(nameof(Details), new { id = noteId });
-    }
-
-    [HttpPost]
-    [Authorize]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> RevokeShareLinks(int noteId, CancellationToken cancellationToken)
-    {
-        var note = await dbContext.Notes
-            .Include(item => item.ShareLinks)
-            .SingleOrDefaultAsync(item => item.Id == noteId, cancellationToken);
-
-        if (note is null)
-        {
-            return NotFound();
-        }
-
-        if (!CanManageNote(note))
-        {
-            return Forbid();
-        }
-
-        foreach (var link in note.ShareLinks.Where(link => link.RevokedAtUtc is null))
-        {
-            link.RevokedAtUtc = DateTime.UtcNow;
-        }
-
-        note.UpdatedAtUtc = DateTime.UtcNow;
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        await activityLogger.LogAsync("notes.share_revoked", $"Revoked share links for note '{note.Title}'.", GetCurrentUserId(), cancellationToken);
-        TempData["StatusMessage"] = "All active share links have been revoked.";
-        return RedirectToAction(nameof(Details), new { id = noteId });
-    }
-
-    [HttpPost]
-    [Authorize]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Rate(int noteId, NoteRatingInputViewModel input, CancellationToken cancellationToken)
-    {
-        if (!ModelState.IsValid)
-        {
-            TempData["ErrorMessage"] = "Please submit a rating between 1 and 5 stars.";
-            return RedirectToAction(nameof(Details), new { id = noteId });
-        }
-
-        var note = await dbContext.Notes.SingleOrDefaultAsync(item => item.Id == noteId, cancellationToken);
-        if (note is null)
-        {
-            return NotFound();
-        }
-
-        if (!CanViewNote(note))
-        {
-            return Forbid();
-        }
-
-        var currentUserId = GetCurrentUserId();
-        var existingRating = await dbContext.Ratings.SingleOrDefaultAsync(
-            rating => rating.NoteId == noteId && rating.UserId == currentUserId,
-            cancellationToken);
-
-        if (existingRating is null)
-        {
-            dbContext.Ratings.Add(new NoteRating
-            {
-                NoteId = noteId,
-                UserId = currentUserId,
-                Score = input.Score,
-                Comment = string.IsNullOrWhiteSpace(input.Comment) ? null : input.Comment.Trim(),
-                CreatedAtUtc = DateTime.UtcNow
-            });
-        }
-        else
-        {
-            existingRating.Score = input.Score;
-            existingRating.Comment = string.IsNullOrWhiteSpace(input.Comment) ? null : input.Comment.Trim();
-            existingRating.UpdatedAtUtc = DateTime.UtcNow;
-        }
-
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await activityLogger.LogAsync("notes.rate", $"Rated note '{note.Title}'.", currentUserId, cancellationToken);
-
-        TempData["StatusMessage"] = existingRating is null ? "Your rating has been added." : "Your rating has been updated.";
-        return RedirectToAction(nameof(Details), new { id = noteId });
-    }
-
-    [AllowAnonymous]
-    public async Task<IActionResult> DownloadAttachment(int id, string? token, CancellationToken cancellationToken)
-    {
-        var attachment = await dbContext.Attachments
-            .Include(item => item.Note)
-            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
-
-        if (attachment is null || attachment.Note is null)
-        {
-            return NotFound();
-        }
-
-        var hasShareAccess = !string.IsNullOrWhiteSpace(token) && await dbContext.ShareLinks.AnyAsync(
-            link => link.Token == token && link.NoteId == attachment.NoteId && link.RevokedAtUtc == null,
-            cancellationToken);
-
-        if (!(CanViewNote(attachment.Note) || hasShareAccess))
-        {
-            return User.Identity?.IsAuthenticated == true ? Forbid() : Challenge();
-        }
-
-        return PhysicalFile(fileStorageService.GetAbsolutePath(attachment.StoredFileName), attachment.ContentType, attachment.OriginalFileName);
-    }
-
-    private NoteDetailsViewModel ToDetailsViewModel(Note note, string? attachmentToken, bool accessedByShareLink)
-    {
-        var currentUserId = User.Identity?.IsAuthenticated == true ? GetCurrentUserId() : null;
-        var isManager = CanManageNote(note);
-        var activeShareLink = note.ShareLinks.FirstOrDefault(link => link.RevokedAtUtc is null);
-        var currentRating = note.Ratings.FirstOrDefault(rating => rating.UserId == currentUserId);
-
-        return new NoteDetailsViewModel
+        var vm = new NoteViewModel
         {
             Id = note.Id,
             Title = note.Title,
             Content = note.Content,
-            Author = note.Owner?.UserName ?? "Unknown",
-            IsPublic = note.IsPublic,
-            CreatedAtUtc = note.CreatedAtUtc,
-            UpdatedAtUtc = note.UpdatedAtUtc,
-            AverageRating = note.Ratings.Count == 0 ? 0 : note.Ratings.Average(rating => rating.Score),
-            RatingCount = note.Ratings.Count,
-            Attachments = note.Attachments
-                .OrderByDescending(attachment => attachment.UploadedAtUtc)
-                .Select(attachment => new NoteAttachmentItemViewModel
-                {
-                    Id = attachment.Id,
-                    OriginalFileName = attachment.OriginalFileName,
-                    ContentType = attachment.ContentType,
-                    SizeBytes = attachment.SizeBytes
-                })
-                .ToList(),
-            Ratings = note.Ratings
-                .OrderByDescending(rating => rating.UpdatedAtUtc ?? rating.CreatedAtUtc)
-                .Select(rating => new NoteRatingItemViewModel
-                {
-                    Score = rating.Score,
-                    Comment = rating.Comment,
-                    UserName = rating.User?.UserName ?? "Unknown",
-                    CreatedAtUtc = rating.UpdatedAtUtc ?? rating.CreatedAtUtc
-                })
-                .ToList(),
-            CanEdit = isManager,
-            CanDelete = isManager,
-            CanManageShareLinks = isManager,
-            CanRate = User.Identity?.IsAuthenticated == true && !accessedByShareLink,
-            ActiveShareUrl = activeShareLink is null
-                ? null
-                : Url.Action("Details", "Shared", new { token = activeShareLink.Token }, Request.Scheme),
-            RatingInput = new NoteRatingInputViewModel
-            {
-                Score = currentRating?.Score ?? 5,
-                Comment = currentRating?.Comment
-            },
-            AccessedByShareLink = accessedByShareLink,
-            AttachmentToken = attachmentToken
+            IsPublic = note.IsPublic
         };
+        ViewBag.ExistingAttachments = note.Attachments;
+        return View(vm);
     }
 
-    private bool CanViewNote(Note note)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Edit(int id, NoteViewModel model)
     {
-        if (note.IsPublic)
+        if (!ModelState.IsValid) return View(model);
+
+        var userId = _userManager.GetUserId(User);
+        var note = await _context.Notes.Include(n => n.Attachments).FirstOrDefaultAsync(n => n.Id == id);
+        if (note == null) return NotFound();
+        if (note.UserId != userId && !User.IsInRole("Admin")) return Forbid();
+
+        note.Title = model.Title;
+        note.Content = model.Content;
+        note.IsPublic = model.IsPublic;
+        note.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+        await HandleFileUploads(model.Attachments, note.Id);
+        await LogActivityAsync("Edit", "Note", note.Id.ToString(), userId);
+
+        TempData["Success"] = "Note updated successfully.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var userId = _userManager.GetUserId(User);
+        var note = await _context.Notes.FirstOrDefaultAsync(n => n.Id == id);
+        if (note == null) return NotFound();
+        if (note.UserId != userId && !User.IsInRole("Admin")) return Forbid();
+        return View(note);
+    }
+
+    [HttpPost, ActionName("Delete")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteConfirmed(int id)
+    {
+        var userId = _userManager.GetUserId(User);
+        var note = await _context.Notes.Include(n => n.Attachments).FirstOrDefaultAsync(n => n.Id == id);
+        if (note == null) return NotFound();
+        if (note.UserId != userId && !User.IsInRole("Admin")) return Forbid();
+
+        foreach (var att in note.Attachments)
         {
-            return true;
+            var filePath = Path.Combine(_env.WebRootPath, "uploads", att.StoredFileName);
+            if (System.IO.File.Exists(filePath))
+                System.IO.File.Delete(filePath);
         }
 
-        if (User.Identity?.IsAuthenticated != true)
+        _context.Notes.Remove(note);
+        await _context.SaveChangesAsync();
+        await LogActivityAsync("Delete", "Note", id.ToString(), userId);
+
+        TempData["Success"] = "Note deleted.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    [AllowAnonymous]
+    public async Task<IActionResult> Details(int id)
+    {
+        var userId = _userManager.GetUserId(User);
+        var note = await _context.Notes
+            .Include(n => n.User)
+            .Include(n => n.Attachments)
+            .Include(n => n.Ratings).ThenInclude(r => r.User)
+            .Include(n => n.ShareLinks)
+            .FirstOrDefaultAsync(n => n.Id == id);
+
+        if (note == null) return NotFound();
+
+        bool canView = note.IsPublic || note.UserId == userId || User.IsInRole("Admin");
+        if (!canView) return Forbid();
+
+        ViewBag.CurrentUserId = userId;
+        ViewBag.UserRating = note.Ratings.FirstOrDefault(r => r.UserId == userId);
+        return View(note);
+    }
+
+    [AllowAnonymous]
+    public async Task<IActionResult> SharedView(string token)
+    {
+        var shareLink = await _context.ShareLinks
+            .Include(s => s.Note).ThenInclude(n => n!.User)
+            .Include(s => s.Note).ThenInclude(n => n!.Attachments)
+            .Include(s => s.Note).ThenInclude(n => n!.Ratings)
+            .FirstOrDefaultAsync(s => s.Token == token);
+
+        if (shareLink == null || shareLink.Note == null) return NotFound();
+
+        ViewBag.IsSharedView = true;
+        return View("Details", shareLink.Note);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Share(int id)
+    {
+        var userId = _userManager.GetUserId(User);
+        var note = await _context.Notes.Include(n => n.ShareLinks).FirstOrDefaultAsync(n => n.Id == id);
+        if (note == null) return NotFound();
+        if (note.UserId != userId && !User.IsInRole("Admin")) return Forbid();
+
+        var baseUrl = $"{Request.Scheme}://{Request.Host}";
+        var vm = new ShareViewModel
         {
-            return false;
+            Note = note,
+            ShareLinks = note.ShareLinks.ToList(),
+            BaseUrl = baseUrl
+        };
+        return View(vm);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RegenerateShareLink(int id)
+    {
+        var userId = _userManager.GetUserId(User);
+        var note = await _context.Notes.FirstOrDefaultAsync(n => n.Id == id);
+        if (note == null) return NotFound();
+        if (note.UserId != userId && !User.IsInRole("Admin")) return Forbid();
+
+        var link = new ShareLink
+        {
+            Token = Guid.NewGuid().ToString("N"),
+            NoteId = id,
+            CreatedAt = DateTime.UtcNow
+        };
+        _context.ShareLinks.Add(link);
+        await _context.SaveChangesAsync();
+
+        return RedirectToAction(nameof(Share), new { id });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RevokeShareLink(int id, int linkId)
+    {
+        var userId = _userManager.GetUserId(User);
+        var note = await _context.Notes.FirstOrDefaultAsync(n => n.Id == id);
+        if (note == null) return NotFound();
+        if (note.UserId != userId && !User.IsInRole("Admin")) return Forbid();
+
+        var link = await _context.ShareLinks.FirstOrDefaultAsync(s => s.Id == linkId && s.NoteId == id);
+        if (link != null)
+        {
+            _context.ShareLinks.Remove(link);
+            await _context.SaveChangesAsync();
         }
 
-        return note.OwnerId == GetCurrentUserId() || User.IsInRole("Admin");
+        return RedirectToAction(nameof(Share), new { id });
     }
 
-    private bool CanManageNote(Note note)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Rate(RatingViewModel model)
     {
-        return User.Identity?.IsAuthenticated == true &&
-               (note.OwnerId == GetCurrentUserId() || User.IsInRole("Admin"));
+        if (!ModelState.IsValid) return BadRequest();
+
+        var userId = _userManager.GetUserId(User)!;
+        var note = await _context.Notes.FirstOrDefaultAsync(n => n.Id == model.NoteId);
+        if (note == null) return NotFound();
+
+        var existing = await _context.Ratings.FirstOrDefaultAsync(r => r.NoteId == model.NoteId && r.UserId == userId);
+        if (existing != null)
+        {
+            existing.Stars = model.Stars;
+            existing.Comment = model.Comment;
+            existing.UpdatedAt = DateTime.UtcNow;
+        }
+        else
+        {
+            _context.Ratings.Add(new Rating
+            {
+                NoteId = model.NoteId,
+                UserId = userId,
+                Stars = model.Stars,
+                Comment = model.Comment,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+        }
+
+        await _context.SaveChangesAsync();
+        TempData["Success"] = "Rating saved.";
+        return RedirectToAction(nameof(Details), new { id = model.NoteId });
     }
 
-    private string GetCurrentUserId()
+    [AllowAnonymous]
+    public async Task<IActionResult> DownloadAttachment(int id)
     {
-        return User.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? throw new InvalidOperationException("The current user identifier is not available.");
+        var attachment = await _context.Attachments.Include(a => a.Note).FirstOrDefaultAsync(a => a.Id == id);
+        if (attachment == null || attachment.Note == null) return NotFound();
+
+        var userId = _userManager.GetUserId(User);
+        bool canAccess = attachment.Note.IsPublic || attachment.Note.UserId == userId || User.IsInRole("Admin");
+        if (!canAccess) return Forbid();
+
+        var filePath = Path.Combine(_env.WebRootPath, "uploads", attachment.StoredFileName);
+        if (!System.IO.File.Exists(filePath)) return NotFound();
+
+        var bytes = await System.IO.File.ReadAllBytesAsync(filePath);
+        return File(bytes, attachment.ContentType, attachment.FileName);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteAttachment(int id)
+    {
+        var userId = _userManager.GetUserId(User);
+        var attachment = await _context.Attachments.Include(a => a.Note).FirstOrDefaultAsync(a => a.Id == id);
+        if (attachment == null || attachment.Note == null) return NotFound();
+        if (attachment.Note.UserId != userId && !User.IsInRole("Admin")) return Forbid();
+
+        var filePath = Path.Combine(_env.WebRootPath, "uploads", attachment.StoredFileName);
+        if (System.IO.File.Exists(filePath))
+            System.IO.File.Delete(filePath);
+
+        var noteId = attachment.NoteId;
+        _context.Attachments.Remove(attachment);
+        await _context.SaveChangesAsync();
+
+        return RedirectToAction(nameof(Edit), new { id = noteId });
+    }
+
+    private async Task HandleFileUploads(List<IFormFile> files, int noteId)
+    {
+        if (files == null || !files.Any()) return;
+
+        var uploadPath = Path.Combine(_env.WebRootPath, "uploads");
+        Directory.CreateDirectory(uploadPath);
+
+        long maxSize = (_config.GetValue<int>("FileStorage:MaxFileSizeMB", 10)) * 1024L * 1024L;
+
+        foreach (var file in files)
+        {
+            if (file.Length == 0) continue;
+            if (file.Length > maxSize) continue;
+
+            var ext = Path.GetExtension(file.FileName).ToLower();
+            if (!AllowedExtensions.Contains(ext)) continue;
+
+            var storedName = $"{Guid.NewGuid()}{ext}";
+            var fullPath = Path.Combine(uploadPath, storedName);
+
+            using var stream = new FileStream(fullPath, FileMode.Create);
+            await file.CopyToAsync(stream);
+
+            _context.Attachments.Add(new Attachment
+            {
+                FileName = file.FileName,
+                StoredFileName = storedName,
+                ContentType = file.ContentType,
+                FileSize = file.Length,
+                UploadedAt = DateTime.UtcNow,
+                NoteId = noteId
+            });
+        }
+        await _context.SaveChangesAsync();
     }
 }

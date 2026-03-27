@@ -1,25 +1,51 @@
-@model NoteFormViewModel
+@model LooseNotes.ViewModels.Notes.NoteViewModel
 @{
     ViewData["Title"] = "Edit Note";
+    var existingAttachments = ViewBag.ExistingAttachments as IEnumerable<LooseNotes.Models.Attachment> ?? new List<LooseNotes.Models.Attachment>();
 }
-
-<div class="row justify-content-center">
-    <div class="col-xl-9">
-        <div class="card shadow-sm">
-            <div class="card-body p-4">
-                <h1 class="h3 mb-3">Edit note</h1>
-                <form asp-action="Edit" asp-route-id="@Model.Id" method="post" enctype="multipart/form-data" novalidate>
-                    <partial name="_NoteForm" model="Model" />
-                    <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-primary">Save changes</button>
-                        <a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary">Back</a>
-                    </div>
-                </form>
+<h2>Edit Note</h2>
+<div class="row">
+    <div class="col-md-8">
+        <form asp-action="Edit" asp-route-id="@Model.Id" method="post" enctype="multipart/form-data">
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" style="display:none"></div>
+            <div class="mb-3">
+                <label asp-for="Title" class="form-label"></label>
+                <input asp-for="Title" class="form-control" />
+                <span asp-validation-for="Title" class="text-danger small"></span>
             </div>
-        </div>
+            <div class="mb-3">
+                <label asp-for="Content" class="form-label"></label>
+                <textarea asp-for="Content" class="form-control" rows="10"></textarea>
+                <span asp-validation-for="Content" class="text-danger small"></span>
+            </div>
+            <div class="mb-3 form-check">
+                <input asp-for="IsPublic" class="form-check-input" />
+                <label asp-for="IsPublic" class="form-check-label">Make this note public</label>
+            </div>
+            @if (existingAttachments.Any())
+            {
+                <div class="mb-3">
+                    <label class="form-label">Existing Attachments</label>
+                    <ul class="list-group mb-2">
+                        @foreach (var att in existingAttachments)
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <a asp-controller="Notes" asp-action="DownloadAttachment" asp-route-id="@att.Id">@att.FileName</a>
+                                <form asp-action="DeleteAttachment" asp-route-id="@att.Id" method="post" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this attachment?')">Remove</button>
+                                </form>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            }
+            <div class="mb-3">
+                <label class="form-label">Add Attachments</label>
+                <input type="file" name="Attachments" class="form-control" multiple accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" />
+            </div>
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <a asp-action="Index" class="btn btn-secondary ms-2">Cancel</a>
+        </form>
     </div>
 </div>
-
-@section Scripts {
-    <partial name="_ValidationScriptsPartial" />
-}
+@section Scripts { <partial name="_ValidationScripts" /> }

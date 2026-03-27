@@ -1,15 +1,14 @@
-<%- include('../partials/header') %>
 <div class="d-flex justify-content-between align-items-center mb-4">
-  <h2><i class="bi bi-people me-2"></i>User Management</h2>
-  <a href="/admin" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Dashboard</a>
+  <h2>Manage Users</h2>
+  <a href="/admin" class="btn btn-outline-secondary">← Dashboard</a>
 </div>
-<form method="GET" action="/admin/users" class="mb-4">
-  <div class="input-group">
-    <input type="text" name="q" class="form-control" placeholder="Search by username or email…" value="<%= typeof q !== 'undefined' ? q : '' %>" />
-    <button class="btn btn-primary" type="submit">Search</button>
-    <% if (q) { %><a href="/admin/users" class="btn btn-outline-secondary">Clear</a><% } %>
-  </div>
+
+<form action="/admin/users" method="GET" class="d-flex gap-2 mb-4">
+  <input type="text" name="search" class="form-control" placeholder="Search by username or email…" value="<%= search %>">
+  <button type="submit" class="btn btn-primary">Search</button>
+  <% if (search) { %><a href="/admin/users" class="btn btn-outline-secondary">Clear</a><% } %>
 </form>
+
 <div class="card shadow-sm">
   <div class="table-responsive">
     <table class="table table-hover mb-0">
@@ -24,27 +23,50 @@
         </tr>
       </thead>
       <tbody>
-        <% users.forEach(u => { %>
-          <tr>
-            <td><%= u.username %></td>
-            <td><%= u.email %></td>
-            <td><span class="badge <%= u.role === 'admin' ? 'bg-danger' : 'bg-secondary' %>"><%= u.role %></span></td>
-            <td><%= noteCounts[u.id] || 0 %></td>
-            <td><%= new Date(u.createdAt).toLocaleDateString() %></td>
-            <td>
-              <form method="POST" action="/admin/users/<%= u.id %>/toggle-role" class="d-inline">
-                <button class="btn btn-sm btn-outline-warning" title="Toggle role"><i class="bi bi-arrow-repeat"></i></button>
-              </form>
-              <% if (u.id !== currentUser.id) { %>
-                <form method="POST" action="/admin/users/<%= u.id %>/delete" class="d-inline" onsubmit="return confirm('Delete user <%= u.username %>?')">
-                  <button class="btn btn-sm btn-outline-danger" title="Delete user"><i class="bi bi-trash"></i></button>
-                </form>
-              <% } %>
-            </td>
-          </tr>
-        <% }) %>
+        <% if (users.length === 0) { %>
+          <tr><td colspan="6" class="text-center text-muted py-3">No users found.</td></tr>
+        <% } else { %>
+          <% users.forEach(user => { %>
+            <tr>
+              <td><strong><%= user.username %></strong></td>
+              <td><%= user.email %></td>
+              <td><span class="badge bg-<%= user.role === 'admin' ? 'warning text-dark' : 'secondary' %>"><%= user.role %></span></td>
+              <td><%= user.Notes ? user.Notes.length : 0 %></td>
+              <td><%= new Date(user.createdAt).toLocaleDateString() %></td>
+              <td>
+                <button class="btn btn-sm btn-outline-primary" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#notes-<%= user.id %>">
+                  View Notes
+                </button>
+              </td>
+            </tr>
+            <tr class="collapse" id="notes-<%= user.id %>">
+              <td colspan="6" class="bg-light p-3">
+                <% if (user.Notes && user.Notes.length > 0) { %>
+                  <table class="table table-sm mb-0">
+                    <thead><tr><th>Note ID</th><th>Reassign To User ID</th><th></th></tr></thead>
+                    <tbody>
+                      <% user.Notes.forEach(note => { %>
+                        <tr>
+                          <td><small><%= note.id %></small></td>
+                          <td>
+                            <form action="/admin/notes/<%= note.id %>/reassign" method="POST" class="d-flex gap-2">
+                              <input type="text" name="newUserId" class="form-control form-control-sm" placeholder="Target User ID" required>
+                              <button type="submit" class="btn btn-sm btn-warning">Reassign</button>
+                            </form>
+                          </td>
+                        </tr>
+                      <% }) %>
+                    </tbody>
+                  </table>
+                <% } else { %>
+                  <em class="text-muted">No notes.</em>
+                <% } %>
+              </td>
+            </tr>
+          <% }) %>
+        <% } %>
       </tbody>
     </table>
   </div>
 </div>
-<%- include('../partials/footer') %>

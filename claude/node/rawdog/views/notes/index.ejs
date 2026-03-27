@@ -1,93 +1,72 @@
-<%- include('../partials/header', { title: title }) %>
+<%- include('../partials/header') %>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-  <h1 class="h3 mb-0"><i class="bi bi-journals me-2"></i>My Notes</h1>
+  <h1 class="mb-0"><i class="bi bi-journal-richtext text-primary me-2"></i>My Notes</h1>
   <a href="/notes/create" class="btn btn-primary">
-    <i class="bi bi-plus-circle me-1"></i>New Note
+    <i class="bi bi-plus-circle me-2"></i>New Note
   </a>
 </div>
 
-<% if (notes.length === 0) { %>
-  <div class="text-center py-5">
-    <i class="bi bi-journal-x display-4 text-muted mb-3"></i>
-    <p class="text-muted">You have no notes yet.</p>
-    <a href="/notes/create" class="btn btn-primary">Create Your First Note</a>
-  </div>
-<% } else { %>
-  <div class="row g-3">
-    <% notes.forEach(note => { %>
-      <div class="col-md-6 col-lg-4">
-        <div class="card h-100 note-card border-0 shadow-sm">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start mb-2">
-              <h5 class="card-title mb-0">
-                <a href="/notes/<%= note.id %>" class="text-decoration-none text-dark"><%= note.title %></a>
-              </h5>
-              <span class="badge ms-2 flex-shrink-0 visibility-badge-<%= note.visibility %>">
-                <%= note.visibility %>
-              </span>
-            </div>
-            <p class="note-excerpt mb-2">
-              <%= note.content.substring(0, 150) %><%= note.content.length > 150 ? '...' : '' %>
-            </p>
-            <div class="d-flex justify-content-between align-items-center mt-auto small text-muted">
-              <span>
-                <% if (note.attachment_count > 0) { %>
-                  <i class="bi bi-paperclip me-1"></i><%= note.attachment_count %>
-                <% } %>
-                <% if (note.avg_rating) { %>
-                  <span class="ms-1 star-rating"><i class="bi bi-star-fill"></i></span>
-                  <%= note.avg_rating %> (<%= note.rating_count %>)
-                <% } %>
-              </span>
-              <span><%= new Date(note.updated_at).toLocaleDateString() %></span>
-            </div>
-          </div>
-          <div class="card-footer bg-transparent border-0 pt-0">
-            <div class="d-flex gap-2">
-              <a href="/notes/<%= note.id %>/edit" class="btn btn-sm btn-outline-secondary flex-fill">
-                <i class="bi bi-pencil me-1"></i>Edit
-              </a>
-              <button class="btn btn-sm btn-outline-danger"
-                onclick="confirmDelete('/notes/<%= note.id %>/delete', '<%= note.title.replace(/'/g, `\\'`) %>')">
-                <i class="bi bi-trash"></i>
-              </button>
-            </div>
-          </div>
+<% if (notes && notes.length > 0) { %>
+<div class="row g-3">
+  <% notes.forEach(function(note) { %>
+  <div class="col-md-6 col-lg-4">
+    <div class="card h-100 shadow-sm">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <h5 class="card-title mb-0">
+            <a href="/notes/<%= note.id %>" class="text-decoration-none text-dark">
+              <%= note.title %>
+            </a>
+          </h5>
+          <% if (note.isPublic) { %>
+          <span class="badge bg-success ms-2 flex-shrink-0"><i class="bi bi-globe me-1"></i>Public</span>
+          <% } else { %>
+          <span class="badge bg-secondary ms-2 flex-shrink-0"><i class="bi bi-lock me-1"></i>Private</span>
+          <% } %>
         </div>
-      </div>
-    <% }) %>
-  </div>
-<% } %>
 
-<!-- Delete confirmation modal -->
-<div class="modal fade" id="deleteModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Confirm Delete</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <p class="card-text text-muted small">
+          <%= note.content.substring(0, 120) %><%= note.content.length > 120 ? '...' : '' %>
+        </p>
       </div>
-      <div class="modal-body">
-        Are you sure you want to delete "<span id="deleteNoteName"></span>"?
-        This action cannot be undone and will remove all attachments and ratings.
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <form id="deleteForm" method="POST" class="d-inline">
-          <button type="submit" class="btn btn-danger">Delete</button>
-        </form>
+
+      <div class="card-footer bg-transparent d-flex justify-content-between align-items-center">
+        <div class="text-muted small">
+          <% if (note.ratingCount > 0) { %>
+          <i class="bi bi-star-fill text-warning me-1"></i><%= note.avgRating %> (<%= note.ratingCount %>)
+          <% } else { %>
+          <i class="bi bi-star text-muted me-1"></i>No ratings
+          <% } %>
+          <% if (note.attachmentCount > 0) { %>
+          <span class="ms-2"><i class="bi bi-paperclip me-1"></i><%= note.attachmentCount %></span>
+          <% } %>
+        </div>
+        <div class="btn-group btn-group-sm">
+          <a href="/notes/<%= note.id %>" class="btn btn-outline-primary" title="View">
+            <i class="bi bi-eye"></i>
+          </a>
+          <a href="/notes/<%= note.id %>/edit" class="btn btn-outline-secondary" title="Edit">
+            <i class="bi bi-pencil"></i>
+          </a>
+          <a href="/notes/<%= note.id %>/delete" class="btn btn-outline-danger" title="Delete">
+            <i class="bi bi-trash"></i>
+          </a>
+        </div>
       </div>
     </div>
   </div>
+  <% }); %>
 </div>
-
-<script>
-function confirmDelete(action, name) {
-  document.getElementById('deleteForm').action = action;
-  document.getElementById('deleteNoteName').textContent = name;
-  new bootstrap.Modal(document.getElementById('deleteModal')).show();
-}
-</script>
+<% } else { %>
+<div class="text-center py-5">
+  <i class="bi bi-journal-x display-3 text-muted mb-3"></i>
+  <h4 class="text-muted">No notes yet</h4>
+  <p class="text-muted">Create your first note to get started.</p>
+  <a href="/notes/create" class="btn btn-primary mt-2">
+    <i class="bi bi-plus-circle me-2"></i>Create First Note
+  </a>
+</div>
+<% } %>
 
 <%- include('../partials/footer') %>

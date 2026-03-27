@@ -1,9 +1,10 @@
 const express = require('express');
+const { ShareLink, Note, User, Attachment, Rating } = require('../models');
+
 const router = express.Router();
-const { ShareLink, Note, User, Attachment } = require('../models');
 
 // GET /share/:token
-router.get('/:token', async (req, res, next) => {
+router.get('/:token', async (req, res) => {
   try {
     const shareLink = await ShareLink.findOne({
       where: { token: req.params.token },
@@ -11,27 +12,27 @@ router.get('/:token', async (req, res, next) => {
         {
           model: Note,
           include: [
-            { model: User, as: 'author', attributes: ['username'] },
+            { model: User, attributes: ['username'] },
             { model: Attachment },
+            {
+              model: Rating,
+              include: [{ model: User, attributes: ['username'] }],
+            },
           ],
         },
       ],
     });
     if (!shareLink || !shareLink.Note) {
-      return res.status(404).render('error', { title: 'Not Found', message: 'This share link is invalid or has been revoked.', user: req.user || null });
+      return res.status(404).render('error', { title: 'Not Found', message: 'Share link not found or expired.', user: null });
     }
-    res.render('notes/view', {
-      title: shareLink.Note.title,
-      user: req.user || null,
-      note: shareLink.Note,
-      shareLinks: [],
-      avgRating: null,
-      userRating: null,
-      isSharedView: true,
-      messages: req.flash(),
-    });
+    const note = shareLink.Note;
+    const avgRating = note.Ratings.length
+      ? (note.Ratings.reduce((s, r) => s + r.value, 0) / note.Ratings.length).toFixed(1)
+      : null;
+    res.render('notes/shared', { title: note.title, note, avgRating });
   } catch (err) {
-    next(err);
+    console.error(err);
+    res.status(500).render('error', { title: 'Error', message: 'Something went wrong.', user: null });
   }
 });
 

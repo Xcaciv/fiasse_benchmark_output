@@ -1,0 +1,67 @@
+<%
+function renderStars(avg) {
+  if (!avg) return '<span class="text-muted">No ratings</span>';
+  let stars = '';
+  for (let i = 1; i <= 5; i++) {
+    stars += i <= Math.round(parseFloat(avg)) ? '<span class="star">★</span>' : '<span class="star-empty">★</span>';
+  }
+  return stars + ` <small class="text-muted">(${avg})</small>`;
+}
+%>
+<div class="row justify-content-center">
+  <div class="col-md-8">
+    <div class="alert alert-info">
+      <strong>📤 Shared Note</strong> — This note was shared with you via a public link.
+    </div>
+
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <h2 class="mb-1"><%= note.title %></h2>
+        <p class="text-muted small">
+          By <%= note.User ? note.User.username : 'Unknown' %> &middot;
+          <%= new Date(note.createdAt).toLocaleString() %>
+        </p>
+        <hr>
+        <div style="white-space: pre-wrap;"><%= note.content %></div>
+      </div>
+    </div>
+
+    <% if (note.Attachments && note.Attachments.length > 0) { %>
+      <div class="card shadow-sm mb-4">
+        <div class="card-header"><strong>Attachments</strong></div>
+        <ul class="list-group list-group-flush">
+          <% note.Attachments.forEach(att => { %>
+            <li class="list-group-item">
+              📎 <%= att.originalName %>
+              <small class="text-muted">(<%= (att.size / 1024).toFixed(1) %> KB)</small>
+            </li>
+          <% }) %>
+        </ul>
+      </div>
+    <% } %>
+
+    <div class="card shadow-sm mb-4">
+      <div class="card-header d-flex justify-content-between">
+        <strong>Ratings</strong>
+        <span><%- renderStars(avgRating) %> &middot; <%= note.Ratings ? note.Ratings.length : 0 %> review(s)</span>
+      </div>
+      <% if (note.Ratings && note.Ratings.length > 0) { %>
+        <ul class="list-group list-group-flush">
+          <% note.Ratings.forEach(r => { %>
+            <li class="list-group-item">
+              <div class="d-flex justify-content-between">
+                <strong><%= r.User ? r.User.username : 'User' %></strong>
+                <span><% for(let i=1;i<=5;i++) { %><span class="<%= i<=r.value?'star':'star-empty' %>">★</span><% } %></span>
+              </div>
+              <% if (r.comment) { %><p class="mb-0 text-muted small"><%= r.comment %></p><% } %>
+            </li>
+          <% }) %>
+        </ul>
+      <% } else { %>
+        <div class="card-body text-muted">No ratings yet.</div>
+      <% } %>
+    </div>
+
+    <a href="/" class="btn btn-secondary">← Back to Home</a>
+  </div>
+</div>

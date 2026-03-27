@@ -1,64 +1,124 @@
-<%- include('../partials/header', { title: title }) %>
+<%- include('../partials/header') %>
 
 <div class="row justify-content-center">
-  <div class="col-md-7">
-    <h1 class="h3 mb-4"><i class="bi bi-person-circle me-2"></i>Edit Profile</h1>
-    <div class="card shadow-sm border-0">
+  <div class="col-md-6">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h1 class="mb-0"><i class="bi bi-person-circle text-primary me-2"></i>Edit Profile</h1>
+      <a href="/notes" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>My Notes
+      </a>
+    </div>
+
+    <% if (typeof errors !== 'undefined' && errors && errors.length > 0) { %>
+    <div class="alert alert-danger">
+      <ul class="mb-0">
+        <% errors.forEach(function(err) { %>
+        <li><%= err.msg %></li>
+        <% }); %>
+      </ul>
+    </div>
+    <% } %>
+
+    <div class="card shadow-sm">
       <div class="card-body p-4">
-        <form action="/profile/edit" method="POST">
-          <h6 class="text-muted text-uppercase small mb-3">Account Details</h6>
+        <form action="/profile/edit" method="POST" novalidate>
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
           <div class="mb-3">
-            <label for="username" class="form-label">Username</label>
-            <input type="text" class="form-control" id="username" name="username"
-              value="<%= user.username %>" required minlength="3">
+            <label for="username" class="form-label fw-semibold">Username <span class="text-danger">*</span></label>
+            <input
+              type="text"
+              id="username"
+              name="username"
+              class="form-control"
+              value="<%= user.username %>"
+              minlength="3"
+              maxlength="50"
+              required
+            >
           </div>
+
+          <div class="mb-3">
+            <label for="email" class="form-label fw-semibold">Email Address <span class="text-danger">*</span></label>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              class="form-control"
+              value="<%= user.email %>"
+              required
+            >
+          </div>
+
+          <hr>
+          <h6 class="text-muted mb-3"><i class="bi bi-shield-lock me-2"></i>Change Password (optional)</h6>
+
+          <div class="mb-3">
+            <label for="currentPassword" class="form-label fw-semibold">Current Password</label>
+            <input
+              type="password"
+              id="currentPassword"
+              name="currentPassword"
+              class="form-control"
+              placeholder="Required to change password"
+              autocomplete="current-password"
+            >
+          </div>
+
+          <div class="mb-3">
+            <label for="newPassword" class="form-label fw-semibold">New Password</label>
+            <input
+              type="password"
+              id="newPassword"
+              name="newPassword"
+              class="form-control"
+              placeholder="Leave blank to keep current password"
+              autocomplete="new-password"
+              minlength="6"
+            >
+            <div class="form-text">Minimum 6 characters. Leave blank to keep your current password.</div>
+          </div>
+
           <div class="mb-4">
-            <label for="email" class="form-label">Email Address</label>
-            <input type="email" class="form-control" id="email" name="email"
-              value="<%= user.email %>" required>
+            <label for="confirmPassword" class="form-label fw-semibold">Confirm New Password</label>
+            <input
+              type="password"
+              id="confirmPassword"
+              name="confirmPassword"
+              class="form-control"
+              placeholder="Repeat new password"
+              autocomplete="new-password"
+            >
           </div>
 
-          <hr class="my-4">
-          <h6 class="text-muted text-uppercase small mb-3">Change Password <span class="text-muted fw-normal">(optional)</span></h6>
-
-          <div class="mb-3">
-            <label for="currentPassword" class="form-label">Current Password</label>
-            <input type="password" class="form-control" id="currentPassword" name="currentPassword">
-            <div class="form-text">Required only if you want to change your password.</div>
-          </div>
-          <div class="mb-3">
-            <label for="newPassword" class="form-label">New Password</label>
-            <input type="password" class="form-control" id="newPassword" name="newPassword" minlength="6">
-          </div>
-          <div class="mb-4">
-            <label for="confirmNewPassword" class="form-label">Confirm New Password</label>
-            <input type="password" class="form-control" id="confirmNewPassword" name="confirmNewPassword">
-          </div>
-
-          <div class="d-flex gap-2">
-            <button type="submit" class="btn btn-primary">
-              <i class="bi bi-check2 me-1"></i>Save Changes
+          <div class="d-grid">
+            <button type="submit" class="btn btn-primary btn-lg">
+              <i class="bi bi-check-circle me-2"></i>Save Changes
             </button>
-            <a href="/notes" class="btn btn-outline-secondary">Cancel</a>
           </div>
         </form>
       </div>
     </div>
 
-    <div class="card border-0 shadow-sm mt-3">
-      <div class="card-body">
-        <h6 class="text-muted text-uppercase small mb-2">Account Info</h6>
-        <p class="mb-1 small">
-          <span class="text-muted">Role:</span>
-          <span class="badge <%= user.role === 'admin' ? 'bg-danger' : 'bg-secondary' %> ms-1">
-            <%= user.role %>
-          </span>
-        </p>
-        <p class="mb-0 small">
-          <span class="text-muted">Member since:</span>
-          <%= new Date(user.created_at).toLocaleDateString() %>
-        </p>
+    <!-- Account Info -->
+    <div class="card shadow-sm mt-4">
+      <div class="card-header bg-transparent">
+        <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Account Information</h5>
       </div>
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Member since</span>
+          <strong><%= new Date(user.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) %></strong>
+        </li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Account type</span>
+          <% if (user.isAdmin) { %>
+          <span class="badge bg-warning text-dark"><i class="bi bi-shield-check me-1"></i>Administrator</span>
+          <% } else { %>
+          <span class="badge bg-secondary"><i class="bi bi-person me-1"></i>User</span>
+          <% } %>
+        </li>
+      </ul>
     </div>
   </div>
 </div>

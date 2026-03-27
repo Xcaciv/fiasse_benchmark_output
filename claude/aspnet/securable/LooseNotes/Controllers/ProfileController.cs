@@ -1,3 +1,7 @@
+// ProfileController.cs — User profile viewing and editing.
+// Authenticity: password change requires current password verification.
+// Accountability: profile changes are audited.
+// Confidentiality: errors reveal minimal information.
 using LooseNotes.Models;
 using LooseNotes.Services;
 using LooseNotes.ViewModels.Profile;
@@ -7,12 +11,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace LooseNotes.Controllers;
 
-/// <summary>
-/// User profile: view and edit display name, email, and password.
-/// Requires re-verification of current password before changing credentials (Authenticity).
-/// </summary>
 [Authorize]
-public class ProfileController : Controller
+public sealed class ProfileController : Controller
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
@@ -28,97 +28,88 @@ public class ProfileController : Controller
         _auditService = auditService;
     }
 
+    // ── GET /Profile/Edit ─────────────────────────────────────────────────────
     [HttpGet]
     public async Task<IActionResult> Edit()
     {
         var user = await _userManager.GetUserAsync(User);
-        if (user is null) return NotFound();
+        if (user is null) return Challenge();
 
-        var vm = new EditProfileViewModel
+        return View(new EditProfileViewModel
         {
-            DisplayName = user.DisplayName,
-            Email = user.Email ?? string.Empty
-        };
-        return View(vm);
+            UserName = user.UserName!,
+            Email = user.Email!
+        });
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    // ── POST /Profile/Edit ────────────────────────────────────────────────────
+    [HttpPost]
     public async Task<IActionResult> Edit(EditProfileViewModel model)
     {
-        if (!ModelState.IsValid)
-            return View(model);
+        if (!ModelState.IsValid) return View(model);
 
         var user = await _userManager.GetUserAsync(User);
-        if (user is null) return NotFound();
+        if (user is null) return Challenge();
 
-        var changed = false;
-
-        // Update display name (no credential re-verification required)
-        if (user.DisplayName != model.DisplayName)
+        // Authenticity: require current password to mutate profile (prevents session hijack)
+        if (string.IsNullOrEmpty(model.CurrentPassword))
         {
-            user.DisplayName = model.DisplayName;
-            changed = true;
+            ModelState.AddModelError(nameof(model.CurrentPassword),
+                "Current password is required to save changes.");
+            return View(model);
         }
 
-        // Email change — requires current password verification (Authenticity)
-        if (user.Email != model.Email)
+        var passwordValid = await _userManager.CheckPasswordAsync(user, model.CurrentPassword);
+        if (!passwordValid)
         {
-            if (!await VerifyCurrentPasswordAsync(user, model.CurrentPassword))
-            {
-                ModelState.AddModelError(nameof(model.CurrentPassword), "Current password is incorrect.");
-                return View(model);
-            }
-            user.UserName = model.Email;
-            user.Email = model.Email;
-            user.NormalizedEmail = model.Email.ToUpperInvariant();
-            user.NormalizedUserName = model.Email.ToUpperInvariant();
-            changed = true;
+            ModelState.AddModelError(nameof(model.CurrentPassword), "Current password is incorrect.");
+            return View(model);
         }
 
-        if (changed)
-        {
-            var updateResult = await _userManager.UpdateAsync(user);
-            if (!updateResult.Succeeded)
-            {
-                foreach (var error in updateResult.Errors)
-                    ModelState.AddModelError(string.Empty, error.Description);
-                return View(model);
-            }
-        }
+        await UpdateUsernameAndEmailAsync(user, model);
+        await UpdatePasswordIfRequestedAsync(user, model);
 
-        // Password change
-        if (!string.IsNullOrEmpty(model.NewPassword))
-        {
-            if (!await VerifyCurrentPasswordAsync(user, model.CurrentPassword))
-            {
-                ModelState.AddModelError(nameof(model.CurrentPassword), "Current password is incorrect.");
-                return View(model);
-            }
+        if (!ModelState.IsValid) return View(model);
 
-            var pwResult = await _userManager.ChangePasswordAsync(user, model.CurrentPassword!, model.NewPassword);
-            if (!pwResult.Succeeded)
-            {
-                foreach (var error in pwResult.Errors)
-                    ModelState.AddModelError(string.Empty, error.Description);
-                return View(model);
-            }
+        // Refresh auth cookie after identity changes
+        await _signInManager.RefreshSignInAsync(user);
+        await _auditService.LogAsync(user.Id, "User.ProfileUpdated", "User", user.Id);
 
-            // Re-sign in after password change to refresh security stamp (Authenticity)
-            await _signInManager.RefreshSignInAsync(user);
-            await _auditService.RecordAsync("PasswordChanged", userId: user.Id);
-        }
-
-        await _auditService.RecordAsync("ProfileUpdated", userId: user.Id);
-        TempData["Success"] = "Profile updated successfully.";
+        TempData["SuccessMessage"] = "Profile updated successfully.";
         return RedirectToAction(nameof(Edit));
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private async Task<bool> VerifyCurrentPasswordAsync(ApplicationUser user, string? password)
+    private async Task UpdateUsernameAndEmailAsync(ApplicationUser user, EditProfileViewModel model)
     {
-        if (string.IsNullOrWhiteSpace(password))
-            return false;
-        return await _userManager.CheckPasswordAsync(user, password);
+        if (user.UserName != model.UserName)
+        {
+            var result = await _userManager.SetUserNameAsync(user, model.UserName);
+            AddIdentityErrors(result);
+        }
+
+        if (user.Email != model.Email)
+        {
+            var result = await _userManager.SetEmailAsync(user, model.Email);
+            AddIdentityErrors(result);
+        }
+    }
+
+    private async Task UpdatePasswordIfRequestedAsync(ApplicationUser user, EditProfileViewModel model)
+    {
+        if (string.IsNullOrEmpty(model.NewPassword)) return;
+
+        // Authenticity: use ChangePasswordAsync (validates old password again internally)
+        var result = await _userManager.ChangePasswordAsync(
+            user, model.CurrentPassword!, model.NewPassword);
+
+        AddIdentityErrors(result);
+    }
+
+    private void AddIdentityErrors(IdentityResult result)
+    {
+        foreach (var error in result.Errors)
+            ModelState.AddModelError(string.Empty, error.Description);
     }
 }

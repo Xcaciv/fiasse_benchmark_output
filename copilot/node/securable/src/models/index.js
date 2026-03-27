@@ -1,30 +1,60 @@
 'use strict';
+
 const { sequelize } = require('../config/database');
-const { defineUser } = require('./User');
-const { defineNote } = require('./Note');
-const { defineAttachment } = require('./Attachment');
-const { defineRating } = require('./Rating');
-const { defineShareLink } = require('./ShareLink');
+const { User } = require('./User');
+const { Note } = require('./Note');
+const { Attachment } = require('./Attachment');
+const { Rating } = require('./Rating');
+const { ShareLink } = require('./ShareLink');
+const { AuditLog } = require('./AuditLog');
+const { logger } = require('../config/logger');
 
-const User = defineUser(sequelize);
-const Note = defineNote(sequelize);
-const Attachment = defineAttachment(sequelize);
-const Rating = defineRating(sequelize);
-const ShareLink = defineShareLink(sequelize);
+// --- Associations ---
 
-// Associations
+// User ↔ Note
 User.hasMany(Note, { foreignKey: 'userId', onDelete: 'CASCADE' });
 Note.belongsTo(User, { foreignKey: 'userId' });
 
+// User ↔ Rating
+User.hasMany(Rating, { foreignKey: 'userId', onDelete: 'CASCADE' });
+Rating.belongsTo(User, { foreignKey: 'userId' });
+
+// Note ↔ Attachment (cascade delete when note deleted)
 Note.hasMany(Attachment, { foreignKey: 'noteId', onDelete: 'CASCADE' });
 Attachment.belongsTo(Note, { foreignKey: 'noteId' });
 
+// Note ↔ Rating (cascade delete when note deleted)
 Note.hasMany(Rating, { foreignKey: 'noteId', onDelete: 'CASCADE' });
 Rating.belongsTo(Note, { foreignKey: 'noteId' });
-Rating.belongsTo(User, { foreignKey: 'userId' });
-User.hasMany(Rating, { foreignKey: 'userId' });
 
-Note.hasMany(ShareLink, { foreignKey: 'noteId', onDelete: 'CASCADE' });
+// Note ↔ ShareLink (one-to-one, cascade delete)
+Note.hasOne(ShareLink, { foreignKey: 'noteId', onDelete: 'CASCADE' });
 ShareLink.belongsTo(Note, { foreignKey: 'noteId' });
 
-module.exports = { sequelize, User, Note, Attachment, Rating, ShareLink };
+// AuditLog optional FK to User (nullable actorId)
+AuditLog.belongsTo(User, { foreignKey: 'actorId', as: 'actor', constraints: false });
+
+/**
+ * Synchronize all models with the database schema.
+ * Uses alter:true to apply non-destructive schema changes.
+ */
+const syncDatabase = async () => {
+  try {
+    await sequelize.sync({ alter: true });
+    logger.info('Database synchronized successfully');
+  } catch (err) {
+    logger.error('Database synchronization failed', { error: err.message });
+    throw err;
+  }
+};
+
+module.exports = {
+  sequelize,
+  User,
+  Note,
+  Attachment,
+  Rating,
+  ShareLink,
+  AuditLog,
+  syncDatabase,
+};

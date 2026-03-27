@@ -1,219 +1,228 @@
-using System.Security.Claims;
-using System.Text.Encodings.Web;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Mvc;
-using rawdog.Models;
-using rawdog.ViewModels;
-using rawdog.Services;
+using Microsoft.EntityFrameworkCore;
+using LooseNotes.Data;
+using LooseNotes.Models;
+using LooseNotes.ViewModels.Account;
 
-namespace rawdog.Controllers;
+namespace LooseNotes.Controllers;
 
-public sealed class AccountController(
-    UserManager<ApplicationUser> userManager,
-    SignInManager<ApplicationUser> signInManager,
-    IEmailSender emailSender,
-    IActivityLogger activityLogger,
-    ILogger<AccountController> logger) : Controller
+public class AccountController : Controller
 {
-    [AllowAnonymous]
-    public IActionResult Register()
+    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly SignInManager<ApplicationUser> _signInManager;
+    private readonly ApplicationDbContext _context;
+
+    public AccountController(
+        UserManager<ApplicationUser> userManager,
+        SignInManager<ApplicationUser> signInManager,
+        ApplicationDbContext context)
     {
-        return View(new RegisterViewModel());
+        _userManager = userManager;
+        _signInManager = signInManager;
+        _context = context;
     }
 
-    [HttpPost]
-    [AllowAnonymous]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Register(RegisterViewModel model, CancellationToken cancellationToken)
+    private async Task LogActivityAsync(string action, string entityType, string entityId, string? userId)
     {
-        if (!ModelState.IsValid)
+        _context.ActivityLogs.Add(new ActivityLog
         {
-            return View(model);
-        }
+            Action = action,
+            EntityType = entityType,
+            EntityId = entityId,
+            Timestamp = DateTime.UtcNow,
+            UserId = userId
+        });
+        await _context.SaveChangesAsync();
+    }
+
+    [HttpGet]
+    public IActionResult Register() => View();
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Register(RegisterViewModel model)
+    {
+        if (!ModelState.IsValid) return View(model);
 
         var user = new ApplicationUser
         {
-            UserName = model.UserName.Trim(),
-            Email = model.Email.Trim(),
-            EmailConfirmed = true,
-            RegisteredAtUtc = DateTime.UtcNow
+            UserName = model.UserName,
+            Email = model.Email,
+            CreatedAt = DateTime.UtcNow
         };
 
-        var createResult = await userManager.CreateAsync(user, model.Password);
-        if (!createResult.Succeeded)
-        {
-            AddErrors(createResult);
-            return View(model);
-        }
-
-        var addToRoleResult = await userManager.AddToRoleAsync(user, "User");
-        if (!addToRoleResult.Succeeded)
-        {
-            AddErrors(addToRoleResult);
-            return View(model);
-        }
-
-        await signInManager.SignInAsync(user, isPersistent: false);
-        await activityLogger.LogAsync("auth.register", $"User '{user.UserName}' registered.", user.Id, cancellationToken);
-
-        TempData["StatusMessage"] = "Your account has been created.";
-        return RedirectToAction("Index", "Home");
-    }
-
-    [AllowAnonymous]
-    public IActionResult Login(string? returnUrl = null)
-    {
-        return View(new LoginViewModel { ReturnUrl = returnUrl });
-    }
-
-    [HttpPost]
-    [AllowAnonymous]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Login(LoginViewModel model, CancellationToken cancellationToken)
-    {
-        if (!ModelState.IsValid)
-        {
-            return View(model);
-        }
-
-        var result = await signInManager.PasswordSignInAsync(model.UserName.Trim(), model.Password, model.RememberMe, lockoutOnFailure: true);
+        var result = await _userManager.CreateAsync(user, model.Password);
         if (result.Succeeded)
         {
-            var user = await userManager.FindByNameAsync(model.UserName.Trim());
-            await activityLogger.LogAsync("auth.login", $"User '{model.UserName}' logged in.", user?.Id, cancellationToken);
-
-            if (!string.IsNullOrWhiteSpace(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl))
-            {
-                return Redirect(model.ReturnUrl);
-            }
-
-            TempData["StatusMessage"] = "Welcome back.";
-            return RedirectToAction("Index", "Home");
+            await _userManager.AddToRoleAsync(user, "User");
+            await _signInManager.SignInAsync(user, isPersistent: false);
+            await LogActivityAsync("Register", "User", user.Id, user.Id);
+            return RedirectToAction("Index", "Notes");
         }
 
-        if (result.IsLockedOut)
-        {
-            ModelState.AddModelError(string.Empty, "This account has been locked due to too many failed sign-in attempts. Please try again later.");
-        }
-        else
-        {
-            logger.LogWarning("Failed login attempt for username {UserName}", model.UserName);
-            await activityLogger.LogAsync("auth.login_failed", $"Failed login attempt for username '{model.UserName}'.", null, cancellationToken);
-            ModelState.AddModelError(string.Empty, "Invalid username or password.");
-        }
+        foreach (var error in result.Errors)
+            ModelState.AddModelError(string.Empty, error.Description);
 
         return View(model);
     }
 
-    [HttpPost]
-    [Authorize]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Logout(CancellationToken cancellationToken)
+    [HttpGet]
+    public IActionResult Login(string? returnUrl = null)
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var userName = User.Identity?.Name ?? "Unknown";
-
-        await signInManager.SignOutAsync();
-        await activityLogger.LogAsync("auth.logout", $"User '{userName}' logged out.", userId, cancellationToken);
-
-        TempData["StatusMessage"] = "You have been signed out.";
-        return RedirectToAction("Index", "Home");
-    }
-
-    [AllowAnonymous]
-    public IActionResult ForgotPassword()
-    {
-        return View(new ForgotPasswordViewModel());
-    }
-
-    [HttpPost]
-    [AllowAnonymous]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> ForgotPassword(ForgotPasswordViewModel model, CancellationToken cancellationToken)
-    {
-        if (!ModelState.IsValid)
-        {
-            return View(model);
-        }
-
-        var user = await userManager.FindByEmailAsync(model.Email.Trim());
-        if (user is not null)
-        {
-            var token = await userManager.GeneratePasswordResetTokenAsync(user);
-            var callbackUrl = Url.Action(
-                nameof(ResetPassword),
-                "Account",
-                new { email = user.Email, token },
-                Request.Scheme);
-
-            if (callbackUrl is not null)
-            {
-                var encodedLink = HtmlEncoder.Default.Encode(callbackUrl);
-                await emailSender.SendEmailAsync(
-                    user.Email!,
-                    "Loose Notes password reset",
-                    $"<p>Reset your password within one hour using this link:</p><p><a href=\"{encodedLink}\">{encodedLink}</a></p>");
-
-                await activityLogger.LogAsync("auth.password_reset_requested", $"Password reset requested for '{user.UserName}'.", user.Id, cancellationToken);
-            }
-        }
-
-        TempData["StatusMessage"] = "If an account matches that email address, a password reset message has been generated.";
-        return RedirectToAction(nameof(Login));
-    }
-
-    [AllowAnonymous]
-    public IActionResult ResetPassword(string email, string token)
-    {
-        return View(new ResetPasswordViewModel
-        {
-            Email = email,
-            Token = token
-        });
-    }
-
-    [HttpPost]
-    [AllowAnonymous]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> ResetPassword(ResetPasswordViewModel model, CancellationToken cancellationToken)
-    {
-        if (!ModelState.IsValid)
-        {
-            return View(model);
-        }
-
-        var user = await userManager.FindByEmailAsync(model.Email.Trim());
-        if (user is null)
-        {
-            TempData["ErrorMessage"] = "The password reset link is invalid or has expired.";
-            return RedirectToAction(nameof(Login));
-        }
-
-        var result = await userManager.ResetPasswordAsync(user, model.Token, model.Password);
-        if (!result.Succeeded)
-        {
-            AddErrors(result);
-            return View(model);
-        }
-
-        await activityLogger.LogAsync("auth.password_reset_completed", $"Password reset completed for '{user.UserName}'.", user.Id, cancellationToken);
-        TempData["StatusMessage"] = "Your password has been reset. You can now sign in.";
-        return RedirectToAction(nameof(Login));
-    }
-
-    [AllowAnonymous]
-    public IActionResult AccessDenied()
-    {
+        ViewBag.ReturnUrl = returnUrl;
         return View();
     }
 
-    private void AddErrors(IdentityResult result)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Login(LoginViewModel model, string? returnUrl = null)
     {
-        foreach (var error in result.Errors)
+        if (!ModelState.IsValid) return View(model);
+
+        var result = await _signInManager.PasswordSignInAsync(model.UserName, model.Password, model.RememberMe, false);
+        if (result.Succeeded)
         {
-            ModelState.AddModelError(string.Empty, error.Description);
+            var user = await _userManager.FindByNameAsync(model.UserName);
+            if (user != null)
+                await LogActivityAsync("Login", "User", user.Id, user.Id);
+
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+                return Redirect(returnUrl);
+            return RedirectToAction("Index", "Notes");
         }
+
+        ModelState.AddModelError(string.Empty, "Invalid login attempt.");
+        return View(model);
     }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Logout()
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user != null)
+            await LogActivityAsync("Logout", "User", user.Id, user.Id);
+        await _signInManager.SignOutAsync();
+        return RedirectToAction("Index", "Home");
+    }
+
+    [HttpGet]
+    public IActionResult ForgotPassword() => View();
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ForgotPassword(ForgotPasswordViewModel model)
+    {
+        if (!ModelState.IsValid) return View(model);
+
+        var user = await _userManager.FindByEmailAsync(model.Email);
+        if (user == null)
+        {
+            TempData["Info"] = "If that email is registered, a reset link has been generated.";
+            return RedirectToAction("ForgotPasswordConfirmation");
+        }
+
+        var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+        var resetLink = Url.Action("ResetPassword", "Account",
+            new { token = token, email = model.Email }, Request.Scheme);
+        TempData["ResetLink"] = resetLink;
+        return RedirectToAction("ForgotPasswordConfirmation");
+    }
+
+    [HttpGet]
+    public IActionResult ForgotPasswordConfirmation() => View();
+
+    [HttpGet]
+    public IActionResult ResetPassword(string token, string email)
+    {
+        var model = new ResetPasswordViewModel { Token = token, Email = email };
+        return View(model);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ResetPassword(ResetPasswordViewModel model)
+    {
+        if (!ModelState.IsValid) return View(model);
+
+        var user = await _userManager.FindByEmailAsync(model.Email);
+        if (user == null)
+        {
+            ModelState.AddModelError(string.Empty, "Invalid request.");
+            return View(model);
+        }
+
+        var result = await _userManager.ResetPasswordAsync(user, model.Token, model.Password);
+        if (result.Succeeded)
+        {
+            TempData["Success"] = "Password reset successfully. Please log in.";
+            return RedirectToAction("Login");
+        }
+
+        foreach (var error in result.Errors)
+            ModelState.AddModelError(string.Empty, error.Description);
+
+        return View(model);
+    }
+
+    [HttpGet]
+    [Microsoft.AspNetCore.Authorization.Authorize]
+    public async Task<IActionResult> Profile()
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null) return NotFound();
+
+        var model = new ProfileViewModel
+        {
+            UserName = user.UserName ?? string.Empty,
+            Email = user.Email ?? string.Empty
+        };
+        return View(model);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize]
+    public async Task<IActionResult> Profile(ProfileViewModel model)
+    {
+        if (!ModelState.IsValid) return View(model);
+
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null) return NotFound();
+
+        user.UserName = model.UserName;
+        user.Email = model.Email;
+
+        if (!string.IsNullOrEmpty(model.NewPassword))
+        {
+            if (string.IsNullOrEmpty(model.CurrentPassword))
+            {
+                ModelState.AddModelError(string.Empty, "Current password is required to set a new password.");
+                return View(model);
+            }
+
+            var passwordResult = await _userManager.ChangePasswordAsync(user, model.CurrentPassword, model.NewPassword);
+            if (!passwordResult.Succeeded)
+            {
+                foreach (var error in passwordResult.Errors)
+                    ModelState.AddModelError(string.Empty, error.Description);
+                return View(model);
+            }
+        }
+
+        var updateResult = await _userManager.UpdateAsync(user);
+        if (updateResult.Succeeded)
+        {
+            TempData["Success"] = "Profile updated successfully.";
+            return RedirectToAction("Profile");
+        }
+
+        foreach (var error in updateResult.Errors)
+            ModelState.AddModelError(string.Empty, error.Description);
+
+        return View(model);
+    }
+
+    public IActionResult AccessDenied() => View();
 }

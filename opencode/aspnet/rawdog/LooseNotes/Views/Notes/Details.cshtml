@@ -1,0 +1,131 @@
+@model NoteViewModel
+@{
+    ViewData["Title"] = Model.Title;
+}
+
+<div class="row mb-3">
+    <div class="col-md-8">
+        <h1>@Model.Title</h1>
+        <p class="text-muted">
+            by <strong>@Model.UserName</strong> | 
+            Created: @Model.CreatedAt.ToString("MMMM dd, yyyy") | 
+            Updated: @Model.UpdatedAt.ToString("MMMM dd, yyyy HH:mm")
+        </p>
+    </div>
+    <div class="col-md-4 text-end">
+        @if (Model.IsPublic)
+        {
+            <span class="badge bg-success">Public</span>
+        }
+        else
+        {
+            <span class="badge bg-secondary">Private</span>
+        }
+        
+        @if (ViewBag.IsOwner == true)
+        {
+            <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-sm btn-outline-primary">Edit</a>
+            <a asp-action="Share" asp-route-id="@Model.Id" class="btn btn-sm btn-outline-secondary">Share</a>
+            <a asp-action="Delete" asp-route-id="@Model.Id" class="btn btn-sm btn-outline-danger">Delete</a>
+        }
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="note-content">@Html.Raw(Model.Content.Replace("\n", "<br/>"))</div>
+            </div>
+        </div>
+        
+        @if (Model.Attachments.Any())
+        {
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Attachments (@Model.Attachments.Count)</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled">
+                        @foreach (var attachment in Model.Attachments)
+                        {
+                            <li class="mb-2">
+                                <a asp-action="Download" asp-route-id="@attachment.Id" class="text-decoration-none">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-paperclip" viewBox="0 0 16 16">
+                                        <path d="M4.5 3a2.5 2.5 0 0 1 5 0v9a1.5 1.5 0 0 1-3 0V5a.5.5 0 0 1 1 0v7a.5.5 0 0 0 1 0V3a1.5 1.5 0 1 0-3 0v9a2.5 2.5 0 0 0 5 0V5a.5.5 0 0 1 1 0v7a3.5 3.5 0 1 1-7 0V3z"/>
+                                    </svg>
+                                    @attachment.FileName
+                                </a>
+                                @if (ViewBag.IsOwner == true)
+                                {
+                                    <form asp-action="DeleteAttachment" asp-route-attachmentId="@attachment.Id" asp-route-noteId="@Model.Id" method="post" class="d-inline">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this attachment?')">Delete</button>
+                                    </form>
+                                }
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        }
+        
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Ratings (@Model.RatingCount)
+                    @if (Model.AverageRating > 0)
+                    {
+                        <span class="badge bg-warning ms-2">@Model.AverageRating.ToString("F1") / 5</span>
+                    }
+                </h5>
+            </div>
+            <div class="card-body">
+                @if (ViewBag.CanRate == true)
+                {
+                    <form asp-action="Rate" asp-route-noteId="@Model.Id" method="post" class="mb-4">
+                        <h6>Rate this note</h6>
+                        <div class="mb-2">
+                            <select name="Value" class="form-select" required>
+                                <option value="">Select rating...</option>
+                                <option value="1">1 - Poor</option>
+                                <option value="2">2 - Fair</option>
+                                <option value="3">3 - Good</option>
+                                <option value="4">4 - Very Good</option>
+                                <option value="5">5 - Excellent</option>
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <textarea name="Comment" class="form-control" placeholder="Add a comment (optional)" rows="2"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Submit Rating</button>
+                    </form>
+                }
+                
+                @if (Model.Ratings.Any())
+                {
+                    @foreach (var rating in Model.Ratings)
+                    {
+                        <div class="border-bottom pb-2 mb-2">
+                            <div class="d-flex justify-content-between">
+                                <strong>@rating.UserName</strong>
+                                <span class="text-warning">@string.Join("", Enumerable.Repeat("★", rating.Value))@string.Join("", Enumerable.Repeat("☆", 5 - rating.Value))</span>
+                            </div>
+                            @if (!string.IsNullOrEmpty(rating.Comment))
+                            {
+                                <p class="mb-1">@rating.Comment</p>
+                            }
+                            <small class="text-muted">@rating.CreatedAt.ToString("MMM dd, yyyy")</small>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <p class="text-muted">No ratings yet. Be the first to rate!</p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-3">
+    <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary">Back to Home</a>
+</div>

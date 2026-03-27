@@ -5,9 +5,10 @@ public class Note {
     private int userId;
     private String title;
     private String content;
-    private boolean isPublic;
+    private String visibility;
     private String createdAt;
     private String updatedAt;
+    // transient fields populated by JOIN queries
     private String username;
     private double avgRating;
     private int ratingCount;
@@ -26,8 +27,8 @@ public class Note {
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
 
-    public boolean isPublic() { return isPublic; }
-    public void setPublic(boolean isPublic) { this.isPublic = isPublic; }
+    public String getVisibility() { return visibility; }
+    public void setVisibility(String visibility) { this.visibility = visibility; }
 
     public String getCreatedAt() { return createdAt; }
     public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }

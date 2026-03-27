@@ -5,20 +5,11 @@ public class User {
     private String username;
     private String email;
     private String passwordHash;
-    private boolean admin;
+    private String role;
     private String createdAt;
-    private int noteCount;
+    private int noteCount; // transient – populated for admin views
 
     public User() {}
-
-    public User(int id, String username, String email, String passwordHash, boolean admin, String createdAt) {
-        this.id = id;
-        this.username = username;
-        this.email = email;
-        this.passwordHash = passwordHash;
-        this.admin = admin;
-        this.createdAt = createdAt;
-    }
 
     public int getId() { return id; }
     public void setId(int id) { this.id = id; }
@@ -32,8 +23,8 @@ public class User {
     public String getPasswordHash() { return passwordHash; }
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
 
-    public boolean isAdmin() { return admin; }
-    public void setAdmin(boolean admin) { this.admin = admin; }
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
 
     public String getCreatedAt() { return createdAt; }
     public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }

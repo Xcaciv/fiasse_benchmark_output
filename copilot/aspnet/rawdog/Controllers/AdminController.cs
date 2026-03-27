@@ -1,115 +1,155 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using rawdog.Data;
-using rawdog.Services;
-using rawdog.ViewModels;
+using LooseNotes.Data;
+using LooseNotes.Models;
+using LooseNotes.ViewModels.Admin;
 
-namespace rawdog.Controllers;
+namespace LooseNotes.Controllers;
 
 [Authorize(Roles = "Admin")]
-public sealed class AdminController(ApplicationDbContext dbContext, IActivityLogger activityLogger) : Controller
+public class AdminController : Controller
 {
-    public async Task<IActionResult> Dashboard(string? q, CancellationToken cancellationToken)
-    {
-        var searchTerm = (q ?? string.Empty).Trim();
-        var pattern = $"%{searchTerm}%";
+    private readonly ApplicationDbContext _context;
+    private readonly UserManager<ApplicationUser> _userManager;
 
-        var usersQuery = dbContext.Users.AsQueryable();
-        if (searchTerm.Length > 0)
+    public AdminController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
+    {
+        _context = context;
+        _userManager = userManager;
+    }
+
+    public async Task<IActionResult> Dashboard()
+    {
+        var vm = new DashboardViewModel
         {
-            usersQuery = usersQuery.Where(user =>
-                EF.Functions.Like(user.UserName!, pattern) ||
-                EF.Functions.Like(user.Email!, pattern));
+            TotalUsers = await _context.Users.CountAsync(),
+            TotalNotes = await _context.Notes.CountAsync(),
+            PublicNotes = await _context.Notes.CountAsync(n => n.IsPublic),
+            RecentActivity = await _context.ActivityLogs
+                .Include(a => a.User)
+                .OrderByDescending(a => a.Timestamp)
+                .Take(20)
+                .ToListAsync()
+        };
+        return View(vm);
+    }
+
+    public async Task<IActionResult> Users()
+    {
+        var users = await _context.Users.ToListAsync();
+        var list = new List<UserListViewModel>();
+
+        foreach (var u in users)
+        {
+            var roles = await _userManager.GetRolesAsync(u);
+            list.Add(new UserListViewModel
+            {
+                UserId = u.Id,
+                UserName = u.UserName ?? string.Empty,
+                Email = u.Email ?? string.Empty,
+                CreatedAt = u.CreatedAt,
+                NoteCount = await _context.Notes.CountAsync(n => n.UserId == u.Id),
+                Roles = roles
+            });
         }
 
-        var userOptions = await dbContext.Users
-            .OrderBy(user => user.UserName)
-            .Select(user => new AdminUserOptionViewModel
-            {
-                Id = user.Id,
-                UserName = user.UserName ?? "Unknown"
-            })
-            .ToListAsync(cancellationToken);
+        return View(list);
+    }
 
-        var model = new AdminDashboardViewModel
-        {
-            SearchTerm = searchTerm,
-            TotalUsers = await dbContext.Users.CountAsync(cancellationToken),
-            TotalNotes = await dbContext.Notes.CountAsync(cancellationToken),
-            Users = await usersQuery
-                .OrderBy(user => user.UserName)
-                .Select(user => new AdminUserItemViewModel
-                {
-                    Id = user.Id,
-                    UserName = user.UserName ?? "Unknown",
-                    Email = user.Email ?? string.Empty,
-                    RegisteredAtUtc = user.RegisteredAtUtc,
-                    NoteCount = user.Notes.Count
-                })
-                .Take(50)
-                .ToListAsync(cancellationToken),
-            RecentActivity = await dbContext.ActivityLogs
-                .Include(log => log.User)
-                .OrderByDescending(log => log.CreatedAtUtc)
-                .Take(20)
-                .Select(log => new AdminActivityItemViewModel
-                {
-                    ActionType = log.ActionType,
-                    Message = log.Message,
-                    UserName = log.User != null ? (log.User.UserName ?? "Unknown") : "System",
-                    CreatedAtUtc = log.CreatedAtUtc
-                })
-                .ToListAsync(cancellationToken),
-            RecentNotes = await dbContext.Notes
-                .Include(note => note.Owner)
-                .OrderByDescending(note => note.UpdatedAtUtc ?? note.CreatedAtUtc)
-                .Take(20)
-                .Select(note => new AdminNoteItemViewModel
-                {
-                    Id = note.Id,
-                    Title = note.Title,
-                    OwnerId = note.OwnerId,
-                    OwnerUserName = note.Owner!.UserName ?? "Unknown",
-                    IsPublic = note.IsPublic,
-                    UpdatedOrCreatedAtUtc = note.UpdatedAtUtc ?? note.CreatedAtUtc
-                })
-                .ToListAsync(cancellationToken),
-            UserOptions = userOptions
-        };
+    public async Task<IActionResult> UserDetail(string id)
+    {
+        var user = await _context.Users
+            .Include(u => u.Notes)
+            .FirstOrDefaultAsync(u => u.Id == id);
+        if (user == null) return NotFound();
 
-        return View(model);
+        ViewBag.Roles = await _userManager.GetRolesAsync(user);
+        return View(user);
+    }
+
+    public async Task<IActionResult> Notes()
+    {
+        var notes = await _context.Notes
+            .Include(n => n.User)
+            .Include(n => n.Ratings)
+            .OrderByDescending(n => n.UpdatedAt)
+            .ToListAsync();
+        return View(notes);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> NoteDetails(int id)
+    {
+        var note = await _context.Notes
+            .Include(n => n.User)
+            .Include(n => n.Attachments)
+            .Include(n => n.Ratings).ThenInclude(r => r.User)
+            .FirstOrDefaultAsync(n => n.Id == id);
+        if (note == null) return NotFound();
+
+        var allUsers = await _context.Users.ToListAsync();
+        ViewBag.AllUsers = allUsers;
+        return View(note);
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> ReassignNote(int noteId, string newOwnerId, CancellationToken cancellationToken)
+    public async Task<IActionResult> ReassignNote(int id, string newUserId)
     {
-        var note = await dbContext.Notes.Include(item => item.Owner).SingleOrDefaultAsync(item => item.Id == noteId, cancellationToken);
-        if (note is null)
+        var note = await _context.Notes.FirstOrDefaultAsync(n => n.Id == id);
+        if (note == null) return NotFound();
+
+        var newUser = await _userManager.FindByIdAsync(newUserId);
+        if (newUser == null) return BadRequest("Invalid user.");
+
+        var adminId = _userManager.GetUserId(User);
+        note.UserId = newUserId;
+        note.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        _context.ActivityLogs.Add(new ActivityLog
         {
-            return NotFound();
-        }
+            Action = "ReassignNote",
+            EntityType = "Note",
+            EntityId = note.Id.ToString(),
+            Timestamp = DateTime.UtcNow,
+            UserId = adminId
+        });
+        await _context.SaveChangesAsync();
 
-        var newOwner = await dbContext.Users.SingleOrDefaultAsync(user => user.Id == newOwnerId, cancellationToken);
-        if (newOwner is null)
+        TempData["Success"] = $"Note reassigned to {newUser.UserName}.";
+        return RedirectToAction(nameof(NoteDetails), new { id });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteUser(string id)
+    {
+        var user = await _userManager.FindByIdAsync(id);
+        if (user == null) return NotFound();
+
+        var adminId = _userManager.GetUserId(User);
+        if (adminId == id) return BadRequest("Cannot delete yourself.");
+
+        var notes = await _context.Notes.Include(n => n.Attachments).Where(n => n.UserId == id).ToListAsync();
+        _context.Notes.RemoveRange(notes);
+        await _context.SaveChangesAsync();
+
+        await _userManager.DeleteAsync(user);
+
+        _context.ActivityLogs.Add(new ActivityLog
         {
-            TempData["ErrorMessage"] = "The selected user could not be found.";
-            return RedirectToAction(nameof(Dashboard));
-        }
+            Action = "DeleteUser",
+            EntityType = "User",
+            EntityId = id,
+            Timestamp = DateTime.UtcNow,
+            UserId = adminId
+        });
+        await _context.SaveChangesAsync();
 
-        var previousOwner = note.Owner?.UserName ?? "Unknown";
-        note.OwnerId = newOwner.Id;
-        note.UpdatedAtUtc = DateTime.UtcNow;
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        await activityLogger.LogAsync(
-            "admin.note_reassigned",
-            $"Reassigned note '{note.Title}' from '{previousOwner}' to '{newOwner.UserName}'.",
-            newOwner.Id,
-            cancellationToken);
-
-        TempData["StatusMessage"] = "Note ownership updated.";
-        return RedirectToAction(nameof(Dashboard));
+        TempData["Success"] = "User deleted.";
+        return RedirectToAction(nameof(Users));
     }
 }

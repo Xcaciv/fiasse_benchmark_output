@@ -1,139 +1,150 @@
-<%- include('../partials/header') %>
+<%
+function renderStars(avg) {
+  if (!avg) return '<span class="text-muted">No ratings</span>';
+  let stars = '';
+  for (let i = 1; i <= 5; i++) {
+    stars += i <= Math.round(avg) ? '<span class="star">★</span>' : '<span class="star-empty">★</span>';
+  }
+  return stars + ` <small class="text-muted">(${avg})</small>`;
+}
+%>
 <div class="row">
-  <div class="col-lg-8">
-    <% if (typeof isSharedView === 'undefined' || !isSharedView) { %>
-      <nav aria-label="breadcrumb">
-        <ol class="breadcrumb">
-          <li class="breadcrumb-item"><a href="/notes">My Notes</a></li>
-          <li class="breadcrumb-item active"><%= note.title %></li>
-        </ol>
-      </nav>
-    <% } %>
-    <div class="d-flex justify-content-between align-items-start mb-3">
-      <h2><%= note.title %></h2>
-      <span class="badge <%= note.visibility === 'public' ? 'bg-success' : 'bg-secondary' %> ms-2 mt-1">
-        <%= note.visibility %>
-      </span>
-    </div>
-    <p class="text-muted small mb-4">
-      By <strong><%= note.author ? note.author.username : 'Unknown' %></strong>
-      &bull; Created <%= new Date(note.createdAt).toLocaleString() %>
-      <% if (note.updatedAt && note.updatedAt !== note.createdAt) { %>
-        &bull; Updated <%= new Date(note.updatedAt).toLocaleString() %>
-      <% } %>
-      <% if (avgRating) { %>
-        &bull; <i class="bi bi-star-fill text-warning"></i> <%= avgRating %> (<%= note.Ratings ? note.Ratings.length : 0 %> ratings)
-      <% } %>
-    </p>
+  <div class="col-md-8">
     <div class="card shadow-sm mb-4">
       <div class="card-body">
-        <pre class="mb-0" style="white-space:pre-wrap;font-family:inherit;"><%= note.content %></pre>
+        <div class="d-flex justify-content-between align-items-start mb-3">
+          <div>
+            <h2 class="mb-1"><%= note.title %></h2>
+            <small class="text-muted">
+              By <%= note.User ? note.User.username : 'Unknown' %> &middot;
+              <%= new Date(note.createdAt).toLocaleString() %> &middot;
+              <span class="badge bg-<%= note.visibility === 'public' ? 'success' : 'secondary' %>"><%= note.visibility %></span>
+            </small>
+          </div>
+          <% if (isOwner) { %>
+            <div class="d-flex gap-2 flex-shrink-0 ms-3">
+              <a href="/notes/<%= note.id %>/edit" class="btn btn-sm btn-outline-primary">Edit</a>
+              <form action="/notes/<%= note.id %>/delete" method="POST" onsubmit="return confirm('Delete this note?')">
+                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+              </form>
+            </div>
+          <% } %>
+        </div>
+
+        <hr>
+        <div style="white-space: pre-wrap;"><%= note.content %></div>
       </div>
     </div>
 
-    <% if (note.Attachments && note.Attachments.length > 0) { %>
-      <h5 class="mb-3"><i class="bi bi-paperclip me-1"></i>Attachments</h5>
-      <ul class="list-group mb-4">
-        <% note.Attachments.forEach(att => { %>
-          <li class="list-group-item">
-            <a href="/uploads/<%= att.storedFilename %>" target="_blank"><i class="bi bi-file-earmark me-2"></i><%= att.originalFilename %></a>
-            <small class="text-muted ms-2">(<%= (att.fileSize / 1024).toFixed(1) %> KB)</small>
-          </li>
-        <% }) %>
-      </ul>
-    <% } %>
-
-    <% if (currentUser && (typeof isSharedView === 'undefined' || !isSharedView)) { %>
-      <% if (note.userId !== currentUser.id) { %>
-        <h5 class="mb-3"><i class="bi bi-star me-1"></i>Rate this Note</h5>
-        <form method="POST" action="/notes/<%= note.id %>/rate" class="mb-4">
-          <div class="row g-2 align-items-end">
-            <div class="col-auto">
-              <label class="form-label">Stars</label>
-              <select name="value" class="form-select" style="width:auto">
-                <% for (let i = 1; i <= 5; i++) { %>
-                  <option value="<%= i %>" <%= userRating && userRating.value === i ? 'selected' : '' %>><%= i %> ★</option>
-                <% } %>
-              </select>
-            </div>
-            <div class="col">
-              <label class="form-label">Comment (optional)</label>
-              <input type="text" name="comment" class="form-control" value="<%= userRating ? userRating.comment || '' : '' %>" placeholder="Leave a comment…" />
-            </div>
-            <div class="col-auto">
-              <button class="btn btn-outline-warning"><%= userRating ? 'Update Rating' : 'Submit Rating' %></button>
-            </div>
-          </div>
-        </form>
-      <% } %>
-
-      <% if (note.Ratings && note.Ratings.length > 0 && (note.userId === currentUser.id || currentUser.role === 'admin')) { %>
-        <h5 class="mb-3">All Ratings</h5>
-        <div class="mb-4">
-          <% note.Ratings.forEach(r => { %>
-            <div class="border rounded p-2 mb-2">
-              <div class="d-flex justify-content-between">
-                <strong><%= r.rater ? r.rater.username : 'Unknown' %></strong>
-                <span><%= '★'.repeat(r.value) %><span class="text-muted"><%= '☆'.repeat(5 - r.value) %></span></span>
-              </div>
-              <% if (r.comment) { %><p class="mb-0 text-muted small mt-1"><%= r.comment %></p><% } %>
-              <small class="text-muted"><%= new Date(r.createdAt).toLocaleString() %></small>
-            </div>
+    <!-- Attachments -->
+    <div class="card shadow-sm mb-4">
+      <div class="card-header"><strong>Attachments</strong></div>
+      <ul class="list-group list-group-flush">
+        <% if (note.Attachments && note.Attachments.length > 0) { %>
+          <% note.Attachments.forEach(att => { %>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <a href="/notes/<%= note.id %>/attachments/<%= att.id %>/download" class="text-decoration-none">
+                📎 <%= att.originalName %>
+                <small class="text-muted">(<%= (att.size / 1024).toFixed(1) %> KB)</small>
+              </a>
+              <% if (isOwner) { %>
+                <form action="/notes/<%= note.id %>/attachments/<%= att.id %>/delete" method="POST"
+                      onsubmit="return confirm('Delete attachment?')" class="ms-2">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">✕</button>
+                </form>
+              <% } %>
+            </li>
           <% }) %>
+        <% } else { %>
+          <li class="list-group-item text-muted">No attachments.</li>
+        <% } %>
+      </ul>
+      <% if (isOwner) { %>
+        <div class="card-footer">
+          <form action="/notes/<%= note.id %>/attachments" method="POST" enctype="multipart/form-data" class="d-flex gap-2">
+            <input type="file" name="file" class="form-control form-control-sm" accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg">
+            <button type="submit" class="btn btn-sm btn-primary">Upload</button>
+          </form>
+          <small class="text-muted">Allowed: PDF, DOC, DOCX, TXT, PNG, JPG. Max 10MB.</small>
         </div>
       <% } %>
-    <% } %>
-  </div>
+    </div>
 
-  <div class="col-lg-4">
-    <% if (currentUser && (note.userId === currentUser.id || currentUser.role === 'admin') && (typeof isSharedView === 'undefined' || !isSharedView)) { %>
-      <div class="card shadow-sm mb-3">
-        <div class="card-body">
-          <h6 class="card-title">Actions</h6>
-          <a href="/notes/<%= note.id %>/edit" class="btn btn-outline-secondary btn-sm w-100 mb-2">
-            <i class="bi bi-pencil me-1"></i>Edit Note
-          </a>
-          <form method="POST" action="/notes/<%= note.id %>/delete" onsubmit="return confirm('Are you sure you want to delete this note?')">
-            <button class="btn btn-outline-danger btn-sm w-100"><i class="bi bi-trash me-1"></i>Delete Note</button>
+    <!-- Ratings -->
+    <div class="card shadow-sm mb-4">
+      <div class="card-header d-flex justify-content-between">
+        <strong>Ratings</strong>
+        <span><%- renderStars(avgRating) %> &middot; <%= note.Ratings ? note.Ratings.length : 0 %> review(s)</span>
+      </div>
+      <% if (note.Ratings && note.Ratings.length > 0) { %>
+        <ul class="list-group list-group-flush">
+          <% note.Ratings.forEach(r => { %>
+            <li class="list-group-item">
+              <div class="d-flex justify-content-between">
+                <strong><%= r.User ? r.User.username : 'User' %></strong>
+                <span>
+                  <% for(let i=1;i<=5;i++) { %><span class="<%= i<=r.value?'star':'star-empty' %>">★</span><% } %>
+                </span>
+              </div>
+              <% if (r.comment) { %><p class="mb-0 text-muted small"><%= r.comment %></p><% } %>
+            </li>
+          <% }) %>
+        </ul>
+      <% } else { %>
+        <div class="card-body text-muted">No ratings yet.</div>
+      <% } %>
+      <% if (locals.currentUser && locals.currentUser.id !== note.userId) { %>
+        <div class="card-footer">
+          <form action="/notes/<%= note.id %>/ratings" method="POST">
+            <div class="row g-2 align-items-end">
+              <div class="col-auto">
+                <label class="form-label">Your Rating</label>
+                <select name="value" class="form-select form-select-sm" required>
+                  <option value="">—</option>
+                  <% for(let i=1;i<=5;i++) { %><option value="<%= i %>" <%= userRating && userRating.value===i ? 'selected' : '' %>><%= i %> ★</option><% } %>
+                </select>
+              </div>
+              <div class="col">
+                <label class="form-label">Comment (optional)</label>
+                <input type="text" name="comment" class="form-control form-control-sm" value="<%= userRating ? userRating.comment || '' : '' %>">
+              </div>
+              <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-primary"><%= userRating ? 'Update' : 'Submit' %></button>
+              </div>
+            </div>
           </form>
         </div>
-      </div>
+      <% } %>
+    </div>
+  </div>
 
+  <!-- Sidebar -->
+  <div class="col-md-4">
+    <% if (isOwner) { %>
       <div class="card shadow-sm mb-3">
+        <div class="card-header"><strong>Share Link</strong></div>
         <div class="card-body">
-          <h6 class="card-title"><i class="bi bi-share me-1"></i>Sharing</h6>
-          <% if (shareLinks && shareLinks.length > 0) { %>
-            <% shareLinks.forEach(sl => { %>
-              <div class="input-group input-group-sm mb-2">
-                <input type="text" class="form-control" value="<%= (process.env.APP_URL || 'http://localhost:3000') + '/share/' + sl.token %>" readonly id="shareUrl" />
-                <button class="btn btn-outline-secondary" onclick="navigator.clipboard.writeText(document.getElementById('shareUrl').value)" title="Copy"><i class="bi bi-clipboard"></i></button>
-              </div>
-            <% }) %>
-            <form method="POST" action="/notes/<%= note.id %>/share/revoke">
-              <button class="btn btn-outline-danger btn-sm w-100"><i class="bi bi-link-45deg me-1"></i>Revoke Link</button>
-            </form>
+          <% if (note.ShareLink) { %>
+            <div class="mb-2">
+              <input type="text" class="form-control form-control-sm"
+                     value="<%= (process.env.BASE_URL || 'http://localhost:3000') + '/share/' + note.ShareLink.token %>"
+                     readonly onclick="this.select()">
+            </div>
+            <div class="d-flex gap-2">
+              <form action="/notes/<%= note.id %>/share" method="POST">
+                <button type="submit" class="btn btn-sm btn-outline-secondary">Regenerate</button>
+              </form>
+              <form action="/notes/<%= note.id %>/share/revoke" method="POST">
+                <button type="submit" class="btn btn-sm btn-outline-danger">Revoke</button>
+              </form>
+            </div>
           <% } else { %>
-            <form method="POST" action="/notes/<%= note.id %>/share">
-              <button class="btn btn-outline-primary btn-sm w-100"><i class="bi bi-link-45deg me-1"></i>Create Share Link</button>
+            <form action="/notes/<%= note.id %>/share" method="POST">
+              <button type="submit" class="btn btn-sm btn-primary w-100">Generate Share Link</button>
             </form>
           <% } %>
         </div>
       </div>
-
-      <% if (currentUser.role === 'admin') { %>
-        <div class="card shadow-sm mb-3">
-          <div class="card-body">
-            <h6 class="card-title"><i class="bi bi-person-gear me-1"></i>Reassign Ownership</h6>
-            <form method="POST" action="/admin/notes/<%= note.id %>/reassign">
-              <div class="input-group input-group-sm">
-                <input type="text" name="newOwner" class="form-control" placeholder="Username" required />
-                <button class="btn btn-outline-warning">Reassign</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      <% } %>
     <% } %>
   </div>
 </div>
-<%- include('../partials/footer') %>

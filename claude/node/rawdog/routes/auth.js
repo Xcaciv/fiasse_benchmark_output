@@ -3,7 +3,8 @@ const router = express.Router();
 const passport = require('passport');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
-const { getDb, logActivity } = require('../database/db');
+const { body, validationResult } = require('express-validator');
+const db = require('../models');
 
 // GET /auth/login
 router.get('/login', (req, res) => {
@@ -16,14 +17,20 @@ router.post('/login', (req, res, next) => {
   passport.authenticate('local', (err, user, info) => {
     if (err) return next(err);
     if (!user) {
-      logActivity(null, 'login_failed', `Failed login attempt for: ${req.body.username}`);
-      req.flash('error', info.message || 'Login failed.');
+      req.flash('error', info.message || 'Invalid credentials.');
       return res.redirect('/auth/login');
     }
-    req.logIn(user, (err) => {
+    req.logIn(user, async (err) => {
       if (err) return next(err);
-      logActivity(user.id, 'login', `User logged in: ${user.username}`);
-      req.flash('success', `Welcome back, ${user.username}!`);
+      try {
+        await db.AuditLog.create({
+          userId: user.id,
+          action: 'user_login',
+          details: `User ${user.username} logged in`,
+          ipAddress: req.ip
+        });
+      } catch (e) { /* non-fatal */ }
+      req.flash('success_msg', `Welcome back, ${user.username}!`);
       res.redirect('/notes');
     });
   })(req, res, next);
@@ -32,56 +39,74 @@ router.post('/login', (req, res, next) => {
 // GET /auth/register
 router.get('/register', (req, res) => {
   if (req.isAuthenticated()) return res.redirect('/notes');
-  res.render('auth/register', { title: 'Register' });
+  res.render('auth/register', { title: 'Register', errors: [] });
 });
 
 // POST /auth/register
-router.post('/register', (req, res) => {
-  const { username, email, password, confirmPassword } = req.body;
-  const db = getDb();
+router.post('/register', [
+  body('username').trim().isLength({ min: 3, max: 50 }).withMessage('Username must be 3-50 characters.'),
+  body('email').trim().isEmail().withMessage('Please provide a valid email address.').normalizeEmail(),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters.'),
+  body('confirmPassword').custom((value, { req }) => {
+    if (value !== req.body.password) throw new Error('Passwords do not match.');
+    return true;
+  })
+], async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.render('auth/register', { title: 'Register', errors: errors.array() });
+    }
 
-  if (!username || !email || !password || !confirmPassword) {
-    req.flash('error', 'All fields are required.');
-    return res.redirect('/auth/register');
+    const { username, email, password } = req.body;
+
+    const existingUser = await db.User.findOne({ where: { username } });
+    if (existingUser) {
+      return res.render('auth/register', {
+        title: 'Register',
+        errors: [{ msg: 'Username already taken.' }]
+      });
+    }
+    const existingEmail = await db.User.findOne({ where: { email } });
+    if (existingEmail) {
+      return res.render('auth/register', {
+        title: 'Register',
+        errors: [{ msg: 'Email already registered.' }]
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+    const user = await db.User.create({ username, email, password: hashedPassword });
+
+    await db.AuditLog.create({
+      userId: user.id,
+      action: 'user_register',
+      details: `New user registered: ${user.username}`,
+      ipAddress: req.ip
+    });
+
+    req.flash('success_msg', 'Registration successful! Please log in.');
+    res.redirect('/auth/login');
+  } catch (err) {
+    next(err);
   }
+});
 
-  if (password !== confirmPassword) {
-    req.flash('error', 'Passwords do not match.');
-    return res.redirect('/auth/register');
-  }
-
-  if (password.length < 6) {
-    req.flash('error', 'Password must be at least 6 characters.');
-    return res.redirect('/auth/register');
-  }
-
-  const existing = db.prepare(
-    'SELECT id FROM users WHERE username = ? OR email = ?'
-  ).get(username, email);
-
-  if (existing) {
-    req.flash('error', 'Username or email is already in use.');
-    return res.redirect('/auth/register');
-  }
-
-  const hash = bcrypt.hashSync(password, 10);
-  const result = db.prepare(
-    'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)'
-  ).run(username, email, hash);
-
-  logActivity(result.lastInsertRowid, 'register', `New user registered: ${username}`);
-  req.flash('success', 'Account created! Please log in.');
-  res.redirect('/auth/login');
+// GET /auth/logout
+router.get('/logout', (req, res, next) => {
+  req.logout((err) => {
+    if (err) return next(err);
+    req.flash('success_msg', 'You have been logged out.');
+    res.redirect('/');
+  });
 });
 
 // POST /auth/logout
 router.post('/logout', (req, res, next) => {
-  const username = req.user ? req.user.username : 'unknown';
   req.logout((err) => {
     if (err) return next(err);
-    logActivity(null, 'logout', `User logged out: ${username}`);
-    req.flash('success', 'You have been logged out.');
-    res.redirect('/auth/login');
+    req.flash('success_msg', 'You have been logged out.');
+    res.redirect('/');
   });
 });
 
@@ -91,81 +116,107 @@ router.get('/forgot-password', (req, res) => {
 });
 
 // POST /auth/forgot-password
-router.post('/forgot-password', (req, res) => {
-  const { email } = req.body;
-  const db = getDb();
+router.post('/forgot-password', [
+  body('email').trim().isEmail().withMessage('Please provide a valid email address.').normalizeEmail()
+], async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      req.flash('error', errors.array()[0].msg);
+      return res.redirect('/auth/forgot-password');
+    }
 
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+    const { email } = req.body;
+    const user = await db.User.findOne({ where: { email } });
 
-  if (!user) {
-    // Don't reveal whether email exists
-    req.flash('success', 'If that email is registered, a reset link has been sent.');
-    return res.redirect('/auth/forgot-password');
+    if (user) {
+      const token = uuidv4();
+      const expiry = new Date(Date.now() + 3600000); // 1 hour
+      await user.update({ resetToken: token, resetTokenExpiry: expiry });
+
+      const resetUrl = `${process.env.BASE_URL || 'http://localhost:' + (process.env.PORT || 3000)}/auth/reset-password?token=${token}`;
+      console.log('\n--- PASSWORD RESET EMAIL ---');
+      console.log(`To: ${email}`);
+      console.log(`Subject: Password Reset Request`);
+      console.log(`Reset link: ${resetUrl}`);
+      console.log(`(Link expires in 1 hour)`);
+      console.log('----------------------------\n');
+    }
+
+    // Always redirect to confirmation to prevent user enumeration
+    res.redirect('/auth/forgot-password-confirmation');
+  } catch (err) {
+    next(err);
   }
-
-  // Invalidate old tokens
-  db.prepare('UPDATE password_resets SET used = 1 WHERE user_id = ?').run(user.id);
-
-  const token = uuidv4();
-  const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
-
-  db.prepare(
-    'INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)'
-  ).run(user.id, token, expiresAt);
-
-  const resetUrl = `${req.protocol}://${req.get('host')}/auth/reset-password/${token}`;
-  console.log(`\n[Password Reset] User: ${user.username} | URL: ${resetUrl}\n`);
-
-  req.flash('success', 'A password reset link has been generated. Check the server console for the link (email not configured).');
-  res.redirect('/auth/forgot-password');
 });
 
-// GET /auth/reset-password/:token
-router.get('/reset-password/:token', (req, res) => {
-  const db = getDb();
-  const reset = db.prepare(
-    'SELECT * FROM password_resets WHERE token = ? AND used = 0'
-  ).get(req.params.token);
-
-  if (!reset || new Date(reset.expires_at) < new Date()) {
-    req.flash('error', 'Reset link is invalid or has expired.');
-    return res.redirect('/auth/forgot-password');
-  }
-
-  res.render('auth/reset-password', { title: 'Reset Password', token: req.params.token });
+// GET /auth/forgot-password-confirmation
+router.get('/forgot-password-confirmation', (req, res) => {
+  res.render('auth/forgot-password-confirmation', { title: 'Check Your Email' });
 });
 
-// POST /auth/reset-password/:token
-router.post('/reset-password/:token', (req, res) => {
-  const db = getDb();
-  const { password, confirmPassword } = req.body;
+// GET /auth/reset-password
+router.get('/reset-password', async (req, res, next) => {
+  try {
+    const { token } = req.query;
+    if (!token) {
+      req.flash('error', 'Invalid reset link.');
+      return res.redirect('/auth/forgot-password');
+    }
 
-  const reset = db.prepare(
-    'SELECT * FROM password_resets WHERE token = ? AND used = 0'
-  ).get(req.params.token);
+    const user = await db.User.findOne({ where: { resetToken: token } });
+    if (!user || !user.resetTokenExpiry || user.resetTokenExpiry < new Date()) {
+      req.flash('error', 'Invalid or expired reset link. Please request a new one.');
+      return res.redirect('/auth/forgot-password');
+    }
 
-  if (!reset || new Date(reset.expires_at) < new Date()) {
-    req.flash('error', 'Reset link is invalid or has expired.');
-    return res.redirect('/auth/forgot-password');
+    res.render('auth/reset-password', { title: 'Reset Password', token, errors: [] });
+  } catch (err) {
+    next(err);
   }
+});
 
-  if (!password || password !== confirmPassword) {
-    req.flash('error', 'Passwords do not match.');
-    return res.redirect(`/auth/reset-password/${req.params.token}`);
+// POST /auth/reset-password
+router.post('/reset-password', [
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters.'),
+  body('confirmPassword').custom((value, { req }) => {
+    if (value !== req.body.password) throw new Error('Passwords do not match.');
+    return true;
+  })
+], async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    const { token, password } = req.body;
+
+    if (!errors.isEmpty()) {
+      return res.render('auth/reset-password', { title: 'Reset Password', token, errors: errors.array() });
+    }
+
+    const user = await db.User.findOne({ where: { resetToken: token } });
+    if (!user || !user.resetTokenExpiry || user.resetTokenExpiry < new Date()) {
+      req.flash('error', 'Invalid or expired reset link. Please request a new one.');
+      return res.redirect('/auth/forgot-password');
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+    await user.update({ password: hashedPassword, resetToken: null, resetTokenExpiry: null });
+
+    await db.AuditLog.create({
+      userId: user.id,
+      action: 'password_reset',
+      details: `Password reset for user: ${user.username}`,
+      ipAddress: req.ip
+    });
+
+    res.redirect('/auth/reset-password-confirmation');
+  } catch (err) {
+    next(err);
   }
+});
 
-  if (password.length < 6) {
-    req.flash('error', 'Password must be at least 6 characters.');
-    return res.redirect(`/auth/reset-password/${req.params.token}`);
-  }
-
-  const hash = bcrypt.hashSync(password, 10);
-  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, reset.user_id);
-  db.prepare('UPDATE password_resets SET used = 1 WHERE id = ?').run(reset.id);
-
-  logActivity(reset.user_id, 'password_reset', 'Password was reset via token');
-  req.flash('success', 'Password reset successfully. Please log in.');
-  res.redirect('/auth/login');
+// GET /auth/reset-password-confirmation
+router.get('/reset-password-confirmation', (req, res) => {
+  res.render('auth/reset-password-confirmation', { title: 'Password Reset Successful' });
 });
 
 module.exports = router;

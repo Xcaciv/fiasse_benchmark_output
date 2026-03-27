@@ -1,0 +1,151 @@
+/* Loose Notes - Custom Styles */
+
+/* Body & Layout */
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #f8f9fa;
+}
+
+main.container {
+  flex: 1;
+}
+
+/* Footer */
+.footer {
+  margin-top: auto;
+}
+
+/* Navbar */
+.navbar-brand {
+  font-size: 1.4rem;
+  letter-spacing: -0.5px;
+}
+
+/* Cards */
+.card {
+  border-radius: 0.75rem;
+  transition: box-shadow 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Note content display */
+.note-content {
+  font-size: 1rem;
+  line-height: 1.8;
+  color: #212529;
+}
+
+/* Star rating display */
+.bi-star-fill {
+  color: #ffc107;
+}
+
+/* Form improvements */
+.form-control:focus,
+.form-select:focus {
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+}
+
+/* Badge styles */
+.badge {
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+/* Alert styling */
+.alert {
+  border-radius: 0.6rem;
+}
+
+/* List group item hover */
+.list-group-item-action:hover {
+  background-color: #f0f4ff;
+}
+
+/* Admin dashboard stats card */
+.card.bg-primary,
+.card.bg-success,
+.card.bg-info,
+.card.bg-warning {
+  transition: transform 0.2s;
+}
+
+.card.bg-primary:hover,
+.card.bg-success:hover,
+.card.bg-info:hover,
+.card.bg-warning:hover {
+  transform: translateY(-2px);
+}
+
+/* Textarea for note content */
+textarea#content {
+  min-height: 250px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+/* Share link input */
+#shareLinkFull {
+  background: #f8f9fa;
+  font-size: 0.85rem;
+  color: #6c757d;
+}
+
+/* Top-rated medal badges */
+.position-absolute.top-0 {
+  z-index: 10;
+}
+
+/* Responsive tables */
+.table th {
+  font-weight: 600;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Spinner for loading states */
+.btn:disabled {
+  cursor: not-allowed;
+}
+
+/* Flash messages */
+.alert.alert-success,
+.alert.alert-danger {
+  border-left: 4px solid;
+}
+
+.alert.alert-success {
+  border-left-color: #198754;
+}
+
+.alert.alert-danger {
+  border-left-color: #dc3545;
+}
+
+/* Empty state styling */
+.text-center.py-5 i.display-3,
+.text-center.py-5 i.display-4 {
+  opacity: 0.3;
+}
+
+/* Mobile adjustments */
+@media (max-width: 576px) {
+  .card-body.p-4 {
+    padding: 1.25rem !important;
+  }
+
+  h1 {
+    font-size: 1.75rem;
+  }
+
+  .display-5 {
+    font-size: 1.8rem;
+  }
+}

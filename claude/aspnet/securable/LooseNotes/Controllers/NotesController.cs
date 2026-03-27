@@ -1,3 +1,7 @@
+// NotesController.cs — CRUD for notes plus sharing and search.
+// Trust boundary: ownership verified on every mutating operation (IDOR prevention).
+// Integrity: all queries use EF Core parameterized LINQ.
+// Accountability: delete, visibility changes, and sharing are audited.
 using LooseNotes.Data;
 using LooseNotes.Models;
 using LooseNotes.Services;
@@ -9,14 +13,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LooseNotes.Controllers;
 
-/// <summary>
-/// CRUD operations for notes.
-/// All mutating actions verify ownership before proceeding (Authenticity, Integrity).
-/// OwnerId is always set server-side — never accepted from form data (Derived Integrity).
-/// </summary>
 [Authorize]
-public class NotesController : Controller
+public sealed class NotesController : Controller
 {
+    private const int ExcerptLength = 200;
+
     private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IFileStorageService _fileStorage;
@@ -40,24 +41,26 @@ public class NotesController : Controller
         _logger = logger;
     }
 
-    // ── List (owned notes) ────────────────────────────────────────────────────
-
+    // ── GET /Notes ────────────────────────────────────────────────────────────
     [HttpGet]
     public async Task<IActionResult> Index()
     {
         var userId = _userManager.GetUserId(User)!;
+
         var notes = await _db.Notes
-            .Where(n => n.OwnerId == userId)
+            .Where(n => n.UserId == userId)
             .OrderByDescending(n => n.UpdatedAt)
             .Select(n => new NoteListItemViewModel
             {
                 Id = n.Id,
                 Title = n.Title,
-                Excerpt = n.Content.Length > 200 ? n.Content[..200] : n.Content,
-                OwnerDisplayName = n.Owner!.DisplayName,
-                IsPublic = n.IsPublic,
+                Excerpt = n.Content.Length > ExcerptLength
+                    ? n.Content.Substring(0, ExcerptLength) + "…"
+                    : n.Content,
+                Visibility = n.Visibility,
+                AuthorUserName = n.User!.UserName!,
                 CreatedAt = n.CreatedAt,
-                AverageRating = n.Ratings.Any() ? n.Ratings.Average(r => (double)r.Value) : null,
+                AverageRating = n.Ratings.Any() ? n.Ratings.Average(r => r.Value) : 0,
                 RatingCount = n.Ratings.Count
             })
             .ToListAsync();
@@ -65,345 +68,354 @@ public class NotesController : Controller
         return View(notes);
     }
 
-    // ── Details ───────────────────────────────────────────────────────────────
-
+    // ── GET /Notes/Details/5 ──────────────────────────────────────────────────
     [HttpGet]
     [AllowAnonymous]
     public async Task<IActionResult> Details(int id)
     {
         var userId = _userManager.GetUserId(User);
+
         var note = await _db.Notes
-            .Include(n => n.Owner)
+            .Include(n => n.User)
             .Include(n => n.Attachments)
-            .Include(n => n.Ratings).ThenInclude(r => r.Rater)
+            .Include(n => n.Ratings).ThenInclude(r => r.User)
             .Include(n => n.ShareLinks.Where(s => s.IsActive))
             .FirstOrDefaultAsync(n => n.Id == id);
 
-        if (note is null)
-            return NotFound();
+        if (note is null) return NotFound();
 
-        // Access control: only owner can see private notes (Authenticity)
-        if (!note.IsPublic && note.OwnerId != userId)
-            return userId is null ? Challenge() : Forbid();
+        // Authorization: private notes only visible to owner
+        if (note.Visibility == NoteVisibility.Private && note.UserId != userId)
+            return note.UserId == userId ? View(MapToDetails(note, userId)) : Forbid();
 
-        var isOwner = note.OwnerId == userId;
-        var userRating = userId is not null
-            ? note.Ratings.FirstOrDefault(r => r.RaterId == userId)
-            : null;
-
-        var vm = BuildNoteDetailsViewModel(note, userId, isOwner, userRating);
-        return View(vm);
+        return View(MapToDetails(note, userId));
     }
 
-    // ── Create ─────────────────────────────────────────────────────────────────
-
+    // ── GET /Notes/Create ─────────────────────────────────────────────────────
     [HttpGet]
     public IActionResult Create() => View(new CreateNoteViewModel());
 
-    [HttpPost, ValidateAntiForgeryToken]
+    // ── POST /Notes/Create ────────────────────────────────────────────────────
+    [HttpPost]
     public async Task<IActionResult> Create(CreateNoteViewModel model)
     {
-        if (!ModelState.IsValid)
-            return View(model);
+        if (!ModelState.IsValid) return View(model);
 
-        // OwnerId from server identity — never from form data (Derived Integrity)
         var userId = _userManager.GetUserId(User)!;
 
         var note = new Note
         {
-            Title = model.Title,
+            Title = model.Title.Trim(),
             Content = model.Content,
-            IsPublic = model.IsPublic,
-            OwnerId = userId,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            UserId = userId,
+            Visibility = model.Visibility
         };
 
         _db.Notes.Add(note);
         await _db.SaveChangesAsync();
 
         if (model.Attachment is not null)
-            await TrySaveAttachmentAsync(model.Attachment, note.Id, userId);
+            await SaveAttachmentAsync(note.Id, model.Attachment);
 
-        await _auditService.RecordAsync("NoteCreated", userId: userId,
-            resourceType: "Note", resourceId: note.Id.ToString());
+        await _auditService.LogAsync(userId, "Note.Created", "Note", note.Id.ToString(),
+            $"Title={note.Title} Visibility={note.Visibility}");
 
         return RedirectToAction(nameof(Details), new { id = note.Id });
     }
 
-    // ── Edit ───────────────────────────────────────────────────────────────────
-
+    // ── GET /Notes/Edit/5 ─────────────────────────────────────────────────────
     [HttpGet]
     public async Task<IActionResult> Edit(int id)
     {
-        var userId = _userManager.GetUserId(User)!;
-        var note = await _db.Notes.FindAsync(id);
+        var note = await FindOwnedNoteAsync(id);
+        if (note is null) return Forbid();
 
-        if (note is null) return NotFound();
-        if (note.OwnerId != userId) return Forbid();
-
-        var vm = new EditNoteViewModel
+        return View(new EditNoteViewModel
         {
             Id = note.Id,
             Title = note.Title,
             Content = note.Content,
-            IsPublic = note.IsPublic
-        };
-        return View(vm);
+            Visibility = note.Visibility
+        });
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    // ── POST /Notes/Edit ──────────────────────────────────────────────────────
+    [HttpPost]
     public async Task<IActionResult> Edit(EditNoteViewModel model)
     {
-        if (!ModelState.IsValid)
-            return View(model);
+        if (!ModelState.IsValid) return View(model);
 
-        var userId = _userManager.GetUserId(User)!;
-        var note = await _db.Notes.FindAsync(model.Id);
+        // Trust boundary: re-verify ownership in POST (double-submit / CSRF protection)
+        var note = await FindOwnedNoteAsync(model.Id);
+        if (note is null) return Forbid();
 
-        if (note is null) return NotFound();
-        // Ownership re-verified on POST (Authenticity, Integrity)
-        if (note.OwnerId != userId) return Forbid();
-
-        note.Title = model.Title;
+        note.Title = model.Title.Trim();
         note.Content = model.Content;
-        note.IsPublic = model.IsPublic;
+        note.Visibility = model.Visibility;
         note.UpdatedAt = DateTime.UtcNow;
 
-        if (model.NewAttachment is not null)
-            await TrySaveAttachmentAsync(model.NewAttachment, note.Id, userId);
-
         await _db.SaveChangesAsync();
-        await _auditService.RecordAsync("NoteEdited", userId: userId,
-            resourceType: "Note", resourceId: note.Id.ToString());
 
+        if (model.NewAttachment is not null)
+            await SaveAttachmentAsync(note.Id, model.NewAttachment);
+
+        await _auditService.LogAsync(_userManager.GetUserId(User), "Note.Updated", "Note", note.Id.ToString());
         return RedirectToAction(nameof(Details), new { id = note.Id });
     }
 
-    // ── Delete ─────────────────────────────────────────────────────────────────
-
+    // ── GET /Notes/Delete/5 ───────────────────────────────────────────────────
     [HttpGet]
     public async Task<IActionResult> Delete(int id)
     {
-        var userId = _userManager.GetUserId(User)!;
-        var isAdmin = User.IsInRole(Data.DbInitializer.AdminRoleName);
-
-        var note = await _db.Notes.Include(n => n.Owner).FirstOrDefaultAsync(n => n.Id == id);
-        if (note is null) return NotFound();
-        if (note.OwnerId != userId && !isAdmin) return Forbid();
-
-        return View(note);
+        var note = await FindOwnedNoteAsync(id);
+        if (note is null) return Forbid();
+        return View(new NoteListItemViewModel { Id = note.Id, Title = note.Title });
     }
 
-    [HttpPost, ActionName("Delete"), ValidateAntiForgeryToken]
+    // ── POST /Notes/Delete ────────────────────────────────────────────────────
+    [HttpPost, ActionName("Delete")]
     public async Task<IActionResult> DeleteConfirmed(int id)
     {
-        var userId = _userManager.GetUserId(User)!;
-        var isAdmin = User.IsInRole(Data.DbInitializer.AdminRoleName);
-
         var note = await _db.Notes
             .Include(n => n.Attachments)
             .FirstOrDefaultAsync(n => n.Id == id);
 
         if (note is null) return NotFound();
-        if (note.OwnerId != userId && !isAdmin) return Forbid();
 
-        // Remove stored files before DB cascade delete (Resilience, data consistency)
-        foreach (var att in note.Attachments)
-            await _fileStorage.DeleteAsync(att.StoredFileName);
+        // Authorization: owner or admin only
+        var userId = _userManager.GetUserId(User)!;
+        var isAdmin = User.IsInRole("Admin");
+
+        if (note.UserId != userId && !isAdmin) return Forbid();
+
+        // Resilience: delete physical files before removing DB record
+        foreach (var attachment in note.Attachments)
+            await _fileStorage.DeleteAsync(attachment.StoredFileName);
 
         _db.Notes.Remove(note);
         await _db.SaveChangesAsync();
 
-        await _auditService.RecordAsync("NoteDeleted", userId: userId,
-            resourceType: "Note", resourceId: id.ToString());
+        await _auditService.LogAsync(userId, "Note.Deleted", "Note", note.Id.ToString(),
+            $"Title={note.Title}");
 
         return RedirectToAction(nameof(Index));
     }
 
-    // ── Share Link Management ─────────────────────────────────────────────────
-
-    [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> GenerateShareLink(int id)
-    {
-        var userId = _userManager.GetUserId(User)!;
-        var note = await _db.Notes.FindAsync(id);
-        if (note is null) return NotFound();
-        if (note.OwnerId != userId) return Forbid();
-
-        // Revoke old active links before creating a new one
-        var existing = await _db.ShareLinks
-            .Where(s => s.NoteId == id && s.IsActive)
-            .ToListAsync();
-        foreach (var old in existing)
-            old.IsActive = false;
-
-        var newLink = new ShareLink
-        {
-            NoteId = id,
-            // Token generated server-side only (Derived Integrity Principle)
-            Token = _shareTokenService.GenerateToken(),
-            CreatedAt = DateTime.UtcNow,
-            IsActive = true
-        };
-        _db.ShareLinks.Add(newLink);
-        await _db.SaveChangesAsync();
-
-        await _auditService.RecordAsync("ShareLinkGenerated", userId: userId,
-            resourceType: "Note", resourceId: id.ToString());
-
-        return RedirectToAction(nameof(Details), new { id });
-    }
-
-    [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> RevokeShareLink(int id)
-    {
-        var userId = _userManager.GetUserId(User)!;
-        var note = await _db.Notes.FindAsync(id);
-        if (note is null) return NotFound();
-        if (note.OwnerId != userId) return Forbid();
-
-        var links = await _db.ShareLinks
-            .Where(s => s.NoteId == id && s.IsActive)
-            .ToListAsync();
-        foreach (var link in links)
-            link.IsActive = false;
-
-        await _db.SaveChangesAsync();
-        await _auditService.RecordAsync("ShareLinkRevoked", userId: userId,
-            resourceType: "Note", resourceId: id.ToString());
-
-        return RedirectToAction(nameof(Details), new { id });
-    }
-
-    // ── Search ────────────────────────────────────────────────────────────────
-
+    // ── GET /Notes/Search ─────────────────────────────────────────────────────
     [HttpGet]
     [AllowAnonymous]
-    public async Task<IActionResult> Search(NoteSearchViewModel model)
+    public async Task<IActionResult> Search(string? q)
     {
-        if (!ModelState.IsValid || string.IsNullOrWhiteSpace(model.Query))
+        var model = new NoteSearchViewModel { Query = q?.Trim() ?? string.Empty };
+
+        if (string.IsNullOrWhiteSpace(model.Query))
             return View(model);
 
         var userId = _userManager.GetUserId(User);
-        var query = model.Query.Trim();
 
-        // Request Surface Minimization: only extract the query param
-        var results = await _db.Notes
-            .Include(n => n.Owner)
+        // Integrity: EF Core parameterizes the query — no string concatenation
+        model.Results = await _db.Notes
+            .Include(n => n.User)
             .Where(n =>
-                // Own notes (any visibility) + other users' public notes
-                (n.OwnerId == userId || n.IsPublic)
-                && (EF.Functions.Like(n.Title, $"%{query}%")
-                    || EF.Functions.Like(n.Content, $"%{query}%")))
-            .OrderByDescending(n => n.UpdatedAt)
-            .Take(100) // Availability: bound result set
+                (n.UserId == userId || n.Visibility == NoteVisibility.Public) &&
+                (n.Title.Contains(model.Query) || n.Content.Contains(model.Query)))
+            .OrderByDescending(n => n.CreatedAt)
             .Select(n => new NoteListItemViewModel
             {
                 Id = n.Id,
                 Title = n.Title,
-                Excerpt = n.Content.Length > 200 ? n.Content[..200] : n.Content,
-                OwnerDisplayName = n.Owner!.DisplayName,
-                IsPublic = n.IsPublic,
+                Excerpt = n.Content.Length > ExcerptLength
+                    ? n.Content.Substring(0, ExcerptLength) + "…"
+                    : n.Content,
+                Visibility = n.Visibility,
+                AuthorUserName = n.User!.UserName!,
                 CreatedAt = n.CreatedAt
             })
             .ToListAsync();
 
-        model.Results = results;
-        model.HasSearched = true;
         return View(model);
     }
 
-    // ── Top Rated ─────────────────────────────────────────────────────────────
-
+    // ── GET /Notes/TopRated ───────────────────────────────────────────────────
     [HttpGet]
     [AllowAnonymous]
     public async Task<IActionResult> TopRated()
     {
-        const int MinRatings = 3;
         var results = await _db.Notes
-            .Include(n => n.Owner)
-            .Where(n => n.IsPublic && n.Ratings.Count >= MinRatings)
-            .OrderByDescending(n => n.Ratings.Average(r => (double)r.Value))
-            .Take(50) // Availability: bound result set
+            .Include(n => n.User)
+            .Where(n => n.Visibility == NoteVisibility.Public && n.Ratings.Count >= 3)
             .Select(n => new NoteListItemViewModel
             {
                 Id = n.Id,
                 Title = n.Title,
-                Excerpt = n.Content.Length > 200 ? n.Content[..200] : n.Content,
-                OwnerDisplayName = n.Owner!.DisplayName,
-                IsPublic = n.IsPublic,
+                Excerpt = n.Content.Length > ExcerptLength
+                    ? n.Content.Substring(0, ExcerptLength) + "…"
+                    : n.Content,
+                AuthorUserName = n.User!.UserName!,
                 CreatedAt = n.CreatedAt,
-                AverageRating = n.Ratings.Average(r => (double)r.Value),
+                AverageRating = n.Ratings.Average(r => r.Value),
                 RatingCount = n.Ratings.Count
             })
+            .OrderByDescending(n => n.AverageRating)
             .ToListAsync();
 
         return View(results);
     }
 
+    // ── POST /Notes/GenerateShareLink ─────────────────────────────────────────
+    [HttpPost]
+    public async Task<IActionResult> GenerateShareLink(int id)
+    {
+        var note = await FindOwnedNoteAsync(id);
+        if (note is null) return Forbid();
+
+        // Revoke any existing active links first (Authenticity: only one active token)
+        var existingLinks = await _db.ShareLinks
+            .Where(s => s.NoteId == id && s.IsActive)
+            .ToListAsync();
+
+        foreach (var link in existingLinks)
+            link.IsActive = false;
+
+        var newLink = new ShareLink
+        {
+            NoteId = id,
+            Token = _shareTokenService.GenerateToken()
+        };
+
+        _db.ShareLinks.Add(newLink);
+        await _db.SaveChangesAsync();
+
+        await _auditService.LogAsync(_userManager.GetUserId(User), "Note.ShareLinkGenerated",
+            "Note", id.ToString());
+
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    // ── POST /Notes/RevokeShareLink ───────────────────────────────────────────
+    [HttpPost]
+    public async Task<IActionResult> RevokeShareLink(int id)
+    {
+        var note = await FindOwnedNoteAsync(id);
+        if (note is null) return Forbid();
+
+        var links = await _db.ShareLinks
+            .Where(s => s.NoteId == id && s.IsActive)
+            .ToListAsync();
+
+        foreach (var link in links)
+            link.IsActive = false;
+
+        await _db.SaveChangesAsync();
+        await _auditService.LogAsync(_userManager.GetUserId(User), "Note.ShareLinkRevoked",
+            "Note", id.ToString());
+
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    // ── POST /Notes/Rate ──────────────────────────────────────────────────────
+    [HttpPost]
+    public async Task<IActionResult> Rate(RatingInputViewModel model)
+    {
+        if (!ModelState.IsValid)
+            return RedirectToAction(nameof(Details), new { id = model.NoteId });
+
+        var userId = _userManager.GetUserId(User)!;
+        var note = await _db.Notes.FindAsync(model.NoteId);
+        if (note is null) return NotFound();
+
+        // Integrity: upsert — one rating per user per note
+        var existing = await _db.Ratings
+            .FirstOrDefaultAsync(r => r.NoteId == model.NoteId && r.UserId == userId);
+
+        if (existing is null)
+        {
+            _db.Ratings.Add(new Rating
+            {
+                NoteId = model.NoteId,
+                UserId = userId,
+                Value = model.Value,
+                Comment = model.Comment
+            });
+        }
+        else
+        {
+            existing.Value = model.Value;
+            existing.Comment = model.Comment;
+            existing.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await _db.SaveChangesAsync();
+        return RedirectToAction(nameof(Details), new { id = model.NoteId });
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private async Task TrySaveAttachmentAsync(IFormFile file, int noteId, string userId)
+    /// <summary>Retrieves a note only if the current user is the owner.
+    /// Returns null on not-found or unauthorized — callers return Forbid().</summary>
+    private async Task<Note?> FindOwnedNoteAsync(int noteId)
+    {
+        var userId = _userManager.GetUserId(User);
+        return await _db.Notes.FirstOrDefaultAsync(
+            n => n.Id == noteId && n.UserId == userId);
+    }
+
+    private async Task SaveAttachmentAsync(int noteId, IFormFile file)
     {
         try
         {
-            var storedName = await _fileStorage.SaveAsync(file);
-            var attachment = new Attachment
+            var stored = await _fileStorage.SaveAsync(file);
+            _db.Attachments.Add(new Attachment
             {
                 NoteId = noteId,
-                OriginalFileName = Path.GetFileName(file.FileName), // strip directory paths
-                StoredFileName = storedName,
-                ContentType = file.ContentType,
-                FileSizeBytes = file.Length,
-                UploadedById = userId,
-                UploadedAt = DateTime.UtcNow
-            };
-            _db.Attachments.Add(attachment);
+                OriginalFileName = Path.GetFileName(file.FileName), // strip path
+                StoredFileName = stored.StoredFileName,
+                ContentType = stored.ContentType,
+                FileSizeBytes = stored.FileSizeBytes
+            });
             await _db.SaveChangesAsync();
         }
         catch (InvalidOperationException ex)
         {
-            // Non-fatal: note was saved; only the attachment failed
-            ModelState.AddModelError(string.Empty, ex.Message);
-            _logger.LogWarning("Attachment upload rejected noteId={NoteId}: {Reason}", noteId, ex.Message);
+            // Resilience: file validation failure is non-fatal; note was already saved
+            _logger.LogWarning("Attachment validation failed for note {NoteId}: {Reason}",
+                noteId, ex.Message);
+            TempData["AttachmentError"] = ex.Message;
         }
     }
 
-    private static NoteDetailsViewModel BuildNoteDetailsViewModel(
-        Note note, string? currentUserId, bool isOwner, Rating? userRating)
+    private static NoteDetailsViewModel MapToDetails(Note note, string? userId)
     {
         return new NoteDetailsViewModel
         {
             Id = note.Id,
             Title = note.Title,
             Content = note.Content,
-            IsPublic = note.IsPublic,
-            OwnerId = note.OwnerId,
-            OwnerDisplayName = note.Owner?.DisplayName ?? string.Empty,
+            Visibility = note.Visibility,
+            AuthorUserName = note.User?.UserName ?? string.Empty,
+            AuthorId = note.UserId,
             CreatedAt = note.CreatedAt,
             UpdatedAt = note.UpdatedAt,
-            Attachments = note.Attachments.ToList(),
-            Ratings = note.Ratings.Select(r => new RatingDisplayItem
+            IsOwner = note.UserId == userId,
+            Attachments = note.Attachments.Select(a => new AttachmentViewModel
+            {
+                Id = a.Id,
+                OriginalFileName = a.OriginalFileName,
+                FileSizeBytes = a.FileSizeBytes,
+                UploadedAt = a.UploadedAt
+            }).ToList(),
+            Ratings = note.Ratings.Select(r => new RatingViewModel
             {
                 Id = r.Id,
+                RaterUserName = r.User?.UserName ?? "Unknown",
                 Value = r.Value,
                 Comment = r.Comment,
-                RaterDisplayName = r.Rater?.DisplayName ?? "Unknown",
-                RaterId = r.RaterId,
                 CreatedAt = r.CreatedAt
             }).OrderByDescending(r => r.CreatedAt).ToList(),
-            AverageRating = note.Ratings.Any() ? note.Ratings.Average(r => (double)r.Value) : null,
+            AverageRating = note.Ratings.Any() ? note.Ratings.Average(r => r.Value) : 0,
+            RatingCount = note.Ratings.Count,
             ActiveShareToken = note.ShareLinks.FirstOrDefault(s => s.IsActive)?.Token,
-            IsOwner = isOwner,
-            CanRate = currentUserId is not null && !isOwner,
-            UserRating = userRating is not null ? new RatingInputViewModel
-            {
-                NoteId = note.Id,
-                RatingId = userRating.Id,
-                Value = userRating.Value,
-                Comment = userRating.Comment
-            } : null
+            CurrentUserRating = note.Ratings.FirstOrDefault(r => r.UserId == userId)?.Value
         };
     }
 }

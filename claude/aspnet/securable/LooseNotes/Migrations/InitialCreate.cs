@@ -1,3 +1,5 @@
+// InitialCreate.cs — EF Core migration for the full schema.
+// Generated from ApplicationDbContext model configuration.
 using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
@@ -11,6 +13,7 @@ namespace LooseNotes.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // ASP.NET Core Identity tables
             migrationBuilder.CreateTable(
                 name: "AspNetRoles",
                 columns: table => new
@@ -27,7 +30,6 @@ namespace LooseNotes.Migrations
                 columns: table => new
                 {
                     Id = table.Column<string>(type: "TEXT", nullable: false),
-                    DisplayName = table.Column<string>(type: "TEXT", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     UserName = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
                     NormalizedUserName = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
@@ -47,26 +49,11 @@ namespace LooseNotes.Migrations
                 constraints: table => table.PrimaryKey("PK_AspNetUsers", x => x.Id));
 
             migrationBuilder.CreateTable(
-                name: "AuditLogs",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false).Annotation("Sqlite:Autoincrement", true),
-                    UserId = table.Column<string>(type: "TEXT", nullable: true),
-                    Action = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
-                    ResourceType = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
-                    ResourceId = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
-                    MetadataJson = table.Column<string>(type: "TEXT", maxLength: 2000, nullable: true),
-                    IpAddress = table.Column<string>(type: "TEXT", nullable: true),
-                    OccurredAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    Succeeded = table.Column<bool>(type: "INTEGER", nullable: false)
-                },
-                constraints: table => table.PrimaryKey("PK_AuditLogs", x => x.Id));
-
-            migrationBuilder.CreateTable(
                 name: "AspNetRoleClaims",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false).Annotation("Sqlite:Autoincrement", true),
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
                     RoleId = table.Column<string>(type: "TEXT", nullable: false),
                     ClaimType = table.Column<string>(type: "TEXT", nullable: true),
                     ClaimValue = table.Column<string>(type: "TEXT", nullable: true)
@@ -74,14 +61,16 @@ namespace LooseNotes.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_AspNetRoleClaims", x => x.Id);
-                    table.ForeignKey("FK_AspNetRoleClaims_AspNetRoles_RoleId", x => x.RoleId, "AspNetRoles", "Id", onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey("FK_AspNetRoleClaims_AspNetRoles_RoleId",
+                        x => x.RoleId, "AspNetRoles", "Id", onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
                 name: "AspNetUserClaims",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false).Annotation("Sqlite:Autoincrement", true),
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
                     UserId = table.Column<string>(type: "TEXT", nullable: false),
                     ClaimType = table.Column<string>(type: "TEXT", nullable: true),
                     ClaimValue = table.Column<string>(type: "TEXT", nullable: true)
@@ -89,7 +78,8 @@ namespace LooseNotes.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_AspNetUserClaims", x => x.Id);
-                    table.ForeignKey("FK_AspNetUserClaims_AspNetUsers_UserId", x => x.UserId, "AspNetUsers", "Id", onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey("FK_AspNetUserClaims_AspNetUsers_UserId",
+                        x => x.UserId, "AspNetUsers", "Id", onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -104,7 +94,8 @@ namespace LooseNotes.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_AspNetUserLogins", x => new { x.LoginProvider, x.ProviderKey });
-                    table.ForeignKey("FK_AspNetUserLogins_AspNetUsers_UserId", x => x.UserId, "AspNetUsers", "Id", onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey("FK_AspNetUserLogins_AspNetUsers_UserId",
+                        x => x.UserId, "AspNetUsers", "Id", onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -117,8 +108,10 @@ namespace LooseNotes.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_AspNetUserRoles", x => new { x.UserId, x.RoleId });
-                    table.ForeignKey("FK_AspNetUserRoles_AspNetRoles_RoleId", x => x.RoleId, "AspNetRoles", "Id", onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey("FK_AspNetUserRoles_AspNetUsers_UserId", x => x.UserId, "AspNetUsers", "Id", onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey("FK_AspNetUserRoles_AspNetRoles_RoleId",
+                        x => x.RoleId, "AspNetRoles", "Id", onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey("FK_AspNetUserRoles_AspNetUsers_UserId",
+                        x => x.UserId, "AspNetUsers", "Id", onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -133,53 +126,80 @@ namespace LooseNotes.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_AspNetUserTokens", x => new { x.UserId, x.LoginProvider, x.Name });
-                    table.ForeignKey("FK_AspNetUserTokens_AspNetUsers_UserId", x => x.UserId, "AspNetUsers", "Id", onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey("FK_AspNetUserTokens_AspNetUsers_UserId",
+                        x => x.UserId, "AspNetUsers", "Id", onDelete: ReferentialAction.Cascade);
                 });
 
+            // Application domain tables
             migrationBuilder.CreateTable(
                 name: "Notes",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false).Annotation("Sqlite:Autoincrement", true),
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
                     Title = table.Column<string>(type: "TEXT", maxLength: 300, nullable: false),
                     Content = table.Column<string>(type: "TEXT", nullable: false),
-                    OwnerId = table.Column<string>(type: "TEXT", nullable: false),
-                    IsPublic = table.Column<bool>(type: "INTEGER", nullable: false),
+                    UserId = table.Column<string>(type: "TEXT", nullable: false),
+                    Visibility = table.Column<int>(type: "INTEGER", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Notes", x => x.Id);
-                    table.ForeignKey("FK_Notes_AspNetUsers_OwnerId", x => x.OwnerId, "AspNetUsers", "Id", onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey("FK_Notes_AspNetUsers_UserId",
+                        x => x.UserId, "AspNetUsers", "Id", onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AuditLogs",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    ActorUserId = table.Column<string>(type: "TEXT", nullable: true),
+                    Action = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
+                    ResourceType = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
+                    ResourceId = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
+                    Details = table.Column<string>(type: "TEXT", maxLength: 2000, nullable: true),
+                    IpAddress = table.Column<string>(type: "TEXT", maxLength: 45, nullable: true),
+                    OccurredAt = table.Column<DateTime>(type: "TEXT", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AuditLogs", x => x.Id);
+                    table.ForeignKey("FK_AuditLogs_AspNetUsers_ActorUserId",
+                        x => x.ActorUserId, "AspNetUsers", "Id", onDelete: ReferentialAction.SetNull);
                 });
 
             migrationBuilder.CreateTable(
                 name: "Attachments",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false).Annotation("Sqlite:Autoincrement", true),
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
                     NoteId = table.Column<int>(type: "INTEGER", nullable: false),
-                    OriginalFileName = table.Column<string>(type: "TEXT", maxLength: 255, nullable: false),
-                    StoredFileName = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
-                    ContentType = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
+                    OriginalFileName = table.Column<string>(type: "TEXT", maxLength: 500, nullable: false),
+                    StoredFileName = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
+                    ContentType = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
                     FileSizeBytes = table.Column<long>(type: "INTEGER", nullable: false),
-                    UploadedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    UploadedById = table.Column<string>(type: "TEXT", nullable: false)
+                    UploadedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Attachments", x => x.Id);
-                    table.ForeignKey("FK_Attachments_Notes_NoteId", x => x.NoteId, "Notes", "Id", onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey("FK_Attachments_Notes_NoteId",
+                        x => x.NoteId, "Notes", "Id", onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
                 name: "Ratings",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false).Annotation("Sqlite:Autoincrement", true),
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
                     NoteId = table.Column<int>(type: "INTEGER", nullable: false),
-                    RaterId = table.Column<string>(type: "TEXT", nullable: false),
+                    UserId = table.Column<string>(type: "TEXT", nullable: false),
                     Value = table.Column<int>(type: "INTEGER", nullable: false),
                     Comment = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
@@ -188,37 +208,45 @@ namespace LooseNotes.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Ratings", x => x.Id);
-                    table.ForeignKey("FK_Ratings_AspNetUsers_RaterId", x => x.RaterId, "AspNetUsers", "Id", onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey("FK_Ratings_Notes_NoteId", x => x.NoteId, "Notes", "Id", onDelete: ReferentialAction.Cascade);
+                    table.CheckConstraint("CK_Rating_Value", "[Value] >= 1 AND [Value] <= 5");
+                    table.ForeignKey("FK_Ratings_Notes_NoteId",
+                        x => x.NoteId, "Notes", "Id", onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey("FK_Ratings_AspNetUsers_UserId",
+                        x => x.UserId, "AspNetUsers", "Id", onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
                 name: "ShareLinks",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false).Annotation("Sqlite:Autoincrement", true),
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
                     NoteId = table.Column<int>(type: "INTEGER", nullable: false),
                     Token = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    IsActive = table.Column<bool>(type: "INTEGER", nullable: false)
+                    IsActive = table.Column<bool>(type: "INTEGER", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_ShareLinks", x => x.Id);
-                    table.ForeignKey("FK_ShareLinks_Notes_NoteId", x => x.NoteId, "Notes", "Id", onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey("FK_ShareLinks_Notes_NoteId",
+                        x => x.NoteId, "Notes", "Id", onDelete: ReferentialAction.Cascade);
                 });
 
-            // Indexes
-            migrationBuilder.CreateIndex("IX_AuditLogs_Action", "AuditLogs", "Action");
-            migrationBuilder.CreateIndex("IX_AuditLogs_OccurredAt", "AuditLogs", "OccurredAt");
-            migrationBuilder.CreateIndex("IX_AuditLogs_UserId", "AuditLogs", "UserId");
-            migrationBuilder.CreateIndex("IX_Notes_OwnerId", "Notes", "OwnerId");
-            migrationBuilder.CreateIndex("IX_Notes_OwnerId_IsPublic", "Notes", new[] { "OwnerId", "IsPublic" });
-            migrationBuilder.CreateIndex("IX_Attachments_NoteId", "Attachments", "NoteId");
-            migrationBuilder.CreateIndex("IX_Attachments_StoredFileName", "Attachments", "StoredFileName", unique: true);
-            migrationBuilder.CreateIndex("IX_Ratings_NoteId_RaterId", "Ratings", new[] { "NoteId", "RaterId" }, unique: true);
-            migrationBuilder.CreateIndex("IX_ShareLinks_NoteId", "ShareLinks", "NoteId");
+            // Indexes for query performance (Availability)
+            migrationBuilder.CreateIndex("IX_Notes_UserId", "Notes", "UserId");
+            migrationBuilder.CreateIndex("IX_Notes_Visibility", "Notes", "Visibility");
+            migrationBuilder.CreateIndex("IX_Ratings_NoteId_UserId", "Ratings", new[] { "NoteId", "UserId" }, unique: true);
             migrationBuilder.CreateIndex("IX_ShareLinks_Token", "ShareLinks", "Token", unique: true);
+            migrationBuilder.CreateIndex("IX_AuditLogs_ActorUserId", "AuditLogs", "ActorUserId");
+            migrationBuilder.CreateIndex("IX_AuditLogs_OccurredAt", "AuditLogs", "OccurredAt");
+            migrationBuilder.CreateIndex("IX_AspNetRoleClaims_RoleId", "AspNetRoleClaims", "RoleId");
+            migrationBuilder.CreateIndex("IX_AspNetUserClaims_UserId", "AspNetUserClaims", "UserId");
+            migrationBuilder.CreateIndex("IX_AspNetUserLogins_UserId", "AspNetUserLogins", "UserId");
+            migrationBuilder.CreateIndex("IX_AspNetUserRoles_RoleId", "AspNetUserRoles", "RoleId");
+            migrationBuilder.CreateIndex("IX_AspNetRoles_NormalizedName", "AspNetRoles", "NormalizedName", unique: true);
+            migrationBuilder.CreateIndex("IX_AspNetUsers_NormalizedEmail", "AspNetUsers", "NormalizedEmail");
+            migrationBuilder.CreateIndex("IX_AspNetUsers_NormalizedUserName", "AspNetUsers", "NormalizedUserName", unique: true);
         }
 
         /// <inheritdoc />
@@ -227,8 +255,8 @@ namespace LooseNotes.Migrations
             migrationBuilder.DropTable("ShareLinks");
             migrationBuilder.DropTable("Ratings");
             migrationBuilder.DropTable("Attachments");
-            migrationBuilder.DropTable("Notes");
             migrationBuilder.DropTable("AuditLogs");
+            migrationBuilder.DropTable("Notes");
             migrationBuilder.DropTable("AspNetUserTokens");
             migrationBuilder.DropTable("AspNetUserRoles");
             migrationBuilder.DropTable("AspNetUserLogins");

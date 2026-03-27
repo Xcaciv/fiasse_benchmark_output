@@ -1,0 +1,23 @@
+@model LooseNotes.Models.ApplicationUser
+@{
+    ViewData["Title"] = "User Detail";
+    var roles = ViewBag.Roles as IList<string> ?? new List<string>();
+}
+<h2>User: @Model.UserName</h2>
+<dl class="row">
+    <dt class="col-sm-3">Email</dt><dd class="col-sm-9">@Model.Email</dd>
+    <dt class="col-sm-3">Created</dt><dd class="col-sm-9">@Model.CreatedAt.ToString("MMM d, yyyy")</dd>
+    <dt class="col-sm-3">Roles</dt><dd class="col-sm-9">@string.Join(", ", roles)</dd>
+    <dt class="col-sm-3">Notes</dt><dd class="col-sm-9">@Model.Notes.Count</dd>
+</dl>
+<h5>Notes</h5>
+<ul class="list-group mb-3">
+    @foreach (var note in Model.Notes)
+    {
+        <li class="list-group-item d-flex justify-content-between">
+            <span>@note.Title <span class="badge @(note.IsPublic ? "bg-success" : "bg-secondary")">@(note.IsPublic ? "Public" : "Private")</span></span>
+            <a asp-action="NoteDetails" asp-route-id="@note.Id" class="btn btn-sm btn-outline-primary">View</a>
+        </li>
+    }
+</ul>
+<a asp-action="Users" class="btn btn-secondary">Back to Users</a>

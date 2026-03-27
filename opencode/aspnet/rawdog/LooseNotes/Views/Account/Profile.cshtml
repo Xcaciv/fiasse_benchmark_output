@@ -1,0 +1,50 @@
+@model ProfileViewModel
+@{
+    ViewData["Title"] = "Profile";
+}
+
+<h1>@ViewData["Title"]</h1>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+}
+
+<div class="row">
+    <div class="col-md-6">
+        <form asp-action="Profile" method="post">
+            <h2>Profile Information</h2>
+            <hr />
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            
+            <div class="form-floating mb-3">
+                <input asp-for="UserName" class="form-control" />
+                <label asp-for="UserName">Username</label>
+                <span asp-validation-for="UserName" class="text-danger"></span>
+            </div>
+            
+            <div class="form-floating mb-3">
+                <input asp-for="Email" class="form-control" />
+                <label asp-for="Email">Email</label>
+                <span asp-validation-for="Email" class="text-danger"></span>
+            </div>
+            
+            <div class="form-floating mb-3">
+                <input asp-for="DisplayName" class="form-control" />
+                <label asp-for="DisplayName">Display Name</label>
+                <span asp-validation-for="DisplayName" class="text-danger"></span>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+        </form>
+    </div>
+    <div class="col-md-6">
+        <h2>Security</h2>
+        <hr />
+        <a asp-action="ChangePassword" class="btn btn-outline-primary">Change Password</a>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

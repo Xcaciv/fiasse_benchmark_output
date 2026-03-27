@@ -1,42 +1,30 @@
-using System.ComponentModel.DataAnnotations;
-
+// Attachment.cs — File attachment linked to a Note.
+// Confidentiality: StoredFileName is a generated UUID — original name is metadata only.
+// Integrity: extension and size validated before entity creation (see LocalFileStorageService).
 namespace LooseNotes.Models;
 
-/// <summary>
-/// File attachment linked to a note.
-/// StoredFileName is server-generated (UUID); OriginalFileName is display-only metadata.
-/// Never serve StoredFileName directly to the client (Confidentiality, Integrity).
-/// </summary>
-public class Attachment
+/// <summary>Metadata record for a file attached to a note.
+/// The actual file lives at [StorageBasePath]/[StoredFileName].</summary>
+public sealed class Attachment
 {
     public int Id { get; set; }
 
     public int NoteId { get; set; }
 
-    /// <summary>
-    /// User-supplied original filename stored as metadata only.
-    /// Sanitized on upload; never used for file system operations.
-    /// </summary>
-    [Required, MaxLength(255)]
-    public string OriginalFileName { get; set; } = string.Empty;
+    /// <summary>Original user-provided filename — displayed only, never used for FS operations.</summary>
+    public required string OriginalFileName { get; set; }
 
-    /// <summary>
-    /// Server-generated UUID filename used for disk storage.
-    /// Keeps storage path opaque to clients (Confidentiality).
-    /// </summary>
-    [Required, MaxLength(100)]
-    public string StoredFileName { get; set; } = string.Empty;
+    /// <summary>UUID-based name used for actual file system storage. Prevents path traversal.</summary>
+    public required string StoredFileName { get; set; }
 
-    [Required, MaxLength(100)]
-    public string ContentType { get; set; } = string.Empty;
+    /// <summary>MIME content type recorded at upload time.</summary>
+    public required string ContentType { get; set; }
 
+    /// <summary>File size in bytes, recorded at upload time.</summary>
     public long FileSizeBytes { get; set; }
 
-    public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UploadedAt { get; init; } = DateTime.UtcNow;
 
-    public string UploadedById { get; set; } = string.Empty;
-
-    // Navigation
+    // ── Navigation ────────────────────────────────────────────────────────────
     public Note? Note { get; set; }
-    public ApplicationUser? UploadedBy { get; set; }
 }

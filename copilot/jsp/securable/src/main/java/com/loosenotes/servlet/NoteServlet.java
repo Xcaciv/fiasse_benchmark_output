@@ -1,180 +1,383 @@
 package com.loosenotes.servlet;
 
-import com.loosenotes.model.Note;
-import com.loosenotes.model.Note.Visibility;
-import com.loosenotes.service.NoteService;
-import com.loosenotes.service.ServiceException;
-import com.loosenotes.util.CsrfUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.loosenotes.dao.*;
+import com.loosenotes.model.*;
+import com.loosenotes.util.*;
 
 import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
 import java.io.IOException;
+import java.sql.SQLException;
+import java.util.List;
 import java.util.Optional;
 
 /**
- * CRUD operations for notes (REQ-004, 006, 007, 009).
- * URL patterns:
- *   GET  /notes          → list user's notes
- *   GET  /notes/new      → new note form
- *   POST /notes/new      → create note
- *   GET  /notes/{id}     → view note
- *   GET  /notes/{id}/edit→ edit form
- *   POST /notes/{id}/edit→ update note
- *   POST /notes/{id}/delete → delete note
+ * Handles all note CRUD operations and share/visibility toggling.
+ * URL pattern: /notes/*
  */
-public final class NoteServlet extends HttpServlet {
+@WebServlet("/notes/*")
+public class NoteServlet extends HttpServlet {
 
-    private static final Logger log = LoggerFactory.getLogger(NoteServlet.class);
-
-    private NoteService noteService;
+    private NoteDao noteDao;
+    private AttachmentDao attachmentDao;
+    private RatingDao ratingDao;
+    private ShareLinkDao shareLinkDao;
 
     @Override
     public void init() {
-        this.noteService = (NoteService) getServletContext().getAttribute("noteService");
+        DatabaseManager db = DatabaseManager.getInstance();
+        this.noteDao = new NoteDao(db);
+        this.attachmentDao = new AttachmentDao(db);
+        this.ratingDao = new RatingDao(db);
+        this.shareLinkDao = new ShareLinkDao(db);
     }
 
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp)
+    protected void doGet(HttpServletRequest req, HttpServletResponse res)
             throws ServletException, IOException {
+        res.setContentType("text/html;charset=UTF-8");
         String pathInfo = req.getPathInfo();
+
         if (pathInfo == null || pathInfo.equals("/")) {
-            listNotes(req, resp);
-        } else if (pathInfo.equals("/new")) {
-            showNewForm(req, resp);
-        } else if (pathInfo.matches("/\\d+/edit")) {
-            showEditForm(req, resp, extractId(pathInfo));
-        } else if (pathInfo.matches("/\\d+")) {
-            viewNote(req, resp, extractId(pathInfo));
+            handleListNotes(req, res);
+        } else if (pathInfo.equals("/create")) {
+            handleCreateForm(req, res);
         } else {
-            resp.sendError(HttpServletResponse.SC_NOT_FOUND);
+            handleNoteSubPath(req, res, pathInfo);
+        }
+    }
+
+    private void handleNoteSubPath(HttpServletRequest req, HttpServletResponse res, String pathInfo)
+            throws ServletException, IOException {
+        String[] segments = pathInfo.split("/");
+        if (segments.length < 2) {
+            res.sendError(HttpServletResponse.SC_NOT_FOUND);
+            return;
+        }
+        long noteId = parseId(segments[1]);
+        if (noteId <= 0) {
+            res.sendError(HttpServletResponse.SC_NOT_FOUND);
+            return;
+        }
+        if (segments.length == 2) {
+            handleViewNote(req, res, noteId);
+        } else if (segments.length == 3 && "edit".equals(segments[2])) {
+            handleEditForm(req, res, noteId);
+        } else {
+            res.sendError(HttpServletResponse.SC_NOT_FOUND);
         }
     }
 
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp)
+    protected void doPost(HttpServletRequest req, HttpServletResponse res)
             throws ServletException, IOException {
+        res.setContentType("text/html;charset=UTF-8");
+        req.setCharacterEncoding("UTF-8");
+
+        HttpSession session = req.getSession(false);
+        String csrfToken = req.getParameter("csrfToken");
+        if (!CsrfUtil.validateToken(session, csrfToken)) {
+            AuditLogger.logSecurityEvent("CSRF_VIOLATION", req.getRemoteAddr(),
+                "path=" + req.getRequestURI());
+            res.sendError(HttpServletResponse.SC_FORBIDDEN, "Invalid CSRF token.");
+            return;
+        }
+
         String pathInfo = req.getPathInfo();
-        if ("/new".equals(pathInfo)) {
-            createNote(req, resp);
-        } else if (pathInfo != null && pathInfo.matches("/\\d+/edit")) {
-            updateNote(req, resp, extractId(pathInfo));
-        } else if (pathInfo != null && pathInfo.matches("/\\d+/delete")) {
-            deleteNote(req, resp, extractId(pathInfo));
-        } else {
-            resp.sendError(HttpServletResponse.SC_NOT_FOUND);
-        }
-    }
-
-    private void listNotes(HttpServletRequest req, HttpServletResponse resp)
-            throws ServletException, IOException {
-        long userId = getSessionUserId(req);
-        req.setAttribute("notes", noteService.findByUser(userId));
-        req.getRequestDispatcher("/WEB-INF/jsp/note/list.jsp").forward(req, resp);
-    }
-
-    private void showNewForm(HttpServletRequest req, HttpServletResponse resp)
-            throws ServletException, IOException {
-        CsrfUtil.getOrCreateToken(req.getSession());
-        req.getRequestDispatcher("/WEB-INF/jsp/note/edit.jsp").forward(req, resp);
-    }
-
-    private void showEditForm(HttpServletRequest req, HttpServletResponse resp, long noteId)
-            throws ServletException, IOException {
-        long userId = getSessionUserId(req);
-        Optional<Note> noteOpt = noteService.findById(noteId);
-        if (noteOpt.isEmpty() || noteOpt.get().getUserId() != userId) {
-            resp.sendError(HttpServletResponse.SC_FORBIDDEN);
+        if (pathInfo == null || pathInfo.equals("/create")) {
+            handleCreateNote(req, res);
             return;
         }
-        req.setAttribute("note", noteOpt.get());
-        req.setAttribute("attachments", noteService.getAttachments(noteId));
-        req.setAttribute("shareLink", noteService.findShareLink(noteId).orElse(null));
-        CsrfUtil.getOrCreateToken(req.getSession());
-        req.getRequestDispatcher("/WEB-INF/jsp/note/edit.jsp").forward(req, resp);
-    }
 
-    private void viewNote(HttpServletRequest req, HttpServletResponse resp, long noteId)
-            throws ServletException, IOException {
-        long userId = getSessionUserId(req);
-        Optional<Note> noteOpt = noteService.findById(noteId);
-        if (noteOpt.isEmpty()) {
-            resp.sendError(HttpServletResponse.SC_NOT_FOUND);
+        String[] segments = pathInfo.split("/");
+        if (segments.length < 3) {
+            res.sendError(HttpServletResponse.SC_NOT_FOUND);
             return;
         }
-        Note note = noteOpt.get();
-        // Access control: private notes only visible to owner
-        if (!note.isPublic() && note.getUserId() != userId) {
-            resp.sendError(HttpServletResponse.SC_FORBIDDEN);
+        long noteId = parseId(segments[1]);
+        if (noteId <= 0) {
+            res.sendError(HttpServletResponse.SC_NOT_FOUND);
             return;
         }
-        req.setAttribute("note",        note);
-        req.setAttribute("attachments", noteService.getAttachments(noteId));
-        req.setAttribute("ratings",     noteService.getRatings(noteId));
-        req.setAttribute("avgRating",   noteService.getAverageRating(noteId));
-        req.setAttribute("ratingCount", noteService.getRatingCount(noteId));
-        req.setAttribute("userRating",  noteService.getUserRating(noteId, userId).orElse(null));
-        req.setAttribute("shareLink",   noteService.findShareLink(noteId).orElse(null));
-        CsrfUtil.getOrCreateToken(req.getSession());
-        req.getRequestDispatcher("/WEB-INF/jsp/note/view.jsp").forward(req, resp);
+        routePostAction(req, res, noteId, segments[2]);
     }
 
-    private void createNote(HttpServletRequest req, HttpServletResponse resp)
+    private void routePostAction(HttpServletRequest req, HttpServletResponse res,
+                                  long noteId, String action)
             throws ServletException, IOException {
-        long userId  = getSessionUserId(req);
-        String title   = req.getParameter("title");
-        String content = req.getParameter("content");
-        Visibility vis = parseVisibility(req.getParameter("visibility"));
-        try {
-            Note note = noteService.createNote(userId, title, content, vis);
-            resp.sendRedirect(req.getContextPath() + "/notes/" + note.getId());
-        } catch (ServiceException e) {
-            req.setAttribute("error", e.getMessage());
-            req.getRequestDispatcher("/WEB-INF/jsp/note/edit.jsp").forward(req, resp);
+        switch (action) {
+            case "edit":          handleEditNote(req, res, noteId); break;
+            case "delete":        handleDeleteNote(req, res, noteId); break;
+            case "toggle-public": handleTogglePublic(req, res, noteId); break;
+            case "generate-share":handleGenerateShare(req, res, noteId); break;
+            case "revoke-share":  handleRevokeShare(req, res, noteId); break;
+            default:              res.sendError(HttpServletResponse.SC_NOT_FOUND);
         }
     }
 
-    private void updateNote(HttpServletRequest req, HttpServletResponse resp, long noteId)
+    private void handleListNotes(HttpServletRequest req, HttpServletResponse res)
             throws ServletException, IOException {
-        long userId    = getSessionUserId(req);
-        String title   = req.getParameter("title");
-        String content = req.getParameter("content");
-        Visibility vis = parseVisibility(req.getParameter("visibility"));
+        User user = getCurrentUser(req);
         try {
-            noteService.updateNote(noteId, userId, title, content, vis);
-            resp.sendRedirect(req.getContextPath() + "/notes/" + noteId);
-        } catch (ServiceException e) {
-            req.setAttribute("error", e.getMessage());
-            req.getRequestDispatcher("/WEB-INF/jsp/note/edit.jsp").forward(req, resp);
+            List<Note> notes = noteDao.findByUserId(user.getId());
+            req.setAttribute("notes", notes);
+            req.setAttribute("csrfToken", CsrfUtil.getTokenFromSession(req.getSession()));
+            req.getRequestDispatcher("/WEB-INF/views/notes/list.jsp").forward(req, res);
+        } catch (SQLException e) {
+            handleError(req, res, "Failed to load notes.", e);
         }
     }
 
-    private void deleteNote(HttpServletRequest req, HttpServletResponse resp, long noteId)
+    private void handleCreateForm(HttpServletRequest req, HttpServletResponse res)
             throws ServletException, IOException {
-        long userId    = getSessionUserId(req);
-        String role    = (String) req.getSession().getAttribute("userRole");
-        boolean isAdmin = "ADMIN".equalsIgnoreCase(role);
+        req.setAttribute("csrfToken", CsrfUtil.getTokenFromSession(req.getSession()));
+        req.getRequestDispatcher("/WEB-INF/views/notes/create.jsp").forward(req, res);
+    }
+
+    private void handleCreateNote(HttpServletRequest req, HttpServletResponse res)
+            throws ServletException, IOException {
+        User user = getCurrentUser(req);
+        String title = ValidationUtil.sanitizeString(req.getParameter("title"));
+        String content = ValidationUtil.sanitizeString(req.getParameter("content"));
+        boolean isPublic = "on".equals(req.getParameter("isPublic"));
+
+        if (!ValidationUtil.isValidTitle(title) || !ValidationUtil.isValidContent(content)) {
+            req.setAttribute("error", "Title (1–200 chars) and content (max 50000) are required.");
+            req.setAttribute("csrfToken", CsrfUtil.getTokenFromSession(req.getSession()));
+            req.getRequestDispatcher("/WEB-INF/views/notes/create.jsp").forward(req, res);
+            return;
+        }
         try {
-            noteService.deleteNote(noteId, userId, isAdmin);
-            resp.sendRedirect(req.getContextPath() + "/notes");
-        } catch (ServiceException e) {
-            log.warn("Note delete denied: {}", e.getMessage());
-            resp.sendError(HttpServletResponse.SC_FORBIDDEN, e.getMessage());
+            Note note = buildNote(user.getId(), title, content, isPublic);
+            noteDao.save(note);
+            AuditLogger.logNoteAction("CREATE", user.getId(), user.getUsername(),
+                note.getId(), req.getRemoteAddr());
+            res.sendRedirect(req.getContextPath() + "/notes");
+        } catch (SQLException e) {
+            handleError(req, res, "Failed to create note.", e);
         }
     }
 
-    private long getSessionUserId(HttpServletRequest req) {
-        return (Long) req.getSession().getAttribute("userId");
+    private void handleViewNote(HttpServletRequest req, HttpServletResponse res, long noteId)
+            throws ServletException, IOException {
+        User user = getCurrentUser(req);
+        try {
+            Note note = findNoteOrNotFound(noteId, res);
+            if (note == null) return;
+            if (!canViewNote(user, note)) {
+                res.sendError(HttpServletResponse.SC_FORBIDDEN);
+                return;
+            }
+            populateViewAttributes(req, note, user);
+            req.getRequestDispatcher("/WEB-INF/views/notes/view.jsp").forward(req, res);
+        } catch (SQLException e) {
+            handleError(req, res, "Failed to load note.", e);
+        }
     }
 
-    private long extractId(String pathInfo) {
-        String[] parts = pathInfo.split("/");
-        return Long.parseLong(parts[1]);
+    private void populateViewAttributes(HttpServletRequest req, Note note, User user)
+            throws SQLException {
+        req.setAttribute("note", note);
+        req.setAttribute("attachments", attachmentDao.findByNoteId(note.getId()));
+        List<Rating> ratings = ratingDao.findByNoteId(note.getId());
+        req.setAttribute("ratings", ratings);
+        req.setAttribute("avgRating", ratingDao.getAverageRating(note.getId()));
+        req.setAttribute("userRating",
+            ratingDao.findByNoteAndUser(note.getId(), user.getId()).orElse(null));
+        List<ShareLink> shareLinks = shareLinkDao.findByNoteId(note.getId());
+        req.setAttribute("shareLinks", shareLinks);
+        req.setAttribute("csrfToken", CsrfUtil.getTokenFromSession(req.getSession()));
     }
 
-    private Visibility parseVisibility(String param) {
-        try { return Visibility.valueOf(param.toUpperCase()); }
-        catch (Exception e) { return Visibility.PRIVATE; }
+    private void handleEditForm(HttpServletRequest req, HttpServletResponse res, long noteId)
+            throws ServletException, IOException {
+        User user = getCurrentUser(req);
+        try {
+            Note note = findNoteOrNotFound(noteId, res);
+            if (note == null) return;
+            if (note.getUserId() != user.getId() && !user.isAdmin()) {
+                res.sendError(HttpServletResponse.SC_FORBIDDEN);
+                return;
+            }
+            req.setAttribute("note", note);
+            req.setAttribute("csrfToken", CsrfUtil.getTokenFromSession(req.getSession()));
+            req.getRequestDispatcher("/WEB-INF/views/notes/edit.jsp").forward(req, res);
+        } catch (SQLException e) {
+            handleError(req, res, "Failed to load note for editing.", e);
+        }
+    }
+
+    private void handleEditNote(HttpServletRequest req, HttpServletResponse res, long noteId)
+            throws ServletException, IOException {
+        User user = getCurrentUser(req);
+        String title = ValidationUtil.sanitizeString(req.getParameter("title"));
+        String content = ValidationUtil.sanitizeString(req.getParameter("content"));
+        boolean isPublic = "on".equals(req.getParameter("isPublic"));
+
+        if (!ValidationUtil.isValidTitle(title) || !ValidationUtil.isValidContent(content)) {
+            req.setAttribute("error", "Title (1–200 chars) and content (max 50000) are required.");
+            req.setAttribute("csrfToken", CsrfUtil.getTokenFromSession(req.getSession()));
+            req.getRequestDispatcher("/WEB-INF/views/notes/edit.jsp").forward(req, res);
+            return;
+        }
+        try {
+            Note note = findNoteOrNotFound(noteId, res);
+            if (note == null) return;
+            if (note.getUserId() != user.getId() && !user.isAdmin()) {
+                res.sendError(HttpServletResponse.SC_FORBIDDEN);
+                return;
+            }
+            note.setTitle(title);
+            note.setContent(content);
+            note.setPublic(isPublic);
+            note.setUpdatedAt(System.currentTimeMillis());
+            noteDao.update(note);
+            AuditLogger.logNoteAction("EDIT", user.getId(), user.getUsername(),
+                noteId, req.getRemoteAddr());
+            res.sendRedirect(req.getContextPath() + "/notes/" + noteId);
+        } catch (SQLException e) {
+            handleError(req, res, "Failed to update note.", e);
+        }
+    }
+
+    private void handleDeleteNote(HttpServletRequest req, HttpServletResponse res, long noteId)
+            throws ServletException, IOException {
+        User user = getCurrentUser(req);
+        try {
+            Note note = findNoteOrNotFound(noteId, res);
+            if (note == null) return;
+            if (note.getUserId() != user.getId() && !user.isAdmin()) {
+                res.sendError(HttpServletResponse.SC_FORBIDDEN);
+                return;
+            }
+            // Attachments are deleted from disk before DB record removal
+            deleteAttachmentFiles(req, note.getId());
+            noteDao.delete(noteId);
+            AuditLogger.logNoteAction("DELETE", user.getId(), user.getUsername(),
+                noteId, req.getRemoteAddr());
+            res.sendRedirect(req.getContextPath() + "/notes");
+        } catch (SQLException e) {
+            handleError(req, res, "Failed to delete note.", e);
+        }
+    }
+
+    private void deleteAttachmentFiles(HttpServletRequest req, long noteId) throws SQLException {
+        String uploadDir = FileUtil.getUploadDir(req.getServletContext());
+        List<com.loosenotes.model.Attachment> attachments = attachmentDao.findByNoteId(noteId);
+        for (com.loosenotes.model.Attachment att : attachments) {
+            java.io.File file = new java.io.File(uploadDir, att.getStoredFilename());
+            if (file.exists()) {
+                file.delete();
+            }
+        }
+    }
+
+    private void handleTogglePublic(HttpServletRequest req, HttpServletResponse res, long noteId)
+            throws ServletException, IOException {
+        User user = getCurrentUser(req);
+        try {
+            Note note = findNoteOrNotFound(noteId, res);
+            if (note == null) return;
+            if (note.getUserId() != user.getId()) {
+                res.sendError(HttpServletResponse.SC_FORBIDDEN);
+                return;
+            }
+            note.setPublic(!note.isPublic());
+            note.setUpdatedAt(System.currentTimeMillis());
+            noteDao.update(note);
+            AuditLogger.logNoteAction("TOGGLE_PUBLIC", user.getId(), user.getUsername(),
+                noteId, req.getRemoteAddr());
+            res.sendRedirect(req.getContextPath() + "/notes/" + noteId);
+        } catch (SQLException e) {
+            handleError(req, res, "Failed to update note visibility.", e);
+        }
+    }
+
+    private void handleGenerateShare(HttpServletRequest req, HttpServletResponse res, long noteId)
+            throws ServletException, IOException {
+        User user = getCurrentUser(req);
+        try {
+            Note note = findNoteOrNotFound(noteId, res);
+            if (note == null) return;
+            if (note.getUserId() != user.getId()) {
+                res.sendError(HttpServletResponse.SC_FORBIDDEN);
+                return;
+            }
+            ShareLink shareLink = new ShareLink();
+            shareLink.setNoteId(noteId);
+            shareLink.setToken(TokenUtil.generateShareToken());
+            shareLink.setCreatedAt(System.currentTimeMillis());
+            shareLinkDao.save(shareLink);
+            AuditLogger.logNoteAction("SHARE", user.getId(), user.getUsername(),
+                noteId, req.getRemoteAddr());
+            res.sendRedirect(req.getContextPath() + "/notes/" + noteId);
+        } catch (SQLException e) {
+            handleError(req, res, "Failed to generate share link.", e);
+        }
+    }
+
+    private void handleRevokeShare(HttpServletRequest req, HttpServletResponse res, long noteId)
+            throws ServletException, IOException {
+        User user = getCurrentUser(req);
+        try {
+            Note note = findNoteOrNotFound(noteId, res);
+            if (note == null) return;
+            if (note.getUserId() != user.getId()) {
+                res.sendError(HttpServletResponse.SC_FORBIDDEN);
+                return;
+            }
+            shareLinkDao.deleteByNoteId(noteId);
+            AuditLogger.logNoteAction("REVOKE_SHARE", user.getId(), user.getUsername(),
+                noteId, req.getRemoteAddr());
+            res.sendRedirect(req.getContextPath() + "/notes/" + noteId);
+        } catch (SQLException e) {
+            handleError(req, res, "Failed to revoke share links.", e);
+        }
+    }
+
+    private boolean canViewNote(User user, Note note) {
+        return note.getUserId() == user.getId() || note.isPublic() || user.isAdmin();
+    }
+
+    private Note findNoteOrNotFound(long noteId, HttpServletResponse res)
+            throws SQLException, IOException {
+        Optional<Note> opt = noteDao.findById(noteId);
+        if (opt.isEmpty()) {
+            res.sendError(HttpServletResponse.SC_NOT_FOUND);
+            return null;
+        }
+        return opt.get();
+    }
+
+    private Note buildNote(long userId, String title, String content, boolean isPublic) {
+        Note note = new Note();
+        note.setUserId(userId);
+        note.setTitle(title);
+        note.setContent(content);
+        note.setPublic(isPublic);
+        long now = System.currentTimeMillis();
+        note.setCreatedAt(now);
+        note.setUpdatedAt(now);
+        return note;
+    }
+
+    private User getCurrentUser(HttpServletRequest req) {
+        return (User) req.getSession(false).getAttribute("currentUser");
+    }
+
+    private long parseId(String s) {
+        try {
+            return Long.parseLong(s);
+        } catch (NumberFormatException e) {
+            return -1L;
+        }
+    }
+
+    private void handleError(HttpServletRequest req, HttpServletResponse res,
+                              String message, Exception e) throws ServletException, IOException {
+        getServletContext().log(message, e);
+        req.setAttribute("errorMessage", message);
+        req.getRequestDispatcher("/WEB-INF/views/error.jsp").forward(req, res);
     }
 }

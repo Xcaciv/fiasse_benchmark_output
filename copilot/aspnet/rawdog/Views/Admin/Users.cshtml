@@ -1,0 +1,41 @@
+@model IEnumerable<LooseNotes.ViewModels.Admin.UserListViewModel>
+@{
+    ViewData["Title"] = "Manage Users";
+}
+<h2>Users</h2>
+<table class="table table-hover">
+    <thead>
+        <tr>
+            <th>Username</th>
+            <th>Email</th>
+            <th>Roles</th>
+            <th>Notes</th>
+            <th>Created</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var user in Model)
+        {
+            <tr>
+                <td>@user.UserName</td>
+                <td>@user.Email</td>
+                <td>
+                    @foreach (var role in user.Roles)
+                    {
+                        <span class="badge bg-info text-dark">@role</span>
+                    }
+                </td>
+                <td>@user.NoteCount</td>
+                <td>@user.CreatedAt.ToString("MMM d, yyyy")</td>
+                <td>
+                    <a asp-action="UserDetail" asp-route-id="@user.UserId" class="btn btn-sm btn-outline-primary">View</a>
+                    <form asp-action="DeleteUser" asp-route-id="@user.UserId" method="post" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete user @user.UserName and all their data?')">Delete</button>
+                    </form>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+<a asp-action="Dashboard" class="btn btn-secondary">Back to Dashboard</a>

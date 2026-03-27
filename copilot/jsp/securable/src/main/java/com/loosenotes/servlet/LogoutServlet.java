@@ -1,40 +1,44 @@
 package com.loosenotes.servlet;
 
-import com.loosenotes.audit.AuditLogger;
+import com.loosenotes.model.User;
+import com.loosenotes.util.AuditLogger;
+import com.loosenotes.util.CsrfUtil;
 
 import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
 import java.io.IOException;
 
-/** Handles logout: invalidates session and redirects to login. */
-public final class LogoutServlet extends HttpServlet {
-
-    private AuditLogger auditLogger;
-
-    @Override
-    public void init() {
-        this.auditLogger = (AuditLogger) getServletContext().getAttribute("auditLogger");
-    }
+/**
+ * Handles logout. POST-only to prevent CSRF-via-GET logout attacks.
+ * Invalidates the session and redirects to login.
+ */
+@WebServlet("/logout")
+public class LogoutServlet extends HttpServlet {
 
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp)
+    protected void doPost(HttpServletRequest req, HttpServletResponse res)
             throws ServletException, IOException {
         HttpSession session = req.getSession(false);
         if (session != null) {
-            Long userId   = (Long)   session.getAttribute("userId");
-            String name   = (String) session.getAttribute("username");
-            auditLogger.log(userId, name, "LOGOUT", "USER",
-                    userId != null ? String.valueOf(userId) : null,
-                    req.getRemoteAddr(), "SUCCESS", null);
+            User currentUser = (User) session.getAttribute("currentUser");
+            // Validate CSRF token before processing logout
+            String csrfToken = req.getParameter("csrfToken");
+            if (!CsrfUtil.validateToken(session, csrfToken)) {
+                res.sendRedirect(req.getContextPath() + "/login");
+                return;
+            }
+            String username = currentUser != null ? currentUser.getUsername() : "-";
+            AuditLogger.logAuthEvent("LOGOUT", username, req.getRemoteAddr(), "");
             session.invalidate();
         }
-        resp.sendRedirect(req.getContextPath() + "/login");
+        res.sendRedirect(req.getContextPath() + "/login");
     }
 
-    /** Support GET logout for convenience links. */
+    /** Redirect GETs to login rather than exposing a logout page. */
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp)
+    protected void doGet(HttpServletRequest req, HttpServletResponse res)
             throws ServletException, IOException {
-        doPost(req, resp);
+        res.sendRedirect(req.getContextPath() + "/login");
     }
 }

@@ -431,3 +431,4 @@ FodyWeavers.xsd
 **/securable/data/
 /claude/_plugin_temp
 /copilot/_securable_claude_plugin_temp
+/claude/aspnet/securable/CLAUDE.md

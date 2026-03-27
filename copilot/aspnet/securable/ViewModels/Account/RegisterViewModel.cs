@@ -5,19 +5,18 @@ namespace LooseNotes.ViewModels.Account;
 public class RegisterViewModel
 {
     [Required]
-    [MaxLength(50)]
+    [StringLength(50, MinimumLength = 3)]
     [Display(Name = "Username")]
-    public string UserName { get; set; } = string.Empty;
+    public string Username { get; set; } = string.Empty;
 
     [Required]
     [EmailAddress]
-    [MaxLength(254)]
+    [StringLength(256)]
     [Display(Name = "Email")]
     public string Email { get; set; } = string.Empty;
 
     [Required]
-    [MinLength(8)]
-    [MaxLength(100)]
+    [StringLength(100, MinimumLength = 8)]
     [DataType(DataType.Password)]
     [Display(Name = "Password")]
     public string Password { get; set; } = string.Empty;

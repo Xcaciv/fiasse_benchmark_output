@@ -1,24 +1,28 @@
 require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
-const passport = require('passport');
 const flash = require('connect-flash');
 const methodOverride = require('method-override');
-const morgan = require('morgan');
 const path = require('path');
-const bcrypt = require('bcrypt');
+const expressLayouts = require('express-ejs-layouts');
+const bcrypt = require('bcryptjs');
 
-const logger = require('./config/logger');
-module.exports.logger = logger;
+const { sequelize, User, ActivityLog } = require('./models');
 
-const { sequelize, User } = require('./models');
-const configurePassport = require('./config/passport');
+const authRoutes = require('./routes/auth');
+const notesRoutes = require('./routes/notes');
+const adminRoutes = require('./routes/admin');
+const profileRoutes = require('./routes/profile');
+const shareRoutes = require('./routes/share');
 
 const app = express();
+const PORT = process.env.PORT || 3000;
 
 // View engine
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
+app.use(expressLayouts);
+app.set('layout', 'layout');
 
 // Static files
 app.use(express.static(path.join(__dirname, 'public')));
@@ -27,89 +31,98 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// Method override (for PUT/DELETE from forms)
+// Method override (_method query param)
 app.use(methodOverride('_method'));
-
-// Morgan HTTP logging
-app.use(morgan('combined', {
-  stream: { write: (msg) => logger.info(msg.trim()) },
-}));
 
 // Session
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'loose-notes-default-secret',
+  secret: process.env.SESSION_SECRET || 'loose-notes-secret-key',
   resave: false,
   saveUninitialized: false,
   cookie: { maxAge: 24 * 60 * 60 * 1000 }, // 1 day
 }));
 
-// Flash messages
+// Flash
 app.use(flash());
 
-// Passport
-configurePassport(passport);
-app.use(passport.initialize());
-app.use(passport.session());
-
-// Global template locals
+// Locals middleware
 app.use((req, res, next) => {
-  res.locals.currentUser = req.user || null;
+  // Flash messages
+  const successMsg = req.flash('success');
+  const errorMsg = req.flash('error');
+  const infoMsg = req.flash('info');
+  res.locals.flash = {
+    success: successMsg.length ? successMsg[0] : null,
+    error: errorMsg.length ? errorMsg[0] : null,
+    info: infoMsg.length ? infoMsg[0] : null,
+  };
+
+  // Current user info for navbar
+  if (req.session.userId) {
+    res.locals.currentUser = {
+      id: req.session.userId,
+      username: req.session.username,
+      role: req.session.role,
+    };
+  } else {
+    res.locals.currentUser = null;
+  }
+
   next();
 });
 
 // Routes
-app.use('/', require('./routes/index'));
-app.use('/auth', require('./routes/auth'));
-app.use('/notes', require('./routes/notes'));
-app.use('/admin', require('./routes/admin'));
-app.use('/profile', require('./routes/profile'));
-app.use('/share', require('./routes/share'));
+app.use('/auth', authRoutes);
+app.use('/notes', notesRoutes);
+app.use('/admin', adminRoutes);
+app.use('/profile', profileRoutes);
+app.use('/share', shareRoutes);
+
+// Root redirect
+app.get('/', (req, res) => {
+  if (req.session.userId) return res.redirect('/notes');
+  res.redirect('/auth/login');
+});
 
 // 404 handler
 app.use((req, res) => {
-  res.status(404).render('error', { title: 'Not Found', message: 'The page you are looking for does not exist.', user: req.user || null });
+  res.status(404).render('error', { title: 'Not Found', message: 'Page not found.', user: res.locals.currentUser });
 });
 
 // Error handler
 app.use((err, req, res, next) => {
-  logger.error(`Unhandled error: ${err.message}\n${err.stack}`);
-  const status = err.status || 500;
-  res.status(status).render('error', {
-    title: 'Error',
-    message: process.env.NODE_ENV === 'production' ? 'An unexpected error occurred.' : err.message,
-    user: req.user || null,
-  });
+  console.error(err.stack);
+  res.status(500).render('error', { title: 'Server Error', message: 'Something went wrong.', user: res.locals.currentUser });
 });
 
-// Start
-const PORT = process.env.PORT || 3000;
-
+// Initialize DB and start server
 async function start() {
-  await sequelize.sync({ alter: false });
-  logger.info('Database synced.');
+  try {
+    await sequelize.authenticate();
+    await sequelize.sync({ force: false });
+    console.log('Database synced.');
 
-  // Seed default admin
-  const adminEmail = 'admin@example.com';
-  const existing = await User.findOne({ where: { email: adminEmail } });
-  if (!existing) {
-    const passwordHash = await bcrypt.hash('admin123', 12);
-    await User.create({
-      username: 'admin',
-      email: adminEmail,
-      passwordHash,
-      role: 'admin',
+    // Seed admin user if no users exist
+    const count = await User.count();
+    if (count === 0) {
+      const hashed = await bcrypt.hash('Admin1234!', 12);
+      await User.create({
+        username: 'admin',
+        email: 'admin@example.com',
+        password: hashed,
+        role: 'admin',
+      });
+      await ActivityLog.create({ userId: null, action: 'seed', details: 'Admin user seeded on first run.' });
+      console.log('Admin user created: admin / Admin1234!');
+    }
+
+    app.listen(PORT, () => {
+      console.log(`Loose Notes running at http://localhost:${PORT}`);
     });
-    logger.info('Default admin user created: admin@example.com / admin123');
+  } catch (err) {
+    console.error('Startup error:', err);
+    process.exit(1);
   }
-
-  app.listen(PORT, () => {
-    logger.info(`Loose Notes listening on http://localhost:${PORT}`);
-  });
 }
 
-start().catch((err) => {
-  logger.error(`Startup error: ${err.message}`);
-  process.exit(1);
-});
-
-module.exports = app;
+start();

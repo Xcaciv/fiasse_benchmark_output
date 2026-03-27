@@ -1,38 +1,33 @@
-using System.ComponentModel.DataAnnotations;
-
+// AuditLog.cs — Immutable structured audit trail entry.
+// Accountability: captures WHO did WHAT to WHICH resource and WHEN.
+// Confidentiality: no passwords, tokens, or PII stored in Details.
 namespace LooseNotes.Models;
 
-/// <summary>
-/// Append-only structured audit record for security-sensitive actions.
-/// No sensitive data (passwords, tokens, PII beyond UserId) stored here (Accountability).
-/// </summary>
-public class AuditLog
+/// <summary>Immutable audit record. All security-relevant actions produce an entry.</summary>
+public sealed class AuditLog
 {
-    public long Id { get; set; }
+    public int Id { get; set; }
 
-    /// <summary>Null for anonymous/unauthenticated actions (e.g., failed login attempt).</summary>
-    public string? UserId { get; set; }
+    /// <summary>UserId of the actor; nullable for unauthenticated events.</summary>
+    public string? ActorUserId { get; set; }
 
-    [Required, MaxLength(100)]
-    public string Action { get; set; } = string.Empty;
+    /// <summary>Human-readable action name (e.g. "Note.Delete", "User.Login.Failed").</summary>
+    public required string Action { get; set; }
 
-    /// <summary>Resource type affected, e.g. "Note", "Attachment", "User".</summary>
-    [MaxLength(50)]
+    /// <summary>Resource type involved (e.g. "Note", "User", "ShareLink").</summary>
     public string? ResourceType { get; set; }
 
-    /// <summary>String representation of the resource primary key.</summary>
-    [MaxLength(100)]
+    /// <summary>Primary key of the affected resource (as string for flexibility).</summary>
     public string? ResourceId { get; set; }
 
-    /// <summary>
-    /// Additional context as JSON. Must not contain secrets or PII.
-    /// </summary>
-    [MaxLength(2000)]
-    public string? MetadataJson { get; set; }
+    /// <summary>Additional context — must NOT contain secrets, passwords, or tokens.</summary>
+    public string? Details { get; set; }
 
+    /// <summary>Client IP address for correlation (from X-Forwarded-For or RemoteIp).</summary>
     public string? IpAddress { get; set; }
 
-    public DateTime OccurredAt { get; set; } = DateTime.UtcNow;
+    public DateTime OccurredAt { get; init; } = DateTime.UtcNow;
 
-    public bool Succeeded { get; set; } = true;
+    // ── Navigation ────────────────────────────────────────────────────────────
+    public ApplicationUser? Actor { get; set; }
 }

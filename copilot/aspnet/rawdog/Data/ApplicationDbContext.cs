@@ -1,77 +1,53 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-using rawdog.Models;
+using LooseNotes.Models;
 
-namespace rawdog.Data;
+namespace LooseNotes.Data;
 
-public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
-    : IdentityDbContext<ApplicationUser>(options)
+public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 {
+    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
+
     public DbSet<Note> Notes => Set<Note>();
-
-    public DbSet<NoteAttachment> Attachments => Set<NoteAttachment>();
-
-    public DbSet<NoteRating> Ratings => Set<NoteRating>();
-
-    public DbSet<NoteShareLink> ShareLinks => Set<NoteShareLink>();
-
+    public DbSet<Attachment> Attachments => Set<Attachment>();
+    public DbSet<Rating> Ratings => Set<Rating>();
+    public DbSet<ShareLink> ShareLinks => Set<ShareLink>();
     public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
 
-        builder.Entity<ApplicationUser>()
-            .HasIndex(user => user.RegisteredAtUtc);
-
-        builder.Entity<Note>()
-            .HasIndex(note => note.OwnerId);
-
-        builder.Entity<Note>()
-            .HasIndex(note => note.IsPublic);
-
-        builder.Entity<Note>()
-            .HasOne(note => note.Owner)
-            .WithMany(user => user.Notes)
-            .HasForeignKey(note => note.OwnerId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.Entity<NoteAttachment>()
-            .HasIndex(attachment => attachment.NoteId);
-
-        builder.Entity<NoteAttachment>()
-            .HasOne(attachment => attachment.Note)
-            .WithMany(note => note.Attachments)
-            .HasForeignKey(attachment => attachment.NoteId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.Entity<NoteRating>()
-            .HasIndex(rating => new { rating.NoteId, rating.UserId })
+        builder.Entity<ShareLink>()
+            .HasIndex(s => s.Token)
             .IsUnique();
 
-        builder.Entity<NoteRating>()
-            .HasOne(rating => rating.Note)
-            .WithMany(note => note.Ratings)
-            .HasForeignKey(rating => rating.NoteId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.Entity<NoteRating>()
-            .HasOne(rating => rating.User)
-            .WithMany(user => user.Ratings)
-            .HasForeignKey(rating => rating.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.Entity<NoteShareLink>()
-            .HasIndex(link => link.Token)
+        builder.Entity<Rating>()
+            .HasIndex(r => new { r.NoteId, r.UserId })
             .IsUnique();
 
-        builder.Entity<NoteShareLink>()
-            .HasOne(link => link.Note)
-            .WithMany(note => note.ShareLinks)
-            .HasForeignKey(link => link.NoteId)
+        builder.Entity<Note>()
+            .HasIndex(n => n.UserId);
+
+        builder.Entity<Note>()
+            .HasIndex(n => n.IsPublic);
+
+        builder.Entity<Note>()
+            .HasMany(n => n.Attachments)
+            .WithOne(a => a.Note)
+            .HasForeignKey(a => a.NoteId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.Entity<ActivityLog>()
-            .HasIndex(log => log.CreatedAtUtc);
+        builder.Entity<Note>()
+            .HasMany(n => n.Ratings)
+            .WithOne(r => r.Note)
+            .HasForeignKey(r => r.NoteId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<Note>()
+            .HasMany(n => n.ShareLinks)
+            .WithOne(s => s.Note)
+            .HasForeignKey(s => s.NoteId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

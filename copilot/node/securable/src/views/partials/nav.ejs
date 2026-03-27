@@ -1,0 +1,45 @@
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  <div class="container">
+    <a class="navbar-brand fw-bold" href="/">📝 Loose Notes</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navMenu">
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item">
+          <a class="nav-link" href="/notes/top-rated">⭐ Top Rated</a>
+        </li>
+        <% if (locals.user) { %>
+          <li class="nav-item">
+            <a class="nav-link" href="/notes">My Notes</a>
+          </li>
+          <% if (locals.isAdmin) { %>
+            <li class="nav-item">
+              <a class="nav-link text-warning" href="/admin">Admin</a>
+            </li>
+          <% } %>
+        <% } %>
+      </ul>
+      <ul class="navbar-nav ms-auto">
+        <% if (locals.user) { %>
+          <li class="nav-item">
+            <a class="nav-link" href="/profile"><%= user.username %></a>
+          </li>
+          <li class="nav-item">
+            <form method="POST" action="/auth/logout" class="d-inline">
+              <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+              <button type="submit" class="btn btn-sm btn-outline-light ms-2">Sign out</button>
+            </form>
+          </li>
+        <% } else { %>
+          <li class="nav-item">
+            <a class="nav-link" href="/auth/login">Sign in</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/auth/register">Register</a>
+          </li>
+        <% } %>
+      </ul>
+    </div>
+  </div>
+</nav>

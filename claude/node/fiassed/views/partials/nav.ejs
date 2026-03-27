@@ -1,0 +1,27 @@
+<nav class="navbar">
+  <div class="nav-brand">
+    <a href="/">Loose Notes</a>
+  </div>
+  <ul class="nav-links">
+    <li><a href="/">Home</a></li>
+    <% if (typeof currentUser !== 'undefined' && currentUser) { %>
+      <li><a href="/notes">My Notes</a></li>
+      <li><a href="/notes/search">Search</a></li>
+      <li><a href="/notes/top-rated">Top Rated</a></li>
+      <% if (currentUser.role === 'admin') { %>
+        <li><a href="/admin/dashboard">Admin</a></li>
+      <% } %>
+      <li><a href="/profile/edit">Profile</a></li>
+      <li>
+        <form method="POST" action="/auth/logout" style="display:inline;">
+          <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+          <button type="submit" class="btn-link">Logout</button>
+        </form>
+      </li>
+    <% } else { %>
+      <li><a href="/notes/top-rated">Top Rated</a></li>
+      <li><a href="/auth/login">Login</a></li>
+      <li><a href="/auth/register">Register</a></li>
+    <% } %>
+  </ul>
+</nav>

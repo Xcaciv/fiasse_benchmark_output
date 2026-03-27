@@ -6,7 +6,7 @@ public class ForgotPasswordViewModel
 {
     [Required]
     [EmailAddress]
-    [MaxLength(254)]
+    [StringLength(256)]
     [Display(Name = "Email")]
     public string Email { get; set; } = string.Empty;
 }

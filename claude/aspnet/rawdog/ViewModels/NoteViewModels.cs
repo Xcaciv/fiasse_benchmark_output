@@ -6,13 +6,12 @@ namespace LooseNotes.ViewModels;
 public class CreateNoteViewModel
 {
     [Required]
-    [StringLength(200)]
     public string Title { get; set; } = string.Empty;
 
     [Required]
     public string Content { get; set; } = string.Empty;
 
-    public bool IsPublic { get; set; } = false;
+    public bool IsPublic { get; set; }
 
     public List<IFormFile> Attachments { get; set; } = new();
 }
@@ -22,7 +21,6 @@ public class EditNoteViewModel
     public int Id { get; set; }
 
     [Required]
-    [StringLength(200)]
     public string Title { get; set; } = string.Empty;
 
     [Required]
@@ -38,44 +36,28 @@ public class EditNoteViewModel
 public class NoteDetailsViewModel
 {
     public Note Note { get; set; } = null!;
-    public Rating? UserRating { get; set; }
+    public Rating? CurrentUserRating { get; set; }
+    public bool CanEdit { get; set; }
     public string? ShareToken { get; set; }
-    public bool IsOwner { get; set; }
 }
 
-public class RateNoteViewModel
+public class RatingViewModel
 {
-    public int NoteId { get; set; }
+    [Required, Range(1, 5)]
+    public int Stars { get; set; }
 
-    [Range(1, 5)]
-    public int Value { get; set; }
-
-    [StringLength(500)]
     public string? Comment { get; set; }
+
+    public int NoteId { get; set; }
 }
 
 public class SearchViewModel
 {
-    public string? Query { get; set; }
-    public List<NoteSearchResultViewModel> Results { get; set; } = new();
+    public string Query { get; set; } = string.Empty;
+    public List<Note> Results { get; set; } = new();
 }
 
-public class NoteSearchResultViewModel
+public class TopRatedViewModel
 {
-    public int Id { get; set; }
-    public string Title { get; set; } = string.Empty;
-    public string Excerpt { get; set; } = string.Empty;
-    public string AuthorName { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; }
-    public bool IsPublic { get; set; }
-}
-
-public class TopRatedNoteViewModel
-{
-    public int Id { get; set; }
-    public string Title { get; set; } = string.Empty;
-    public string AuthorName { get; set; } = string.Empty;
-    public double AverageRating { get; set; }
-    public int RatingCount { get; set; }
-    public string Preview { get; set; } = string.Empty;
+    public List<(Note Note, double Avg, int Count)> Items { get; set; } = new();
 }

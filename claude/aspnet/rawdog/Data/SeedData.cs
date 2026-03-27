@@ -5,36 +5,30 @@ namespace LooseNotes.Data;
 
 public static class SeedData
 {
-    public static async Task InitializeAsync(IServiceProvider serviceProvider)
+    public static async Task InitializeAsync(IServiceProvider services)
     {
-        var roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-        var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
+        var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
 
-        // Ensure roles exist
-        string[] roles = ["Admin", "User"];
+        string[] roles = { "Admin", "User" };
         foreach (var role in roles)
         {
             if (!await roleManager.RoleExistsAsync(role))
-            {
                 await roleManager.CreateAsync(new IdentityRole(role));
-            }
         }
 
-        // Create default admin if none exists
-        var admins = await userManager.GetUsersInRoleAsync("Admin");
-        if (admins.Count == 0)
+        var adminEmail = "admin@loosenotes.local";
+        if (await userManager.FindByEmailAsync(adminEmail) == null)
         {
-            var adminUser = new ApplicationUser
+            var admin = new ApplicationUser
             {
                 UserName = "admin",
-                Email = "admin@loosenotes.local",
+                Email = adminEmail,
                 EmailConfirmed = true
             };
-            var result = await userManager.CreateAsync(adminUser, "Admin@123456");
+            var result = await userManager.CreateAsync(admin, "Admin@123");
             if (result.Succeeded)
-            {
-                await userManager.AddToRoleAsync(adminUser, "Admin");
-            }
+                await userManager.AddToRoleAsync(admin, "Admin");
         }
     }
 }

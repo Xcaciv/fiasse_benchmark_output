@@ -1,6 +1,6 @@
 using LooseNotes.Data;
 using LooseNotes.Models;
-using LooseNotes.Services.Interfaces;
+using LooseNotes.Services;
 using LooseNotes.ViewModels.Admin;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -9,124 +9,120 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LooseNotes.Controllers;
 
-/// <summary>
-/// Admin-only actions. All routes protected with Role="Admin" (Authenticity).
-/// Admin actions are fully audited (Accountability).
-/// </summary>
 [Authorize(Roles = "Admin")]
-[Route("[controller]/[action]")]
 public class AdminController : Controller
 {
     private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
-    private readonly IAuditService _auditService;
+    private readonly IAuditService _audit;
     private readonly ILogger<AdminController> _logger;
 
     public AdminController(
         ApplicationDbContext db,
         UserManager<ApplicationUser> userManager,
-        IAuditService auditService,
+        IAuditService audit,
         ILogger<AdminController> logger)
     {
         _db = db;
         _userManager = userManager;
-        _auditService = auditService;
+        _audit = audit;
         _logger = logger;
     }
 
-    [HttpGet("/Admin")]
-    public async Task<IActionResult> Index()
+    private string GetAdminId() => _userManager.GetUserId(User)!;
+
+    [HttpGet]
+    public async Task<IActionResult> Dashboard()
     {
-        _logger.LogInformation("Admin/Index accessed by {UserId}", _userManager.GetUserId(User));
-
-        var userCount = await _db.Users.CountAsync();
-        var noteCount = await _db.Notes.CountAsync();
-        var recentActivity = await _db.ActivityLogs
-            .AsNoTracking()
-            .OrderByDescending(a => a.Timestamp)
-            .Take(50)
-            .ToListAsync();
-
-        return View(new AdminDashboardViewModel
+        var vm = new AdminDashboardViewModel
         {
-            TotalUsers = userCount,
-            TotalNotes = noteCount,
-            RecentActivity = recentActivity
-        });
+            TotalUsers = await _userManager.Users.CountAsync(),
+            TotalNotes = await _db.Notes.CountAsync(),
+            RecentActivityLog = new List<string>
+            {
+                "Dashboard accessed by admin.",
+                $"System has {await _db.Notes.CountAsync()} notes and {await _userManager.Users.CountAsync()} users."
+            }
+        };
+        return View(vm);
     }
 
     [HttpGet]
-    public async Task<IActionResult> Users(string? q)
+    public async Task<IActionResult> UserList(string? q)
     {
-        _logger.LogInformation("Admin/Users accessed by {UserId}", _userManager.GetUserId(User));
-
-        IQueryable<ApplicationUser> query = _db.Users.AsNoTracking();
+        var query = _userManager.Users.AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(q))
         {
-            var lower = q.ToLower();
-            query = query.Where(u =>
-                u.UserName!.ToLower().Contains(lower) ||
-                u.Email!.ToLower().Contains(lower));
+            query = query.Where(u => u.UserName!.Contains(q) || u.Email!.Contains(q));
         }
 
-        var users = await query.OrderBy(u => u.UserName).ToListAsync();
-        return View(new UserListViewModel { Users = users, SearchQuery = q });
+        var users = await query.ToListAsync();
+
+        var items = new List<UserListItemViewModel>();
+        foreach (var u in users)
+        {
+            var noteCount = await _db.Notes.CountAsync(n => n.OwnerId == u.Id);
+            items.Add(new UserListItemViewModel
+            {
+                Id = u.Id,
+                UserName = u.UserName ?? string.Empty,
+                Email = u.Email ?? string.Empty,
+                RegistrationDate = u.CreatedAt,
+                NoteCount = noteCount
+            });
+        }
+
+        return View(new UserListViewModel { Users = items, SearchQuery = q });
     }
 
     [HttpGet]
     public async Task<IActionResult> ReassignNote(int noteId)
     {
-        var note = await _db.Notes.AsNoTracking()
-            .Include(n => n.User)
-            .FirstOrDefaultAsync(n => n.Id == noteId);
-
+        var note = await _db.Notes.FindAsync(noteId);
         if (note is null) return NotFound();
 
-        var users = await _db.Users.AsNoTracking()
-            .OrderBy(u => u.UserName)
+        var users = await _userManager.Users
+            .Select(u => new UserSelectItem { Id = u.Id, DisplayText = u.UserName + " (" + u.Email + ")" })
             .ToListAsync();
 
         return View(new ReassignNoteViewModel
         {
             NoteId = noteId,
             NoteTitle = note.Title,
-            CurrentOwnerName = note.User?.UserName ?? "(unknown)",
-            AvailableUsers = users
+            Users = users
         });
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> ReassignNote(ReassignNoteViewModel model)
+    public async Task<IActionResult> ReassignNote([Bind("NoteId,NewOwnerId")] ReassignNoteViewModel model)
     {
-        // Trust boundary: validate that target user exists before reassignment (Integrity)
-        _logger.LogInformation("Admin reassigning note {NoteId} to user {NewOwner}", model.NoteId, model.NewOwnerId);
-
-        if (!ModelState.IsValid) return await ReassignNote(model.NoteId);
-
-        var note = await _db.Notes.FirstOrDefaultAsync(n => n.Id == model.NoteId);
-        if (note is null) return NotFound();
-
-        var newOwner = await _userManager.FindByIdAsync(model.NewOwnerId);
-        if (newOwner is null)
+        if (!ModelState.IsValid)
         {
-            ModelState.AddModelError(nameof(model.NewOwnerId), "User not found.");
             return await ReassignNote(model.NoteId);
         }
 
-        var adminId = _userManager.GetUserId(User)!;
-        var oldOwnerId = note.UserId;
-        note.UserId = model.NewOwnerId;
+        var note = await _db.Notes.FindAsync(model.NoteId);
+        if (note is null) return NotFound();
+
+        // Verify new owner exists — Derived Integrity Principle
+        var newOwner = await _userManager.FindByIdAsync(model.NewOwnerId);
+        if (newOwner is null)
+        {
+            ModelState.AddModelError("NewOwnerId", "User not found.");
+            return await ReassignNote(model.NoteId);
+        }
+
+        var oldOwnerId = note.OwnerId;
+        note.OwnerId = model.NewOwnerId;
+        note.UpdatedAt = DateTime.UtcNow;
+
         await _db.SaveChangesAsync();
+        _audit.LogAdminAction("REASSIGN_NOTE", GetAdminId(),
+            $"NoteId={model.NoteId} from OwnerId={oldOwnerId} to OwnerId={model.NewOwnerId}");
 
-        await _auditService.LogAsync("NoteReassigned", adminId,
-            $"NoteId={model.NoteId} From={oldOwnerId} To={model.NewOwnerId}", GetClientIp());
-
-        TempData["SuccessMessage"] = "Note reassigned successfully.";
-        return RedirectToAction(nameof(Index));
+        TempData["Success"] = "Note reassigned.";
+        return RedirectToAction(nameof(UserList));
     }
-
-    private string? GetClientIp() =>
-        HttpContext.Connection.RemoteIpAddress?.ToString();
 }

@@ -2,28 +2,35 @@
 @{
     ViewData["Title"] = "Top Rated Notes";
 }
-<h2>Top Rated Notes</h2>
-<p class="text-muted">Public notes with at least 3 ratings, sorted by average score.</p>
+
+<h2>⭐ Top Rated Notes</h2>
+<p class="text-muted">Public notes with at least 3 ratings, sorted by average rating.</p>
 
 @if (!Model.Any())
 {
-    <div class="alert alert-info">No top-rated notes yet. Be the first to rate some notes!</div>
+    <div class="alert alert-info">
+        No notes have enough ratings yet. Be the first to rate a public note!
+    </div>
 }
 else
 {
     <div class="list-group">
-        @foreach (var note in Model)
+        @foreach (var (note, index) in Model.Select((n, i) => (n, i + 1)))
         {
-            <a asp-action="Details" asp-route-id="@note.Id" class="list-group-item list-group-item-action">
-                <div class="d-flex w-100 justify-content-between">
-                    <h6 class="mb-1">@note.Title</h6>
+            <a asp-action="Details" asp-route-id="@note.Id"
+               class="list-group-item list-group-item-action">
+                <div class="d-flex w-100 justify-content-between align-items-start">
+                    <div>
+                        <span class="badge bg-warning text-dark me-2">#@index</span>
+                        <strong>@note.Title</strong>
+                    </div>
                     <span class="text-warning fw-bold">
-                        ★ @note.AverageRating!.Value.ToString("F1")
-                        <small class="text-muted fw-normal">(@note.RatingCount)</small>
+                        ★ @note.AverageRating.ToString("F1")
+                        <small class="text-muted">(@note.RatingCount ratings)</small>
                     </span>
                 </div>
-                <p class="mb-1 small text-muted">@note.Excerpt</p>
-                <small>By @note.OwnerDisplayName</small>
+                <p class="mb-1 text-muted small mt-1">@note.Excerpt</p>
+                <small class="text-muted">by @note.AuthorUserName</small>
             </a>
         }
     </div>

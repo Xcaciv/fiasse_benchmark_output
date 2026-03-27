@@ -1,120 +1,74 @@
+using LooseNotes.Models;
+using LooseNotes.Services;
+using LooseNotes.ViewModels.Account;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using LooseNotes.Models;
-using LooseNotes.Services;
-using LooseNotes.ViewModels.Profile;
 
 namespace LooseNotes.Controllers;
 
 [Authorize]
-public sealed class ProfileController : Controller
+public class ProfileController : Controller
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
-    private readonly IActivityLogService _activityLogService;
+    private readonly IAuditService _audit;
 
     public ProfileController(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
-        IActivityLogService activityLogService)
+        IAuditService audit)
     {
         _userManager = userManager;
         _signInManager = signInManager;
-        _activityLogService = activityLogService;
+        _audit = audit;
     }
 
     [HttpGet]
     public async Task<IActionResult> Index()
     {
         var user = await _userManager.GetUserAsync(User);
-        if (user is null)
-        {
-            return Challenge();
-        }
+        if (user is null) return NotFound();
 
-        ViewBag.ChangePassword = new ChangePasswordViewModel();
         return View(new ProfileViewModel
         {
-            UserName = user.UserName ?? string.Empty,
-            Email = user.Email ?? string.Empty,
-            RegisteredAtUtc = user.RegisteredAtUtc
+            Username = user.UserName ?? string.Empty,
+            Email = user.Email ?? string.Empty
         });
     }
 
     [HttpPost]
-    public async Task<IActionResult> Update(ProfileViewModel model, CancellationToken cancellationToken)
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Index([Bind("Username,Email,CurrentPassword,NewPassword,ConfirmNewPassword")] ProfileViewModel model)
     {
+        if (!ModelState.IsValid) return View(model);
+
         var user = await _userManager.GetUserAsync(User);
-        if (user is null)
-        {
-            return Challenge();
-        }
+        if (user is null) return NotFound();
 
-        if (!ModelState.IsValid)
+        if (!string.IsNullOrWhiteSpace(model.NewPassword))
         {
-            ViewBag.ChangePassword = new ChangePasswordViewModel();
-            return View("Index", model);
-        }
-
-        user.UserName = model.UserName.Trim();
-        user.Email = model.Email.Trim();
-
-        var updateResult = await _userManager.UpdateAsync(user);
-        if (!updateResult.Succeeded)
-        {
-            foreach (var error in updateResult.Errors)
+            if (string.IsNullOrWhiteSpace(model.CurrentPassword))
             {
-                ModelState.AddModelError(string.Empty, error.Description);
+                ModelState.AddModelError("CurrentPassword", "Current password is required to change password.");
+                return View(model);
             }
 
-            ViewBag.ChangePassword = new ChangePasswordViewModel();
-            return View("Index", model);
-        }
-
-        await _signInManager.RefreshSignInAsync(user);
-        await _activityLogService.LogAsync("profile.updated", $"User '{user.UserName}' updated their profile.", user.Id, HttpContext.Connection.RemoteIpAddress?.ToString(), cancellationToken);
-        TempData["StatusMessage"] = "Your profile was updated.";
-        return RedirectToAction(nameof(Index));
-    }
-
-    [HttpPost]
-    public async Task<IActionResult> ChangePassword(ChangePasswordViewModel model, CancellationToken cancellationToken)
-    {
-        var user = await _userManager.GetUserAsync(User);
-        if (user is null)
-        {
-            return Challenge();
-        }
-
-        var profileModel = new ProfileViewModel
-        {
-            UserName = user.UserName ?? string.Empty,
-            Email = user.Email ?? string.Empty,
-            RegisteredAtUtc = user.RegisteredAtUtc
-        };
-
-        if (!ModelState.IsValid)
-        {
-            ViewBag.ChangePassword = model;
-            return View("Index", profileModel);
-        }
-
-        var changeResult = await _userManager.ChangePasswordAsync(user, model.CurrentPassword, model.NewPassword);
-        if (!changeResult.Succeeded)
-        {
-            foreach (var error in changeResult.Errors)
+            var changeResult = await _userManager.ChangePasswordAsync(user, model.CurrentPassword, model.NewPassword);
+            if (!changeResult.Succeeded)
             {
-                ModelState.AddModelError(string.Empty, error.Description);
+                foreach (var error in changeResult.Errors)
+                {
+                    ModelState.AddModelError(string.Empty, error.Description);
+                }
+                return View(model);
             }
 
-            ViewBag.ChangePassword = model;
-            return View("Index", profileModel);
+            _audit.LogAuthEvent("PASSWORD_CHANGED", user.Id, "User changed password");
+            await _signInManager.RefreshSignInAsync(user);
         }
 
-        await _signInManager.RefreshSignInAsync(user);
-        await _activityLogService.LogAsync("profile.password_changed", $"User '{user.UserName}' changed their password.", user.Id, HttpContext.Connection.RemoteIpAddress?.ToString(), cancellationToken);
-        TempData["StatusMessage"] = "Your password was changed.";
+        TempData["Success"] = "Profile updated.";
         return RedirectToAction(nameof(Index));
     }
 }

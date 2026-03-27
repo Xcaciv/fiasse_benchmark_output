@@ -1,0 +1,50 @@
+/* Loose Notes - Custom Styles */
+
+body {
+    background-color: #f8f9fa;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.container {
+    flex: 1;
+}
+
+/* Note content pre-wrap */
+.note-content {
+    line-height: 1.8;
+    font-size: 1rem;
+}
+
+/* Card hover effects */
+.card:hover {
+    transition: box-shadow 0.2s ease;
+}
+
+/* Star ratings */
+.star-rating {
+    color: #ffc107;
+    font-size: 1.2rem;
+}
+
+/* Badge styles */
+.badge {
+    font-size: 0.75em;
+}
+
+/* Navbar brand */
+.navbar-brand {
+    font-weight: bold;
+    font-size: 1.3rem;
+}
+
+/* Table */
+.table th {
+    white-space: nowrap;
+}
+
+/* Footer */
+footer {
+    margin-top: auto;
+}

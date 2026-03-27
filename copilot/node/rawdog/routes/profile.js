@@ -1,59 +1,79 @@
 const express = require('express');
-const router = express.Router();
-const bcrypt = require('bcrypt');
-const { body, validationResult } = require('express-validator');
+const bcrypt = require('bcryptjs');
 const { User } = require('../models');
-const { ensureAuthenticated } = require('../middleware/auth');
+const { isAuthenticated } = require('../middleware/auth');
+
+const router = express.Router();
 
 // GET /profile
-router.get('/', ensureAuthenticated, (req, res) => {
-  res.render('profile/edit', { title: 'Edit Profile', user: req.user, errors: [], messages: req.flash() });
+router.get('/', isAuthenticated, async (req, res) => {
+  try {
+    const user = await User.findByPk(req.session.userId);
+    if (!user) return res.redirect('/auth/login');
+    res.render('profile/index', { title: 'My Profile', profileUser: user });
+  } catch (err) {
+    console.error(err);
+    req.flash('error', 'Failed to load profile.');
+    res.redirect('/notes');
+  }
 });
 
 // POST /profile
-router.post('/', ensureAuthenticated, [
-  body('username').trim().isLength({ min: 3 }).withMessage('Username must be at least 3 characters.'),
-  body('email').isEmail().normalizeEmail().withMessage('Enter a valid email.'),
-  body('newPassword').optional({ checkFalsy: true }).isLength({ min: 6 }).withMessage('New password must be at least 6 characters.'),
-  body('confirmPassword').custom((value, { req }) => {
-    if (req.body.newPassword && value !== req.body.newPassword) throw new Error('Passwords do not match.');
-    return true;
-  }),
-], async (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.render('profile/edit', { title: 'Edit Profile', user: req.user, errors: errors.array(), messages: req.flash() });
-  }
-  const { username, email, currentPassword, newPassword } = req.body;
+router.post('/', isAuthenticated, async (req, res) => {
   try {
-    // Check if email/username taken by another user
-    const emailUser = await User.findOne({ where: { email } });
-    if (emailUser && emailUser.id !== req.user.id) {
-      return res.render('profile/edit', { title: 'Edit Profile', user: req.user, errors: [{ msg: 'Email already in use.' }], messages: req.flash() });
+    const user = await User.findByPk(req.session.userId);
+    if (!user) return res.redirect('/auth/login');
+
+    const { username, email, currentPassword, newPassword, confirmNewPassword } = req.body;
+
+    if (!username || !email) {
+      req.flash('error', 'Username and email are required.');
+      return res.redirect('/profile');
     }
-    const usernameUser = await User.findOne({ where: { username } });
-    if (usernameUser && usernameUser.id !== req.user.id) {
-      return res.render('profile/edit', { title: 'Edit Profile', user: req.user, errors: [{ msg: 'Username already taken.' }], messages: req.flash() });
+
+    // Check for conflicts
+    const existingUser = await User.findOne({ where: { username } });
+    if (existingUser && existingUser.id !== user.id) {
+      req.flash('error', 'Username already taken.');
+      return res.redirect('/profile');
+    }
+    const existingEmail = await User.findOne({ where: { email } });
+    if (existingEmail && existingEmail.id !== user.id) {
+      req.flash('error', 'Email already registered.');
+      return res.redirect('/profile');
     }
 
     const updates = { username, email };
 
     if (newPassword) {
       if (!currentPassword) {
-        return res.render('profile/edit', { title: 'Edit Profile', user: req.user, errors: [{ msg: 'Current password is required to set a new password.' }], messages: req.flash() });
+        req.flash('error', 'Current password is required to change password.');
+        return res.redirect('/profile');
       }
-      const match = await bcrypt.compare(currentPassword, req.user.passwordHash);
-      if (!match) {
-        return res.render('profile/edit', { title: 'Edit Profile', user: req.user, errors: [{ msg: 'Current password is incorrect.' }], messages: req.flash() });
+      const valid = await bcrypt.compare(currentPassword, user.password);
+      if (!valid) {
+        req.flash('error', 'Current password is incorrect.');
+        return res.redirect('/profile');
       }
-      updates.passwordHash = await bcrypt.hash(newPassword, 12);
+      if (newPassword !== confirmNewPassword) {
+        req.flash('error', 'New passwords do not match.');
+        return res.redirect('/profile');
+      }
+      if (newPassword.length < 6) {
+        req.flash('error', 'New password must be at least 6 characters.');
+        return res.redirect('/profile');
+      }
+      updates.password = await bcrypt.hash(newPassword, 12);
     }
 
-    await req.user.update(updates);
-    req.flash('success', 'Profile updated successfully.');
+    await user.update(updates);
+    req.session.username = username;
+    req.flash('success', 'Profile updated.');
     res.redirect('/profile');
   } catch (err) {
-    next(err);
+    console.error(err);
+    req.flash('error', 'Failed to update profile.');
+    res.redirect('/profile');
   }
 });
 

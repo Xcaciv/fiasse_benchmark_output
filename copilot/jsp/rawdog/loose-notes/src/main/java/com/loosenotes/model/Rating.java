@@ -7,7 +7,7 @@ public class Rating {
     private int rating;
     private String comment;
     private String createdAt;
-    private String username;
+    private String username; // populated by JOIN
 
     public Rating() {}
 

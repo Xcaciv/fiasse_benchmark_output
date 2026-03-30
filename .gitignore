@@ -429,3 +429,4 @@ FodyWeavers.xsd
 *.msm
 *.msp
 **/securable/data/
+/opencode/_securable_opencode_temp

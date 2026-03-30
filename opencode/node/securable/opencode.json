@@ -1,19 +1,21 @@
 {
-    "instructions":  "./.securable/instructions.md",
-    "mcpServers":  {
-                       "securable":  {
-                                         "args":  [
-                                                      "./.securable/tools/mcp_server.py"
-                                                  ],
-                                         "env":  {
-                                                     "SECURABLE_DATA_DIR":  "./.securable/data",
-                                                     "SECURABLE_WORKFLOWS_DIR":  "./.securable/workflows",
-                                                     "SECURABLE_TEMPLATES_DIR":  "./.securable/templates"
-                                                 },
-                                         "command":  "python"
-                                     }
-                   },
+    "instructions":  [
+                         "./.securable/instructions.md"
+                     ],
     "$schema":  "https://opencode.ai/config.json",
+    "mcp":  {
+                "securable":  {
+                                  "environment":  {
+                                                      "SECURABLE_DATA_DIR":  "./.securable/data",
+                                                      "SECURABLE_TEMPLATES_DIR":  "./.securable/templates"
+                                                  },
+                                  "command":  [
+                                                  "node",
+                                                  "./.securable/tools/mcp_server.js"
+                                              ],
+                                  "type":  "local"
+                              }
+            },
     "permission":  {
                        "edit":  "allow",
                        "bash":  "allow"

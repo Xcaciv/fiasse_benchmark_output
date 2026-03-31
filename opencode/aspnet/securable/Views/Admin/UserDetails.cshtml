@@ -1,0 +1,60 @@
+@model ApplicationUser
+@{
+    ViewData["Title"] = "User Details - " + Model.UserName;
+}
+
+<h1>User Details</h1>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <dl class="row">
+            <dt class="col-sm-3">Username</dt>
+            <dd class="col-sm-9">@Model.UserName</dd>
+            
+            <dt class="col-sm-3">Email</dt>
+            <dd class="col-sm-9">@Model.Email</dd>
+            
+            <dt class="col-sm-3">Created</dt>
+            <dd class="col-sm-9">@Model.CreatedAt.ToLocalTime().ToString("MMMM dd, yyyy HH:mm")</dd>
+            
+            <dt class="col-sm-3">Last Login</dt>
+            <dd class="col-sm-9">
+                @(Model.LastLoginAt.HasValue 
+                    ? Model.LastLoginAt.Value.ToLocalTime().ToString("MMMM dd, yyyy HH:mm") 
+                    : "Never")
+            </dd>
+            
+            <dt class="col-sm-3">Notes Count</dt>
+            <dd class="col-sm-9">@(Model.Notes?.Count ?? 0)</dd>
+        </dl>
+    </div>
+    <div class="card-footer">
+        <a asp-action="Users" class="btn btn-secondary">Back to List</a>
+    </div>
+</div>
+
+@if (Model.Notes != null && Model.Notes.Any())
+{
+    <h3>User's Notes</h3>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Created</th>
+                <th>Visibility</th>
+                <th>Ratings</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var note in Model.Notes)
+            {
+                <tr>
+                    <td>@note.Title</td>
+                    <td>@note.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")</td>
+                    <td>@(note.IsPublic ? "Public" : "Private")</td>
+                    <td>@note.RatingCount</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

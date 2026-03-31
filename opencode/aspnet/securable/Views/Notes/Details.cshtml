@@ -1,0 +1,118 @@
+@model Note
+@{
+    ViewData["Title"] = Model.Title;
+    var isOwner = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value == Model.UserId;
+    var isAdmin = User.IsInRole("Admin");
+    var canEdit = isOwner || isAdmin;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1>@Model.Title</h1>
+        <span class="badge @(Model.IsPublic ? "bg-success" : "bg-secondary")">
+            @(Model.IsPublic ? "Public" : "Private")
+        </span>
+    </div>
+    @if (canEdit)
+    {
+        <div>
+            <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-outline-primary">Edit</a>
+            <a asp-action="Share" asp-route-id="@Model.Id" class="btn btn-outline-info">Share</a>
+            <a asp-action="Delete" asp-route-id="@Model.Id" class="btn btn-outline-danger">Delete</a>
+        </div>
+    }
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <p class="card-text" style="white-space: pre-wrap;">@Model.Content</p>
+    </div>
+    <div class="card-footer text-muted">
+        <div class="row">
+            <div class="col-md-6">
+                <small>Created by: @Model.User?.UserName</small>
+            </div>
+            <div class="col-md-6 text-md-end">
+                <small>Created: @Model.CreatedAt.ToLocalTime().ToString("MMMM dd, yyyy HH:mm")</small>
+                @if (Model.ModifiedAt.HasValue)
+                {
+                    <br />
+                    <small>Modified: @Model.ModifiedAt.Value.ToLocalTime().ToString("MMMM dd, yyyy HH:mm")</small>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (Model.Attachments.Any())
+{
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Attachments</h5>
+        </div>
+        <ul class="list-group list-group-flush">
+            @foreach (var attachment in Model.Attachments)
+            {
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span>
+                        <i class="bi bi-paperclip"></i>
+                        @attachment.FileName
+                        <small class="text-muted">(@(attachment.FileSize / 1024) KB)</small>
+                    </span>
+                    <a asp-action="Download" asp-route-fileName="@attachment.StoredFileName" 
+                       class="btn btn-sm btn-outline-primary">Download</a>
+                </li>
+            }
+        </ul>
+    </div>
+}
+
+@if (Model.RatingCount > 0)
+{
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Ratings</h5>
+            <span class="badge bg-warning text-dark">
+                @Model.AverageRating.ToString("F1") / 5 
+                <small>(@Model.RatingCount reviews)</small>
+            </span>
+        </div>
+        @if (canEdit)
+        {
+            <div class="card-body">
+                <a asp-action="Ratings" asp-route-id="@Model.Id" class="btn btn-sm btn-outline-secondary">
+                    View All Ratings
+                </a>
+            </div>
+        }
+    </div>
+}
+
+@if (User.Identity?.IsAuthenticated == true)
+{
+    <div class="card">
+        <div class="card-header">
+            <h5>Rate This Note</h5>
+        </div>
+        <div class="card-body">
+            <form asp-action="AddRating" asp-route-noteId="@Model.Id" method="post">
+                <div class="mb-3">
+                    <label class="form-label">Rating</label>
+                    <select name="value" class="form-select" required>
+                        <option value="">Select rating...</option>
+                        <option value="1">1 Star</option>
+                        <option value="2">2 Stars</option>
+                        <option value="3">3 Stars</option>
+                        <option value="4">4 Stars</option>
+                        <option value="5">5 Stars</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Comment (optional)</label>
+                    <textarea name="comment" class="form-control" rows="3" maxlength="1000"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Submit Rating</button>
+            </form>
+        </div>
+    </div>
+}

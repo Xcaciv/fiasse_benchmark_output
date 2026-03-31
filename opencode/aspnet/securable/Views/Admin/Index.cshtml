@@ -1,0 +1,65 @@
+@model AdminDashboardViewModel
+@{
+    ViewData["Title"] = "Admin Dashboard";
+}
+
+<h1>Admin Dashboard</h1>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card text-white bg-primary mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Total Users</h5>
+                <p class="display-4">@Model.TotalUsers</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card text-white bg-success mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Total Notes</h5>
+                <p class="display-4">@Model.TotalNotes</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <a asp-action="Users" class="btn btn-outline-primary mb-2">Manage Users</a>
+                <a asp-action="Activity" class="btn btn-outline-secondary mb-2">View Activity Log</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (Model.RecentActivity.Any())
+{
+    <div class="mt-4">
+        <h3>Recent Activity</h3>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Action</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var activity in Model.RecentActivity)
+                {
+                    <tr>
+                        <td>@activity.CreatedAt.ToLocalTime().ToString("g")</td>
+                        <td>@activity.Action</td>
+                        <td>@activity.Details</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

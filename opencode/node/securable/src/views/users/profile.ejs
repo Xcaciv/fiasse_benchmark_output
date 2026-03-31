@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Profile - Loose Notes</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+  <%- include ../partials/navbar %>
+  <%- include ../partials/flash %>
+  <main class="container py-4">
+    <h1 class="mb-4">My Profile</h1>
+
+    <div class="card">
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <p><strong>Username:</strong> <%= user.username %></p>
+            <p><strong>Email:</strong> <%= user.email %></p>
+          </div>
+          <div class="col-md-6">
+            <p><strong>Role:</strong> <span class="badge bg-secondary"><%= user.role %></span></p>
+          </div>
+        </div>
+        <a href="/users/settings" class="btn btn-primary mt-2">Edit Profile</a>
+      </div>
+    </div>
+  </main>
+  <%- include ../partials/footer %>
+</body>
+</html>

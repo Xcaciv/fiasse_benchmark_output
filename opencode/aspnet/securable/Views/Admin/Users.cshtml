@@ -1,0 +1,47 @@
+@model IEnumerable<ApplicationUser>
+@{
+    ViewData["Title"] = "Manage Users";
+    var search = ViewData["Search"] as string;
+}
+
+<h1>Manage Users</h1>
+
+<form method="get" class="mb-4">
+    <div class="input-group">
+        <input type="text" name="search" class="form-control" value="@search" 
+               placeholder="Search by username or email..." />
+        <button type="submit" class="btn btn-primary">Search</button>
+        @if (!string.IsNullOrEmpty(search))
+        {
+            <a asp-action="Users" class="btn btn-outline-secondary">Clear</a>
+        }
+    </div>
+</form>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Username</th>
+            <th>Email</th>
+            <th>Created</th>
+            <th>Notes</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var user in Model)
+        {
+            <tr>
+                <td>@user.UserName</td>
+                <td>@user.Email</td>
+                <td>@user.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")</td>
+                <td>@(user.Notes?.Count ?? 0)</td>
+                <td>
+                    <a asp-action="UserDetails" asp-route-id="@user.Id" class="btn btn-sm btn-outline-primary">
+                        View
+                    </a>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

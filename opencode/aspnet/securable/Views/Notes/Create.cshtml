@@ -1,0 +1,44 @@
+@model NoteViewModel
+@{
+    ViewData["Title"] = "Create Note";
+}
+
+<h1>Create New Note</h1>
+
+<div class="row">
+    <div class="col-md-8">
+        <form method="post" enctype="multipart/form-data">
+            <div asp-validation-summary="All" class="text-danger"></div>
+            
+            <div class="mb-3">
+                <label asp-for="Title" class="form-label"></label>
+                <input asp-for="Title" class="form-control" />
+                <span asp-validation-for="Title" class="text-danger"></span>
+            </div>
+            
+            <div class="mb-3">
+                <label asp-for="Content" class="form-label"></label>
+                <textarea asp-for="Content" class="form-control" rows="10"></textarea>
+                <span asp-validation-for="Content" class="text-danger"></span>
+            </div>
+            
+            <div class="mb-3 form-check">
+                <input asp-for="IsPublic" class="form-check-input" />
+                <label asp-for="IsPublic" class="form-check-label"></label>
+                <small class="text-muted d-block">Public notes can be viewed by anyone</small>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Attachments</label>
+                <input type="file" name="Files" class="form-control" multiple 
+                       accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" />
+                <small class="text-muted">Allowed types: PDF, DOC, DOCX, TXT, PNG, JPG, JPEG (Max 10MB)</small>
+            </div>
+            
+            <div class="mb-3">
+                <button type="submit" class="btn btn-primary">Create</button>
+                <a asp-action="Index" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>

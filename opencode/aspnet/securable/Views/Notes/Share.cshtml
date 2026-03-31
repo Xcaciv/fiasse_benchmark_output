@@ -1,0 +1,70 @@
+@model Note
+@{
+    ViewData["Title"] = "Share Note";
+    var shareUrl = ViewData["ShareUrl"] as string;
+}
+
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <h1>Share Note</h1>
+        <p>Share "@Model.Title" with others using a unique link.</p>
+        
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Share Link</h5>
+            </div>
+            <div class="card-body">
+                @if (!string.IsNullOrEmpty(shareUrl))
+                {
+                    <div class="input-group mb-3">
+                        <input type="text" class="form-control" value="@shareUrl" id="shareUrl" readonly />
+                        <button class="btn btn-outline-secondary" type="button" onclick="copyToClipboard()">
+                            Copy
+                        </button>
+                    </div>
+                    <p class="text-muted small">
+                        Anyone with this link can view this note without logging in.
+                    </p>
+                    
+                    <form method="post" asp-action="RegenerateShareLink" asp-route-id="@Model.Id" class="d-inline">
+                        <button type="submit" class="btn btn-warning btn-sm">
+                            Regenerate Link
+                        </button>
+                    </form>
+                    
+                    <form method="post" asp-action="RevokeShareLink" asp-route-id="@Model.Id" class="d-inline">
+                        <button type="submit" class="btn btn-danger btn-sm">
+                            Revoke Link
+                        </button>
+                    </form>
+                }
+                else
+                {
+                    <form method="post" asp-action="CreateShareLink" asp-route-id="@Model.Id">
+                        <button type="submit" class="btn btn-primary">
+                            Generate Share Link
+                        </button>
+                    </form>
+                }
+            </div>
+        </div>
+        
+        <div class="mt-3">
+            <a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-secondary">
+                Back to Note
+            </a>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function copyToClipboard() {
+            var copyText = document.getElementById("shareUrl");
+            copyText.select();
+            copyText.setSelectionRange(0, 99999);
+            navigator.clipboard.writeText(copyText.value);
+            alert("Link copied to clipboard!");
+        }
+    </script>
+}

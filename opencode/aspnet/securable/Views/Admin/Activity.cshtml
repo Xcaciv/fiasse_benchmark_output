@@ -1,0 +1,54 @@
+@model IEnumerable<ActivityLog>
+@{
+    ViewData["Title"] = "Activity Log";
+}
+
+<h1>Activity Log</h1>
+
+<a asp-action="Index" class="btn btn-secondary mb-3">Back to Dashboard</a>
+
+@if (Model.Any())
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Action</th>
+                <th>User ID</th>
+                <th>Target</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var log in Model)
+            {
+                <tr>
+                    <td>@log.CreatedAt.ToLocalTime().ToString("g")</td>
+                    <td><code>@log.Action</code></td>
+                    <td>@(log.UserId ?? "-")</td>
+                    <td>
+                        @if (!string.IsNullOrEmpty(log.TargetType))
+                        {
+                            <span>@log.TargetType</span>
+                            @if (!string.IsNullOrEmpty(log.TargetId))
+                            {
+                                <span>(@log.TargetId)</span>
+                            }
+                        }
+                        else
+                        {
+                            <span>-</span>
+                        }
+                    </td>
+                    <td>@log.Details</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else
+{
+    <div class="text-center py-5">
+        <h3>No activity recorded</h3>
+    </div>
+}

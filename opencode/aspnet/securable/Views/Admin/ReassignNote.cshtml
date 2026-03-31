@@ -1,0 +1,31 @@
+@model ReassignNoteViewModel
+@{
+    ViewData["Title"] = "Reassign Note Ownership";
+}
+
+<h1>Reassign Note Ownership</h1>
+
+<form method="post">
+    <div asp-validation-summary="All" class="text-danger"></div>
+    
+    <input type="hidden" asp-for="NoteId" />
+    
+    <div class="mb-3">
+        <label asp-for="NewOwnerId" class="form-label">New Owner</label>
+        <select asp-for="NewOwnerId" class="form-select">
+            <option value="">Select a user...</option>
+            @foreach (var user in Model.AvailableUsers)
+            {
+                <option value="@user.Id">@user.UserName (@user.Email)</option>
+            }
+        </select>
+        <span asp-validation-for="NewOwnerId" class="text-danger"></span>
+    </div>
+    
+    <div class="alert alert-warning">
+        <strong>Warning:</strong> This will transfer ownership of the note to the selected user.
+    </div>
+    
+    <button type="submit" class="btn btn-warning">Reassign</button>
+    <a asp-action="Index" class="btn btn-secondary">Cancel</a>
+</form>

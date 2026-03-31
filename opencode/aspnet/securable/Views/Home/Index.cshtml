@@ -1,0 +1,52 @@
+@{
+    ViewData["Title"] = "Home";
+}
+
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="text-center mb-5">
+            <h1 class="display-4">Welcome to Loose Notes</h1>
+            <p class="lead">Your personal note-taking platform</p>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Search Notes</h5>
+                <form asp-controller="Home" asp-action="Search" method="get" class="d-flex gap-2">
+                    <input type="text" name="query" class="form-control" placeholder="Search by keywords..." />
+                    <button type="submit" class="btn btn-primary">Search</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Browse Notes</h5>
+                        <p class="card-text">Explore public notes from other users.</p>
+                        <a asp-controller="Home" asp-action="Browse" class="btn btn-outline-primary">Browse</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Top Rated</h5>
+                        <p class="card-text">See the highest-rated notes in the community.</p>
+                        <a asp-controller="Home" asp-action="TopRated" class="btn btn-outline-primary">View Top Rated</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @if (User.Identity?.IsAuthenticated != true)
+        {
+            <div class="text-center mt-4">
+                <h3>Get Started</h3>
+                <p>Create an account to start taking and sharing notes.</p>
+                <a asp-controller="Account" asp-action="Register" class="btn btn-success btn-lg">Register Now</a>
+            </div>
+        }
+    </div>
+</div>

@@ -1,14 +1,14 @@
 <#
 .SYNOPSIS
-    Splits the fiasse_benchmark_output monorepo into 24 individual GitHub repositories
-    under the Securability-Engineering org.
+    Splits the fiasse_benchmark_output monorepo into individual GitHub repositories
+    under the Securability-Engineering org, creating or updating as needed.
 
 .DESCRIPTION
     For each leaf directory ({tool}/{language}/{variant}), this script:
-    1. Creates a GitHub repo via gh CLI
-    2. Copies source files (excluding build artifacts)
-    3. Ensures an appropriate .gitignore exists
-    4. Initializes git, commits, and pushes
+    1. Checks if the GitHub repo already exists
+    2. If it exists: clones it, copies updated source files, commits and pushes changes
+    3. If not: creates the repo, copies source files, initializes git, and pushes
+    4. Ensures an appropriate .gitignore exists
 
 .PARAMETER DryRun
     Preview what would be done without creating repos or pushing code.
@@ -38,7 +38,7 @@
 param(
     [switch]$DryRun,
 
-    [string]$OrgName = "Securability-Engineering",
+    [string]$OrgName = "Securability-Engineering-Plugin-Tests",
 
     [ValidateSet("private", "public")]
     [string]$Visibility = "public",
@@ -57,30 +57,30 @@ $ErrorActionPreference = "Stop"
 # Each entry: [SourceRelativePath, RepoSuffix, Platform]
 # Platform is used to select the right .gitignore template
 $Repos = @(
-    @{ Source = "claude/aspnet/fiassed";    Repo = "loose-notes_claude_aspnet_fiassed";    Platform = "aspnet" }
     @{ Source = "claude/aspnet/rawdog";     Repo = "loose-notes_claude_aspnet_rawdog";     Platform = "aspnet" }
     @{ Source = "claude/aspnet/securable";  Repo = "loose-notes_claude_aspnet_securable";  Platform = "aspnet" }
-    @{ Source = "claude/jsp/fiassed";       Repo = "loose-notes_claude_jsp_fiassed";       Platform = "jsp" }
     @{ Source = "claude/jsp/rawdog";        Repo = "loose-notes_claude_jsp_rawdog";        Platform = "jsp" }
     @{ Source = "claude/jsp/securable";     Repo = "loose-notes_claude_jsp_securable";     Platform = "jsp" }
-    @{ Source = "claude/node/fiassed";      Repo = "loose-notes_claude_node_fiassed";      Platform = "node" }
     @{ Source = "claude/node/rawdog";       Repo = "loose-notes_claude_node_rawdog";       Platform = "node" }
     @{ Source = "claude/node/securable";    Repo = "loose-notes_claude_node_securable";    Platform = "node" }
-    @{ Source = "copilot/aspnet/fiassed";   Repo = "loose-notes_copilot_aspnet_fiassed";   Platform = "aspnet" }
+    @{ Source = "claude/ts/rawdog";         Repo = "loose-notes_claude_ts_rawdog";         Platform = "ts" }
+    @{ Source = "claude/ts/securable";      Repo = "loose-notes_claude_ts_securable";      Platform = "ts" }
     @{ Source = "copilot/aspnet/rawdog";    Repo = "loose-notes_copilot_aspnet_rawdog";    Platform = "aspnet" }
     @{ Source = "copilot/aspnet/securable"; Repo = "loose-notes_copilot_aspnet_securable"; Platform = "aspnet" }
-    @{ Source = "copilot/jsp/fiassed";      Repo = "loose-notes_copilot_jsp_fiassed";      Platform = "jsp" }
     @{ Source = "copilot/jsp/rawdog";       Repo = "loose-notes_copilot_jsp_rawdog";       Platform = "jsp" }
     @{ Source = "copilot/jsp/securable";    Repo = "loose-notes_copilot_jsp_securable";    Platform = "jsp" }
-    @{ Source = "copilot/node/fiassed";     Repo = "loose-notes_copilot_node_fiassed";     Platform = "node" }
     @{ Source = "copilot/node/rawdog";      Repo = "loose-notes_copilot_node_rawdog";      Platform = "node" }
     @{ Source = "copilot/node/securable";   Repo = "loose-notes_copilot_node_securable";   Platform = "node" }
-    @{ Source = "opencode/aspnet/rawdog";     Repo = "loose-notes_opencode_aspnet_rawdog";     Platform = "aspnet" }
-    @{ Source = "opencode/aspnet/securable";  Repo = "loose-notes_opencode_aspnet_securable";  Platform = "aspnet" }
-    @{ Source = "opencode/jsp/rawdog";        Repo = "loose-notes_opencode_jsp_rawdog";        Platform = "jsp" }
-    @{ Source = "opencode/jsp/securable";     Repo = "loose-notes_opencode_jsp_securable";     Platform = "jsp" }
-    @{ Source = "opencode/node/rawdog";       Repo = "loose-notes_opencode_node_rawdog";       Platform = "node" }
-    @{ Source = "opencode/node/securable";    Repo = "loose-notes_opencode_node_securable";    Platform = "node" }
+    @{ Source = "copilot/ts/rawdog";        Repo = "loose-notes_copilot_ts_rawdog";        Platform = "ts" }
+    @{ Source = "copilot/ts/securable";     Repo = "loose-notes_copilot_ts_securable";     Platform = "ts" }
+    @{ Source = "opencode/aspnet/rawdog";   Repo = "loose-notes_opencode_aspnet_rawdog";   Platform = "aspnet" }
+    @{ Source = "opencode/aspnet/securable";Repo = "loose-notes_opencode_aspnet_securable";Platform = "aspnet" }
+    @{ Source = "opencode/jsp/rawdog";      Repo = "loose-notes_opencode_jsp_rawdog";      Platform = "jsp" }
+    @{ Source = "opencode/jsp/securable";   Repo = "loose-notes_opencode_jsp_securable";   Platform = "jsp" }
+    @{ Source = "opencode/node/rawdog";     Repo = "loose-notes_opencode_node_rawdog";     Platform = "node" }
+    @{ Source = "opencode/node/securable";  Repo = "loose-notes_opencode_node_securable";  Platform = "node" }
+    @{ Source = "opencode/ts/rawdog";       Repo = "loose-notes_opencode_ts_rawdog";       Platform = "ts" }
+    @{ Source = "opencode/ts/securable";    Repo = "loose-notes_opencode_ts_securable";    Platform = "ts" }
 )
 
 # ── Gitignore templates ──────────────────────────────────────────────────────
@@ -112,6 +112,19 @@ target/
 .DS_Store
 "@
 
+$TsGitignore = @"
+node_modules/
+dist/
+build/
+.env
+*.log
+*.db
+*.db-shm
+*.db-wal
+.DS_Store
+coverage/
+"@
+
 # ── Exclusion patterns for robocopy ──────────────────────────────────────────
 $ExcludeDirs = @("bin", "obj", "node_modules", ".git", ".vs", "target", "Debug", "Release")
 $ExcludeFiles = @("*.db", "*.db-shm", "*.db-wal")
@@ -133,6 +146,7 @@ function Get-RepoDescription {
         "aspnet" = "ASP.NET Core"
         "jsp"    = "Java JSP"
         "node"   = "Node.js/Express"
+        "ts"     = "TypeScript"
     }
     $variantNames = @{
         "rawdog"    = "unassisted generation"
@@ -244,37 +258,45 @@ for ($i = 0; $i -lt $total; $i++) {
     }
 
     if ($DryRun) {
-        Write-Host "  [DRY RUN] Would create repo: $repoFullName ($Visibility)" -ForegroundColor Yellow
+        Write-Host "  [DRY RUN] Would check if repo exists: $repoFullName" -ForegroundColor Yellow
+        Write-Host "  [DRY RUN] Would create repo if missing, or clone and update if existing" -ForegroundColor Yellow
         Write-Host "  [DRY RUN] Would copy from: $srcPath" -ForegroundColor Yellow
         Write-Host "  [DRY RUN] Would ensure .gitignore for $($r.Platform)" -ForegroundColor Yellow
-        Write-Host "  [DRY RUN] Would git init, commit, push to origin main" -ForegroundColor Yellow
+        Write-Host "  [DRY RUN] Would commit and push to origin main" -ForegroundColor Yellow
         $succeeded++
         continue
     }
 
-    # ── Create GitHub repo ───────────────────────────────────────────────
-    try {
-        Write-Host "  Creating repo..." -NoNewline
-        $createOutput = gh repo create $repoFullName `
-            --$Visibility `
-            --description $description `
-            --confirm 2>&1
+    # ── Check if repo exists ─────────────────────────────────────────────
+    $repoExists = $false
+    Write-Host "  Checking repo..." -NoNewline
+    $null = gh repo view $repoFullName 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        $repoExists = $true
+        Write-Host " exists (will update)." -ForegroundColor Yellow
+    } else {
+        Write-Host " not found (will create)." -ForegroundColor Green
+    }
 
-        if ($LASTEXITCODE -ne 0) {
-            # Check if it already exists
-            if ($createOutput -match "already exists") {
-                Write-Host " already exists, continuing." -ForegroundColor Yellow
-            } else {
+    # ── Create GitHub repo if it doesn't exist ───────────────────────────
+    if (-not $repoExists) {
+        try {
+            Write-Host "  Creating repo..." -NoNewline
+            $createOutput = gh repo create $repoFullName `
+                --$Visibility `
+                --description $description `
+                --confirm 2>&1
+
+            if ($LASTEXITCODE -ne 0) {
                 throw "gh repo create failed: $createOutput"
             }
-        } else {
             Write-Host " done." -ForegroundColor Green
+        } catch {
+            Write-Host " FAILED" -ForegroundColor Red
+            Write-Warning "  Error creating repo: $_"
+            $failed++
+            continue
         }
-    } catch {
-        Write-Host " FAILED" -ForegroundColor Red
-        Write-Warning "  Error creating repo: $_"
-        $failed++
-        continue
     }
 
     # ── Prepare temp directory ───────────────────────────────────────────
@@ -340,38 +362,109 @@ for ($i = 0; $i -lt $total; $i++) {
             "jsp" {
                 Set-Content -Path $gitignorePath -Value $JspGitignore -NoNewline
             }
+            "ts" {
+                Set-Content -Path $gitignorePath -Value $TsGitignore -NoNewline
+            }
         }
         Write-Host " done." -ForegroundColor Green
     } else {
         Write-Host "  .gitignore already present." -ForegroundColor DarkGray
     }
 
-    # ── Git init, commit, push ───────────────────────────────────────────
-    try {
-        Write-Host "  Initializing git..." -NoNewline
-        Push-Location $workDir
+    # ── Git operations ────────────────────────────────────────────────────
+    $remoteUrl = "https://github.com/$repoFullName.git"
 
-        git init --initial-branch=main 2>&1 | Out-Null
-        git add -A 2>&1 | Out-Null
-        git commit -m "Initial commit from fiasse_benchmark_output" 2>&1 | Out-Null
+    if ($repoExists) {
+        # ── Clone existing repo, overlay files, commit & push ─────────
+        try {
+            Write-Host "  Cloning and updating..." -NoNewline
 
-        $remoteUrl = "https://github.com/$repoFullName.git"
-        git remote add origin $remoteUrl 2>&1 | Out-Null
-        git push -u origin main 2>&1 | Out-Null
+            # Clone into a separate temp dir
+            $cloneDir = Join-Path $TempRoot "$($r.Repo)_clone"
+            if (Test-Path $cloneDir) {
+                Remove-Item -Recurse -Force $cloneDir
+            }
+            git clone $remoteUrl $cloneDir 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "git clone failed"
+            }
 
-        if ($LASTEXITCODE -ne 0) {
-            throw "git push failed"
+            # Remove all tracked content except .git so we get a clean overlay
+            Get-ChildItem -Path $cloneDir -Exclude ".git" -Force | Remove-Item -Recurse -Force
+
+            # Copy updated files from work dir into clone
+            $robocopyOverlay = @(
+                $workDir,
+                $cloneDir,
+                "/E", "/NFL", "/NDL", "/NJH", "/NJS", "/NC", "/NS"
+            )
+            foreach ($d in $ExcludeDirs) {
+                $robocopyOverlay += "/XD"
+                $robocopyOverlay += $d
+            }
+            $null = & robocopy @robocopyOverlay
+            if ($LASTEXITCODE -gt 7) {
+                throw "robocopy overlay failed with exit code $LASTEXITCODE"
+            }
+
+            Push-Location $cloneDir
+            git add -A 2>&1 | Out-Null
+
+            # Check if there are changes to commit
+            $status = git status --porcelain 2>&1
+            if ($status) {
+                git commit -m "Update from fiasse_benchmark_output" 2>&1 | Out-Null
+                git push origin main 2>&1 | Out-Null
+                if ($LASTEXITCODE -ne 0) {
+                    throw "git push failed"
+                }
+                Pop-Location
+                Write-Host " pushed updates." -ForegroundColor Green
+            } else {
+                Pop-Location
+                Write-Host " no changes." -ForegroundColor DarkGray
+            }
+
+            # Cleanup clone dir
+            if (Test-Path $cloneDir) {
+                Remove-Item -Recurse -Force $cloneDir
+            }
+
+            $succeeded++
+        } catch {
+            if ((Get-Location).Path -eq $cloneDir) { Pop-Location }
+            Write-Host " FAILED" -ForegroundColor Red
+            Write-Warning "  Error updating repo: $_"
+            $failed++
+            continue
         }
+    } else {
+        # ── New repo: init, commit, push ─────────────────────────────
+        try {
+            Write-Host "  Initializing git..." -NoNewline
+            Push-Location $workDir
 
-        Pop-Location
-        Write-Host " done." -ForegroundColor Green
-        $succeeded++
-    } catch {
-        Pop-Location
-        Write-Host " FAILED" -ForegroundColor Red
-        Write-Warning "  Error in git operations: $_"
-        $failed++
-        continue
+            git init --initial-branch=main 2>&1 | Out-Null
+            git add -A 2>&1 | Out-Null
+            git commit -m "Initial commit from fiasse_benchmark_output" 2>&1 | Out-Null
+
+            git remote add origin $remoteUrl 2>&1 | Out-Null
+            git push -u origin main 2>&1 | Out-Null
+
+            if ($LASTEXITCODE -ne 0) {
+                throw "git push failed"
+            }
+
+            Pop-Location
+            Write-Host " done." -ForegroundColor Green
+            $succeeded++
+        } catch {
+            Pop-Location
+            Write-Host " FAILED" -ForegroundColor Red
+            Write-Warning "  Error in git operations: $_"
+            $failed++
+            continue
+        }
     }
 
     # ── Cleanup temp ─────────────────────────────────────────────────────

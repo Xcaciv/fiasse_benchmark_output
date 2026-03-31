@@ -1,0 +1,46 @@
+@model Note
+@{
+    ViewData["Title"] = "Delete Note";
+}
+
+<div class="card border-danger">
+    <div class="card-header bg-danger text-white">
+        <h4>Confirm Delete</h4>
+    </div>
+    <div class="card-body">
+        <h5>Are you sure you want to delete this note?</h5>
+        
+        <div class="alert alert-warning">
+            <strong>Warning:</strong> This action cannot be undone. 
+            All attachments, ratings, and share links associated with this note will be permanently deleted.
+        </div>
+        
+        <dl class="row">
+            <dt class="col-sm-3">Title</dt>
+            <dd class="col-sm-9">@Model.Title</dd>
+            
+            <dt class="col-sm-3">Created</dt>
+            <dd class="col-sm-9">@Model.CreatedAt.ToLocalTime().ToString("MMMM dd, yyyy")</dd>
+            
+            <dt class="col-sm-3">Visibility</dt>
+            <dd class="col-sm-9">@(Model.IsPublic ? "Public" : "Private")</dd>
+            
+            @if (Model.Attachments.Any())
+            {
+                <dt class="col-sm-3">Attachments</dt>
+                <dd class="col-sm-9">@Model.Attachments.Count file(s)</dd>
+            }
+            
+            @if (Model.RatingCount > 0)
+            {
+                <dt class="col-sm-3">Ratings</dt>
+                <dd class="col-sm-9">@Model.RatingCount</dd>
+            }
+        </dl>
+        
+        <form method="post">
+            <button type="submit" class="btn btn-danger">Delete Note</button>
+            <a asp-action="Index" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>

@@ -1,0 +1,57 @@
+@model NoteRatingsViewModel
+@{
+    ViewData["Title"] = "Ratings - " + Model.Note.Title;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Ratings for "@Model.Note.Title"</h1>
+    <a asp-action="Details" asp-route-id="@Model.Note.Id" class="btn btn-secondary">Back to Note</a>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <h3 class="mb-0">
+                    Average Rating: 
+                    <span class="badge bg-warning text-dark">
+                        @Model.Note.AverageRating.ToString("F1") / 5
+                    </span>
+                </h3>
+            </div>
+            <div class="col-md-6 text-md-end">
+                <h5 class="text-muted mb-0">Total Ratings: @Model.Note.RatingCount</h5>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (Model.Ratings.Any())
+{
+    <div class="list-group">
+        @foreach (var rating in Model.Ratings)
+        {
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>@rating.User?.UserName</strong>
+                        <span class="badge bg-warning text-dark ms-2">@rating.Value/5</span>
+                    </div>
+                    <small class="text-muted">
+                        @rating.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")
+                    </small>
+                </div>
+                @if (!string.IsNullOrEmpty(rating.Comment))
+                {
+                    <p class="mb-0 mt-2">@rating.Comment</p>
+                }
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="text-center py-5">
+        <h3>No ratings yet</h3>
+    </div>
+}

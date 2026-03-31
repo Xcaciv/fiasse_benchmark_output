@@ -3,112 +3,98 @@ package com.loosenotes.util;
 import java.util.regex.Pattern;
 
 /**
- * Input validation utilities (Stage 3 of the trust boundary pipeline).
- * SSEM: Integrity - format and constraint enforcement after sanitization.
- * SSEM: Analyzability - each method validates exactly one concern.
+ * Centralized input validation rules.
+ *
+ * SSEM / ASVS alignment:
+ * - ASVS V2.1 (Validation Documentation): rules documented here.
+ * - Integrity: canonicalize → validate pattern.
+ * - Analyzability: each method is a single predicate.
+ * - Testability: pure static methods, no side effects.
+ *
+ * Trust boundary: these methods are called at servlet entry points BEFORE
+ * any business logic or database access.
  */
 public final class ValidationUtil {
 
-    private static final Pattern USERNAME_PATTERN = Pattern.compile("^[a-zA-Z0-9_\\-]{3,50}$");
+    // Email: simplified RFC 5321 pattern; rejects obviously invalid addresses
     private static final Pattern EMAIL_PATTERN =
-        Pattern.compile("^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$");
-    private static final Pattern SAFE_TOKEN_PATTERN = Pattern.compile("^[a-zA-Z0-9_\\-]{32,128}$");
+            Pattern.compile("^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$");
 
-    private static final int NOTE_TITLE_MAX  = 255;
-    private static final int NOTE_CONTENT_MAX = 50_000;
-    private static final int COMMENT_MAX     = 1_000;
-    private static final int USERNAME_MAX    = 50;
-    private static final int EMAIL_MAX       = 255;
+    // Username: alphanumeric + underscore + hyphen, 3–50 chars
+    private static final Pattern USERNAME_PATTERN =
+            Pattern.compile("^[a-zA-Z0-9_\\-]{3,50}$");
 
-    private ValidationUtil() {
-        throw new UnsupportedOperationException("Utility class");
-    }
+    private ValidationUtil() {}
 
     /**
-     * Validates a username: 3-50 alphanumeric/underscore/hyphen characters.
-     */
-    public static boolean isValidUsername(String username) {
-        if (username == null) return false;
-        return USERNAME_PATTERN.matcher(username).matches();
-    }
-
-    /**
-     * Validates an email address format.
+     * Returns true if the email address matches the application's accepted format.
+     * Caller must HTML-encode the value before rendering.
      */
     public static boolean isValidEmail(String email) {
-        if (email == null || email.length() > EMAIL_MAX) return false;
-        return EMAIL_PATTERN.matcher(email).matches();
+        if (email == null || email.isBlank()) return false;
+        String trimmed = email.strip();
+        return trimmed.length() <= 254 && EMAIL_PATTERN.matcher(trimmed).matches();
     }
 
     /**
-     * Validates note title: non-empty, within length limit.
+     * Returns true if username matches the accepted pattern (3–50 chars,
+     * alphanumeric, underscore, hyphen only).
      */
-    public static boolean isValidNoteTitle(String title) {
+    public static boolean isValidUsername(String username) {
+        if (username == null || username.isBlank()) return false;
+        return USERNAME_PATTERN.matcher(username.strip()).matches();
+    }
+
+    /**
+     * Returns true if the note title is non-blank and within the maximum length.
+     *
+     * @param title     the title to validate
+     * @param maxLength maximum allowed length in characters
+     */
+    public static boolean isValidNoteTitle(String title, int maxLength) {
         if (title == null || title.isBlank()) return false;
-        return title.length() <= NOTE_TITLE_MAX;
+        return title.strip().length() <= maxLength;
     }
 
     /**
-     * Validates note content: non-empty, within length limit.
+     * Returns true if the content is non-blank and within the byte limit.
+     *
+     * @param content       the note body
+     * @param maxLengthBytes maximum allowed UTF-8 byte length
      */
-    public static boolean isValidNoteContent(String content) {
+    public static boolean isValidNoteContent(String content, int maxLengthBytes) {
         if (content == null || content.isBlank()) return false;
-        return content.length() <= NOTE_CONTENT_MAX;
+        return content.getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= maxLengthBytes;
     }
 
     /**
-     * Validates a rating value: must be 1-5 inclusive.
+     * Returns true if the rating value is within the allowed 1–5 range.
      */
-    public static boolean isValidRatingValue(int value) {
-        return value >= 1 && value <= 5;
+    public static boolean isValidRating(int stars) {
+        return stars >= 1 && stars <= 5;
     }
 
     /**
-     * Validates a rating comment: optional but bounded in length.
+     * Returns a trimmed, non-null string or null if blank.
+     * Canonical form step before further validation.
      */
-    public static boolean isValidRatingComment(String comment) {
-        if (comment == null || comment.isBlank()) return true; // Optional
-        return comment.length() <= COMMENT_MAX;
+    public static String trimOrNull(String value) {
+        if (value == null) return null;
+        String trimmed = value.strip();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     /**
-     * Validates that a share/reset token has the expected safe format.
-     * Prevents path traversal or injection via token parameters.
+     * Parses a long from a string path segment safely.
+     * Returns -1 on parse failure (caller treats as bad request).
      */
-    public static boolean isValidToken(String token) {
-        if (token == null) return false;
-        return SAFE_TOKEN_PATTERN.matcher(token).matches();
-    }
-
-    /**
-     * Validates a database ID: must be positive.
-     */
-    public static boolean isValidId(long id) {
-        return id > 0;
-    }
-
-    /**
-     * Parses a long from a string, returning -1 if invalid.
-     * Prevents NumberFormatException from propagating to callers.
-     */
-    public static long parseLongSafe(String value) {
+    public static long parseLongId(String value) {
         if (value == null || value.isBlank()) return -1L;
         try {
-            return Long.parseLong(value.trim());
+            long id = Long.parseLong(value.strip());
+            return id > 0 ? id : -1L;
         } catch (NumberFormatException e) {
             return -1L;
-        }
-    }
-
-    /**
-     * Parses an int from a string, returning defaultValue if invalid.
-     */
-    public static int parseIntSafe(String value, int defaultValue) {
-        if (value == null || value.isBlank()) return defaultValue;
-        try {
-            return Integer.parseInt(value.trim());
-        } catch (NumberFormatException e) {
-            return defaultValue;
         }
     }
 }

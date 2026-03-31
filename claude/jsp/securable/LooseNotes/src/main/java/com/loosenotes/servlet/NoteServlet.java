@@ -1,261 +1,233 @@
 package com.loosenotes.servlet;
 
 import com.loosenotes.model.Note;
-import com.loosenotes.model.Rating;
-import com.loosenotes.model.ShareLink;
+import com.loosenotes.model.Note.Visibility;
 import com.loosenotes.model.User;
-import com.loosenotes.service.NoteService;
+import com.loosenotes.service.AttachmentService;
 import com.loosenotes.service.RatingService;
+import com.loosenotes.service.ServiceException;
 import com.loosenotes.service.ShareLinkService;
-import com.loosenotes.util.ValidationUtil;
+import com.loosenotes.util.InputSanitizer;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.annotation.WebServlet;
+import jakarta.servlet.annotation.MultipartConfig;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import jakarta.servlet.http.Part;
 
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.List;
-import java.util.Optional;
 
 /**
- * Handles CRUD operations for notes.
- * SSEM: Integrity - ownership verified on all mutations.
- * SSEM: Accountability - mutations logged.
+ * Handles note CRUD, search, and top-rated pages.
+ * URL patterns:
+ *   GET  /notes            – list owned notes
+ *   GET  /notes/{id}       – view a note
+ *   GET  /notes/create     – show create form
+ *   POST /notes/create     – create note
+ *   GET  /notes/{id}/edit  – show edit form
+ *   POST /notes/{id}/edit  – update note
+ *   POST /notes/{id}/delete – delete note
+ *   GET  /notes/top-rated  – top-rated public notes
+ *
+ * SSEM notes:
+ * - Integrity: Derived Integrity – visibility parsed from allowed values only.
+ * - Accountability: all mutations audited by NoteService.
  */
-@WebServlet("/notes/*")
+@MultipartConfig(maxFileSize = 5_242_880, maxRequestSize = 10_485_760)
 public class NoteServlet extends BaseServlet {
 
-    private static final Logger log = LoggerFactory.getLogger(NoteServlet.class);
-
-    private static final String LIST_JSP    = "/WEB-INF/jsp/notes/index.jsp";
-    private static final String CREATE_JSP  = "/WEB-INF/jsp/notes/create.jsp";
-    private static final String EDIT_JSP    = "/WEB-INF/jsp/notes/edit.jsp";
-    private static final String VIEW_JSP    = "/WEB-INF/jsp/notes/view.jsp";
-    private static final String DELETE_JSP  = "/WEB-INF/jsp/notes/delete.jsp";
-    private static final String TOP_JSP     = "/WEB-INF/jsp/notes/topRated.jsp";
-
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse res)
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        String action = getAction(req);
-        switch (action) {
-            case ""        -> showList(req, res);
-            case "create"  -> forward(req, res, CREATE_JSP);
-            case "top-rated" -> showTopRated(req, res);
-            case "view"    -> showView(req, res);
-            case "edit"    -> showEdit(req, res);
-            case "delete"  -> showDelete(req, res);
-            default        -> sendNotFound(res);
+        User user = getRequiredUser(req, resp);
+        if (user == null) return;
+
+        String path = req.getPathInfo() == null ? "/" : req.getPathInfo();
+
+        if (path.equals("/") || path.isEmpty()) {
+            listNotes(req, resp, user);
+        } else if (path.equals("/create")) {
+            forward(req, resp, "notes/create.jsp");
+        } else if (path.equals("/top-rated")) {
+            showTopRated(req, resp);
+        } else if (path.endsWith("/edit")) {
+            showEditForm(req, resp, user);
+        } else {
+            showNoteDetail(req, resp, user);
         }
     }
 
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse res)
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        String action = getAction(req);
-        switch (action) {
-            case "create" -> handleCreate(req, res);
-            case "edit"   -> handleEdit(req, res);
-            case "delete" -> handleDelete(req, res);
-            case "share"  -> handleShare(req, res);
-            case "revoke-share" -> handleRevokeShare(req, res);
-            default       -> sendNotFound(res);
+        User user = getRequiredUser(req, resp);
+        if (user == null) return;
+
+        String path = req.getPathInfo() == null ? "/" : req.getPathInfo();
+
+        if (path.equals("/create")) {
+            createNote(req, resp, user);
+        } else if (path.endsWith("/edit")) {
+            updateNote(req, resp, user);
+        } else if (path.endsWith("/delete")) {
+            deleteNote(req, resp, user);
+        } else {
+            resp.sendError(HttpServletResponse.SC_NOT_FOUND);
         }
     }
 
-    private void showList(HttpServletRequest req, HttpServletResponse res)
+    private void listNotes(HttpServletRequest req, HttpServletResponse resp, User user)
             throws ServletException, IOException {
-        User user = getCurrentUser(req);
         try {
-            List<Note> notes = getNoteService().getUserNotes(user.getId());
+            List<Note> notes = getNoteService().getNotesForOwner(user.getId());
             req.setAttribute("notes", notes);
-            forward(req, res, LIST_JSP);
+            forward(req, resp, "notes/index.jsp");
         } catch (SQLException e) {
-            log.error("Error loading notes list", e);
-            forwardWithError(req, res, LIST_JSP, "Could not load notes.");
+            log.error("Error listing notes", e);
+            sendError(req, resp, 500, "Could not load notes");
         }
     }
 
-    private void showTopRated(HttpServletRequest req, HttpServletResponse res)
+    private void showNoteDetail(HttpServletRequest req, HttpServletResponse resp, User user)
             throws ServletException, IOException {
+        long noteId = parseIdFromPath(req);
+        if (noteId < 0) { resp.sendError(404); return; }
         try {
-            List<Note> notes = getNoteService().getTopRated(3, 20);
-            req.setAttribute("notes", notes);
-            forward(req, res, TOP_JSP);
-        } catch (SQLException e) {
-            log.error("Error loading top rated notes", e);
-            forwardWithError(req, res, TOP_JSP, "Could not load top rated notes.");
-        }
-    }
+            Note note = getNoteService().getNoteForUser(noteId, user.getId(), user.isAdmin());
+            List<?> attachments = getAttachmentService()
+                    .getAttachmentsForNote(noteId, user.getId(), user.isAdmin());
+            List<?> ratings = getRatingService().getRatingsForNote(noteId);
+            var existingRating = getRatingService().getExistingRating(noteId, user.getId());
+            var shareLink = getShareLinkService().getLinkForNote(noteId, user.getId());
 
-    private void showView(HttpServletRequest req, HttpServletResponse res)
-            throws ServletException, IOException {
-        long noteId = parseNoteId(req, res);
-        if (noteId < 0) return;
-        User user = getCurrentUser(req);
-        try {
-            Optional<Note> note = getNoteService().getNote(noteId, user.getId());
-            if (note.isEmpty()) { sendNotFound(res); return; }
-
-            List<Rating> ratings = getRatingService().getRatings(noteId);
-            Optional<Rating> userRating = getRatingService().getUserRating(noteId, user.getId());
-            Optional<ShareLink> shareLink = getShareLinkService().getActiveLinkForNote(noteId);
-
-            req.setAttribute("note", note.get());
+            req.setAttribute("note", note);
+            req.setAttribute("attachments", attachments);
             req.setAttribute("ratings", ratings);
-            req.setAttribute("userRating", userRating.orElse(null));
+            req.setAttribute("existingRating", existingRating.orElse(null));
             req.setAttribute("shareLink", shareLink.orElse(null));
-            req.setAttribute("appConfig", getAppConfig());
-            forward(req, res, VIEW_JSP);
+            forward(req, resp, "notes/view.jsp");
+        } catch (ServiceException e) {
+            sendError(req, resp, 403, e.getMessage());
         } catch (SQLException e) {
-            log.error("Error loading note id={}", noteId, e);
-            sendNotFound(res);
+            log.error("Error loading note {}", noteId, e);
+            sendError(req, resp, 500, "Could not load note");
         }
     }
 
-    private void showEdit(HttpServletRequest req, HttpServletResponse res)
+    private void showEditForm(HttpServletRequest req, HttpServletResponse resp, User user)
             throws ServletException, IOException {
-        long noteId = parseNoteId(req, res);
-        if (noteId < 0) return;
-        User user = getCurrentUser(req);
+        long noteId = parseIdFromPath(req);
+        if (noteId < 0) { resp.sendError(404); return; }
         try {
-            Optional<Note> note = getNoteService().getNote(noteId, user.getId());
-            if (note.isEmpty() || note.get().getUserId() != user.getId()) {
-                sendForbidden(res); return;
+            Note note = getNoteService().getNoteForUser(noteId, user.getId(), user.isAdmin());
+            req.setAttribute("note", note);
+            forward(req, resp, "notes/edit.jsp");
+        } catch (ServiceException e) {
+            sendError(req, resp, 403, e.getMessage());
+        } catch (SQLException e) {
+            log.error("Error loading note for edit {}", noteId, e);
+            sendError(req, resp, 500, "Could not load note");
+        }
+    }
+
+    private void showTopRated(HttpServletRequest req, HttpServletResponse resp)
+            throws ServletException, IOException {
+        try {
+            req.setAttribute("notes", getNoteService().getTopRated());
+            forward(req, resp, "notes/topRated.jsp");
+        } catch (SQLException e) {
+            log.error("Error loading top-rated notes", e);
+            sendError(req, resp, 500, "Could not load top-rated notes");
+        }
+    }
+
+    private void createNote(HttpServletRequest req, HttpServletResponse resp, User user)
+            throws ServletException, IOException {
+        // Trust boundary: sanitize all inputs
+        String title      = InputSanitizer.sanitizeLine(req.getParameter("title"));
+        String content    = InputSanitizer.sanitizeMultiline(req.getParameter("content"));
+        Visibility vis    = parseVisibility(req.getParameter("visibility"));
+
+        try {
+            long noteId = getNoteService().createNote(
+                    user.getId(), title, content, vis, getClientIp(req));
+
+            // Handle optional file attachment
+            Part filePart = getFilePart(req);
+            if (filePart != null && filePart.getSize() > 0) {
+                getAttachmentService().saveAttachment(
+                        noteId, filePart, user.getId(), getClientIp(req));
             }
-            req.setAttribute("note", note.get());
-            forward(req, res, EDIT_JSP);
-        } catch (SQLException e) {
-            log.error("Error loading note for edit id={}", noteId, e);
-            sendNotFound(res);
-        }
-    }
-
-    private void showDelete(HttpServletRequest req, HttpServletResponse res)
-            throws ServletException, IOException {
-        long noteId = parseNoteId(req, res);
-        if (noteId < 0) return;
-        User user = getCurrentUser(req);
-        try {
-            Optional<Note> note = getNoteService().getNote(noteId, user.getId());
-            if (note.isEmpty()) { sendNotFound(res); return; }
-            boolean isOwner = note.get().getUserId() == user.getId();
-            if (!isOwner && !user.isAdmin()) { sendForbidden(res); return; }
-            req.setAttribute("note", note.get());
-            forward(req, res, DELETE_JSP);
-        } catch (SQLException e) {
-            log.error("Error loading note for delete id={}", noteId, e);
-            sendNotFound(res);
-        }
-    }
-
-    private void handleCreate(HttpServletRequest req, HttpServletResponse res)
-            throws ServletException, IOException {
-        User user = getCurrentUser(req);
-        String title    = req.getParameter("title");
-        String content  = req.getParameter("content");
-        boolean isPublic = "true".equals(req.getParameter("isPublic"));
-        try {
-            long id = getNoteService().createNote(user.getId(), title, content, isPublic);
-            getAuditService().logNoteCreated(user.getId(), id, getClientIp(req));
-            redirect(res, req, "/notes/view/" + id);
-        } catch (IllegalArgumentException e) {
+            resp.sendRedirect(req.getContextPath() + "/notes/" + noteId);
+        } catch (ServiceException e) {
+            req.setAttribute("error", e.getMessage());
             req.setAttribute("title", title);
             req.setAttribute("content", content);
-            forwardWithError(req, res, CREATE_JSP, e.getMessage());
+            forward(req, resp, "notes/create.jsp");
         } catch (SQLException e) {
             log.error("Error creating note", e);
-            forwardWithError(req, res, CREATE_JSP, "Could not create note.");
+            req.setAttribute("error", "A system error occurred");
+            forward(req, resp, "notes/create.jsp");
         }
     }
 
-    private void handleEdit(HttpServletRequest req, HttpServletResponse res)
+    private void updateNote(HttpServletRequest req, HttpServletResponse resp, User user)
             throws ServletException, IOException {
-        long noteId = parseNoteId(req, res);
-        if (noteId < 0) return;
-        User user    = getCurrentUser(req);
-        String title   = req.getParameter("title");
-        String content = req.getParameter("content");
-        boolean isPublic = "true".equals(req.getParameter("isPublic"));
+        long noteId   = parseIdFromPath(req);
+        if (noteId < 0) { resp.sendError(404); return; }
+
+        String title   = InputSanitizer.sanitizeLine(req.getParameter("title"));
+        String content = InputSanitizer.sanitizeMultiline(req.getParameter("content"));
+        Visibility vis = parseVisibility(req.getParameter("visibility"));
+
         try {
-            boolean updated = getNoteService().updateNote(noteId, user.getId(), title, content, isPublic);
-            if (!updated) { sendForbidden(res); return; }
-            getAuditService().logNoteUpdated(user.getId(), noteId, getClientIp(req));
-            redirect(res, req, "/notes/view/" + noteId);
+            getNoteService().updateNote(noteId, user.getId(), user.isAdmin(),
+                    title, content, vis, getClientIp(req));
+            resp.sendRedirect(req.getContextPath() + "/notes/" + noteId);
+        } catch (ServiceException e) {
+            try {
+                Note note = getNoteService().getNoteForUser(noteId, user.getId(), user.isAdmin());
+                req.setAttribute("note", note);
+            } catch (Exception ignored) {}
+            req.setAttribute("error", e.getMessage());
+            forward(req, resp, "notes/edit.jsp");
+        } catch (SQLException e) {
+            log.error("Error updating note {}", noteId, e);
+            sendError(req, resp, 500, "Could not update note");
+        }
+    }
+
+    private void deleteNote(HttpServletRequest req, HttpServletResponse resp, User user)
+            throws IOException {
+        long noteId = parseIdFromPath(req);
+        if (noteId < 0) { resp.sendError(404); return; }
+
+        try {
+            getNoteService().deleteNote(noteId, user.getId(), user.isAdmin(), getClientIp(req));
+            resp.sendRedirect(req.getContextPath() + "/notes");
+        } catch (ServiceException e) {
+            sendError(req, resp, 403, e.getMessage());
+        } catch (SQLException e) {
+            log.error("Error deleting note {}", noteId, e);
+            sendError(req, resp, 500, "Could not delete note");
+        }
+    }
+
+    /** Parses visibility from form parameter; defaults to PRIVATE on unknown input. */
+    private Visibility parseVisibility(String value) {
+        try {
+            return Visibility.valueOf(value != null ? value.toUpperCase() : "PRIVATE");
         } catch (IllegalArgumentException e) {
-            req.setAttribute("noteId", noteId);
-            forwardWithError(req, res, EDIT_JSP, e.getMessage());
-        } catch (SQLException e) {
-            log.error("Error updating note id={}", noteId, e);
-            forwardWithError(req, res, EDIT_JSP, "Could not update note.");
+            return Visibility.PRIVATE;
         }
     }
 
-    private void handleDelete(HttpServletRequest req, HttpServletResponse res)
-            throws ServletException, IOException {
-        long noteId = parseNoteId(req, res);
-        if (noteId < 0) return;
-        User user = getCurrentUser(req);
+    private Part getFilePart(HttpServletRequest req) {
         try {
-            boolean deleted = getNoteService().deleteNote(noteId, user.getId(), user.isAdmin());
-            if (!deleted) { sendForbidden(res); return; }
-            getAuditService().logNoteDeleted(user.getId(), noteId, getClientIp(req));
-            redirect(res, req, "/notes");
-        } catch (SQLException e) {
-            log.error("Error deleting note id={}", noteId, e);
-            forwardWithError(req, res, DELETE_JSP, "Could not delete note.");
+            return req.getPart("attachment");
+        } catch (Exception e) {
+            return null;
         }
-    }
-
-    private void handleShare(HttpServletRequest req, HttpServletResponse res)
-            throws ServletException, IOException {
-        long noteId = parseNoteId(req, res);
-        if (noteId < 0) return;
-        User user = getCurrentUser(req);
-        try {
-            Optional<String> token = getShareLinkService().generateLink(noteId, user.getId());
-            if (token.isEmpty()) { sendForbidden(res); return; }
-            redirect(res, req, "/notes/view/" + noteId + "?shared=true");
-        } catch (SQLException e) {
-            log.error("Error generating share link for note id={}", noteId, e);
-            redirect(res, req, "/notes/view/" + noteId + "?shareError=true");
-        }
-    }
-
-    private void handleRevokeShare(HttpServletRequest req, HttpServletResponse res)
-            throws ServletException, IOException {
-        long noteId = parseNoteId(req, res);
-        if (noteId < 0) return;
-        User user = getCurrentUser(req);
-        try {
-            getShareLinkService().revokeLinks(noteId, user.getId());
-            redirect(res, req, "/notes/view/" + noteId + "?revoked=true");
-        } catch (SecurityException e) {
-            sendForbidden(res);
-        } catch (SQLException e) {
-            log.error("Error revoking share link for note id={}", noteId, e);
-            redirect(res, req, "/notes/view/" + noteId);
-        }
-    }
-
-    private String getAction(HttpServletRequest req) {
-        String pathInfo = req.getPathInfo();
-        if (pathInfo == null || pathInfo.equals("/")) return "";
-        String[] parts = pathInfo.substring(1).split("/");
-        // Paths: /notes/create | /notes/view/123 | /notes/edit/123 etc.
-        return parts[0];
-    }
-
-    private long parseNoteId(HttpServletRequest req, HttpServletResponse res) throws IOException {
-        String pathInfo = req.getPathInfo();
-        if (pathInfo == null) { sendNotFound(res); return -1; }
-        String[] parts = pathInfo.substring(1).split("/");
-        if (parts.length < 2) { sendNotFound(res); return -1; }
-        long id = ValidationUtil.parseLongSafe(parts[1]);
-        if (!ValidationUtil.isValidId(id)) { sendNotFound(res); return -1; }
-        return id;
     }
 }

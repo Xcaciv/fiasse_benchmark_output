@@ -10,93 +10,119 @@ import jakarta.servlet.annotation.WebListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Properties;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 /**
- * Application lifecycle manager.
- * Wires up services and stores them in ServletContext for DI into servlets.
- * SSEM: Modifiability - single place for wiring dependencies.
- * SSEM: Resilience - scheduled cleanup of in-memory rate limit state.
+ * Initializes application-scoped services on startup and registers them in
+ * the ServletContext for injection into servlets.
+ *
+ * SSEM notes:
+ * - Modifiability: all configuration comes from app.properties; services wired once here.
+ * - Testability: services stored as context attributes; tests can replace them.
+ * - Availability: schema init happens at startup; failures prevent app deployment.
  */
 @WebListener
 public class AppContextListener implements ServletContextListener {
 
     private static final Logger log = LoggerFactory.getLogger(AppContextListener.class);
 
-    private DatabaseManager databaseManager;
-    private ScheduledExecutorService scheduler;
-
     @Override
-    public void contextInitialized(ServletContextEvent event) {
-        log.info("Initializing Loose Notes application context");
-        Properties config = DatabaseManager.loadProperties();
-        databaseManager = new DatabaseManager(config);
+    public void contextInitialized(ServletContextEvent sce) {
+        ServletContext ctx = sce.getServletContext();
+        log.info("LooseNotes starting up");
 
-        wireServices(event.getServletContext(), config);
-        startMaintenanceScheduler(event.getServletContext());
-        log.info("Application context initialized successfully");
-    }
+        Properties props = loadProperties();
 
-    private void wireServices(ServletContext ctx, Properties config) {
-        // DAOs
-        UserDao userDao = new UserDao(databaseManager.getDataSource());
-        NoteDao noteDao = new NoteDao(databaseManager.getDataSource());
-        AttachmentDao attachmentDao = new AttachmentDao(databaseManager.getDataSource());
-        RatingDao ratingDao = new RatingDao(databaseManager.getDataSource());
-        ShareLinkDao shareLinkDao = new ShareLinkDao(databaseManager.getDataSource());
-        AuditLogDao auditLogDao = new AuditLogDao(databaseManager.getDataSource());
-        PasswordResetTokenDao tokenDao = new PasswordResetTokenDao(databaseManager.getDataSource());
+        // ── Database ─────────────────────────────────────────────────────────
+        DatabaseManager db = DatabaseManager.getInstance();
+        db.initializeSchema();
 
-        // Services
-        AuditService auditService = new AuditService(auditLogDao);
-        UserService userService = new UserService(userDao);
-        NoteService noteService = new NoteService(noteDao, attachmentDao);
-        String uploadDir = config.getProperty("file.upload.directory", "./uploads");
-        AttachmentService attachmentService = new AttachmentService(attachmentDao, noteDao, uploadDir);
-        RatingService ratingService = new RatingService(ratingDao, noteDao);
-        ShareLinkService shareLinkService = new ShareLinkService(shareLinkDao, noteDao);
+        // ── DAOs ──────────────────────────────────────────────────────────────
+        UserDao               userDao    = new UserDao(db);
+        NoteDao               noteDao    = new NoteDao(db);
+        AttachmentDao         attachDao  = new AttachmentDao(db);
+        RatingDao             ratingDao  = new RatingDao(db);
+        ShareLinkDao          shareDao   = new ShareLinkDao(db);
+        AuditLogDao           auditDao   = new AuditLogDao(db);
+        PasswordResetTokenDao prtDao     = new PasswordResetTokenDao(db);
+
+        // ── Core services ────────────────────────────────────────────────────
+        AuditService auditService = new AuditService(auditDao);
+
+        int loginMax     = intProp(props, "rateLimit.login.maxAttempts", 5);
+        int loginWindow  = intProp(props, "rateLimit.login.windowSeconds", 300);
+        RateLimiter loginLimiter = new RateLimiter(loginMax, loginWindow);
+
+        UserService userService = new UserService(userDao, auditService, loginLimiter);
+
+        int maxTitle   = intProp(props, "app.note.maxTitleLength", 255);
+        int maxContent = intProp(props, "app.note.maxContentLength", 65536);
+        NoteService noteService = new NoteService(noteDao, auditService, maxTitle, maxContent);
+
+        Path uploadDir = resolveUploadDir(props);
+        long maxFileSize = longProp(props, "upload.maxFileSize", 5_242_880L);
+        AttachmentService attachmentService =
+                new AttachmentService(attachDao, noteDao, auditService, uploadDir, maxFileSize);
+
+        RatingService ratingService = new RatingService(ratingDao, noteDao, auditService);
+
+        ShareLinkService shareLinkService = new ShareLinkService(shareDao, noteDao, auditService);
+
+        long tokenExpiry = longProp(props, "token.resetExpireSeconds", 3600L);
         PasswordResetService passwordResetService =
-            new PasswordResetService(tokenDao, userDao, userService);
+                new PasswordResetService(prtDao, userDao, auditService, tokenExpiry);
 
-        // Rate limiter for login endpoint (SSEM: Availability)
-        int maxAttempts = Integer.parseInt(config.getProperty("ratelimit.login.maxAttempts", "5"));
-        long windowSecs = Long.parseLong(config.getProperty("ratelimit.login.windowSeconds", "900"));
-        RateLimiter loginRateLimiter = new RateLimiter(maxAttempts, windowSecs);
-
-        // Store in context for servlet access
-        ctx.setAttribute("appConfig",          config);
-        ctx.setAttribute("userService",         userService);
-        ctx.setAttribute("noteService",         noteService);
-        ctx.setAttribute("attachmentService",   attachmentService);
-        ctx.setAttribute("ratingService",       ratingService);
-        ctx.setAttribute("shareLinkService",    shareLinkService);
-        ctx.setAttribute("auditService",        auditService);
+        // ── Register in context for servlet access ───────────────────────────
+        ctx.setAttribute("userService",          userService);
+        ctx.setAttribute("noteService",          noteService);
+        ctx.setAttribute("attachmentService",    attachmentService);
+        ctx.setAttribute("ratingService",        ratingService);
+        ctx.setAttribute("shareLinkService",     shareLinkService);
+        ctx.setAttribute("auditService",         auditService);
         ctx.setAttribute("passwordResetService", passwordResetService);
-        ctx.setAttribute("loginRateLimiter",    loginRateLimiter);
-    }
+        ctx.setAttribute("appBaseUrl",           props.getProperty("app.baseUrl", ""));
 
-    private void startMaintenanceScheduler(ServletContext ctx) {
-        scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "maintenance-scheduler");
-            t.setDaemon(true);
-            return t;
-        });
-        RateLimiter limiter = (RateLimiter) ctx.getAttribute("loginRateLimiter");
-        // Evict expired rate limit entries every 10 minutes
-        scheduler.scheduleAtFixedRate(limiter::evictExpired, 10, 10, TimeUnit.MINUTES);
+        log.info("LooseNotes started successfully");
     }
 
     @Override
-    public void contextDestroyed(ServletContextEvent event) {
-        log.info("Shutting down application context");
-        if (scheduler != null) {
-            scheduler.shutdownNow();
+    public void contextDestroyed(ServletContextEvent sce) {
+        log.info("LooseNotes shutting down");
+    }
+
+    private Properties loadProperties() {
+        Properties props = new Properties();
+        try (InputStream in = getClass().getResourceAsStream("/app.properties")) {
+            if (in != null) props.load(in);
+        } catch (IOException e) {
+            log.warn("Could not load app.properties, using defaults", e);
         }
-        if (databaseManager != null) {
-            databaseManager.shutdown();
+        return props;
+    }
+
+    private Path resolveUploadDir(Properties props) {
+        String dir = props.getProperty("upload.dir", "./uploads");
+        Path path = Paths.get(dir).toAbsolutePath();
+        try {
+            Files.createDirectories(path);
+        } catch (IOException e) {
+            throw new IllegalStateException("Cannot create upload directory: " + path, e);
         }
+        return path;
+    }
+
+    private int intProp(Properties p, String key, int def) {
+        try { return Integer.parseInt(p.getProperty(key, String.valueOf(def))); }
+        catch (NumberFormatException e) { return def; }
+    }
+
+    private long longProp(Properties p, String key, long def) {
+        try { return Long.parseLong(p.getProperty(key, String.valueOf(def))); }
+        catch (NumberFormatException e) { return def; }
     }
 }

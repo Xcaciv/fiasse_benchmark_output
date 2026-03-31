@@ -1,30 +1,36 @@
-// Attachment.cs — File attachment linked to a Note.
-// Confidentiality: StoredFileName is a generated UUID — original name is metadata only.
-// Integrity: extension and size validated before entity creation (see LocalFileStorageService).
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace LooseNotes.Models;
 
-/// <summary>Metadata record for a file attached to a note.
-/// The actual file lives at [StorageBasePath]/[StoredFileName].</summary>
-public sealed class Attachment
+public class Attachment
 {
     public int Id { get; set; }
 
-    public int NoteId { get; set; }
+    // Stored filename (UUID-based, safe for filesystem)
+    [Required, MaxLength(256)]
+    public string StoredFileName { get; set; } = string.Empty;
 
-    /// <summary>Original user-provided filename — displayed only, never used for FS operations.</summary>
-    public required string OriginalFileName { get; set; }
+    // Original filename for display only — never used for filesystem operations
+    [Required, MaxLength(256)]
+    public string OriginalFileName { get; set; } = string.Empty;
 
-    /// <summary>UUID-based name used for actual file system storage. Prevents path traversal.</summary>
-    public required string StoredFileName { get; set; }
+    [Required, MaxLength(100)]
+    public string ContentType { get; set; } = string.Empty;
 
-    /// <summary>MIME content type recorded at upload time.</summary>
-    public required string ContentType { get; set; }
-
-    /// <summary>File size in bytes, recorded at upload time.</summary>
     public long FileSizeBytes { get; set; }
 
-    public DateTime UploadedAt { get; init; } = DateTime.UtcNow;
+    public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
 
-    // ── Navigation ────────────────────────────────────────────────────────────
+    public int NoteId { get; set; }
+
+    [ForeignKey(nameof(NoteId))]
     public Note? Note { get; set; }
+
+    // Track uploader for accountability
+    [Required]
+    public string UploadedById { get; set; } = string.Empty;
+
+    [ForeignKey(nameof(UploadedById))]
+    public ApplicationUser? UploadedBy { get; set; }
 }

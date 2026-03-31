@@ -15,7 +15,7 @@ namespace LooseNotes.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "8.0.0");
+            modelBuilder.HasAnnotation("ProductVersion", "8.0.11");
 
             modelBuilder.Entity("LooseNotes.Models.ApplicationUser", b =>
             {
@@ -23,8 +23,11 @@ namespace LooseNotes.Migrations
                 b.Property<int>("AccessFailedCount").HasColumnType("INTEGER");
                 b.Property<string>("ConcurrencyStamp").HasColumnType("TEXT");
                 b.Property<DateTime>("CreatedAt").HasColumnType("TEXT");
+                b.Property<string>("DisplayName").IsRequired().HasColumnType("TEXT");
                 b.Property<string>("Email").HasMaxLength(256).HasColumnType("TEXT");
                 b.Property<bool>("EmailConfirmed").HasColumnType("INTEGER");
+                b.Property<bool>("IsActive").HasColumnType("INTEGER");
+                b.Property<DateTime?>("LastLoginAt").HasColumnType("TEXT");
                 b.Property<bool>("LockoutEnabled").HasColumnType("INTEGER");
                 b.Property<DateTimeOffset?>("LockoutEnd").HasColumnType("TEXT");
                 b.Property<string>("NormalizedEmail").HasMaxLength(256).HasColumnType("TEXT");
@@ -36,8 +39,8 @@ namespace LooseNotes.Migrations
                 b.Property<bool>("TwoFactorEnabled").HasColumnType("INTEGER");
                 b.Property<string>("UserName").HasMaxLength(256).HasColumnType("TEXT");
                 b.HasKey("Id");
-                b.HasIndex("NormalizedEmail").HasDatabaseName("IX_AspNetUsers_NormalizedEmail");
-                b.HasIndex("NormalizedUserName").IsUnique().HasDatabaseName("IX_AspNetUsers_NormalizedUserName");
+                b.HasIndex("NormalizedEmail").HasDatabaseName("EmailIndex");
+                b.HasIndex("NormalizedUserName").IsUnique().HasDatabaseName("UserNameIndex");
                 b.ToTable("AspNetUsers");
             });
 
@@ -46,68 +49,31 @@ namespace LooseNotes.Migrations
                 b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
                 b.Property<string>("Content").IsRequired().HasColumnType("TEXT");
                 b.Property<DateTime>("CreatedAt").HasColumnType("TEXT");
-                b.Property<string>("Title").IsRequired().HasMaxLength(300).HasColumnType("TEXT");
+                b.Property<bool>("IsPublic").HasColumnType("INTEGER");
+                b.Property<string>("OwnerId").IsRequired().HasColumnType("TEXT");
+                b.Property<string>("Title").IsRequired().HasMaxLength(200).HasColumnType("TEXT");
                 b.Property<DateTime>("UpdatedAt").HasColumnType("TEXT");
-                b.Property<string>("UserId").IsRequired().HasColumnType("TEXT");
-                b.Property<int>("Visibility").HasColumnType("INTEGER");
                 b.HasKey("Id");
-                b.HasIndex("UserId").HasDatabaseName("IX_Notes_UserId");
-                b.HasIndex("Visibility").HasDatabaseName("IX_Notes_Visibility");
+                b.HasIndex("CreatedAt").HasDatabaseName("IX_Notes_CreatedAt");
+                b.HasIndex("IsPublic").HasDatabaseName("IX_Notes_IsPublic");
+                b.HasIndex("OwnerId").HasDatabaseName("IX_Notes_OwnerId");
                 b.ToTable("Notes");
-            });
-
-            modelBuilder.Entity("LooseNotes.Models.Attachment", b =>
-            {
-                b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
-                b.Property<string>("ContentType").IsRequired().HasMaxLength(200).HasColumnType("TEXT");
-                b.Property<long>("FileSizeBytes").HasColumnType("INTEGER");
-                b.Property<int>("NoteId").HasColumnType("INTEGER");
-                b.Property<string>("OriginalFileName").IsRequired().HasMaxLength(500).HasColumnType("TEXT");
-                b.Property<string>("StoredFileName").IsRequired().HasMaxLength(50).HasColumnType("TEXT");
-                b.Property<DateTime>("UploadedAt").HasColumnType("TEXT");
-                b.HasKey("Id");
-                b.ToTable("Attachments");
-            });
-
-            modelBuilder.Entity("LooseNotes.Models.Rating", b =>
-            {
-                b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
-                b.Property<string>("Comment").HasMaxLength(1000).HasColumnType("TEXT");
-                b.Property<DateTime>("CreatedAt").HasColumnType("TEXT");
-                b.Property<int>("NoteId").HasColumnType("INTEGER");
-                b.Property<DateTime>("UpdatedAt").HasColumnType("TEXT");
-                b.Property<string>("UserId").IsRequired().HasColumnType("TEXT");
-                b.Property<int>("Value").HasColumnType("INTEGER");
-                b.HasKey("Id");
-                b.HasIndex(new[] { "NoteId", "UserId" }).IsUnique().HasDatabaseName("IX_Ratings_NoteId_UserId");
-                b.ToTable("Ratings", t => t.HasCheckConstraint("CK_Rating_Value", "[Value] >= 1 AND [Value] <= 5"));
-            });
-
-            modelBuilder.Entity("LooseNotes.Models.ShareLink", b =>
-            {
-                b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
-                b.Property<DateTime>("CreatedAt").HasColumnType("TEXT");
-                b.Property<bool>("IsActive").HasColumnType("INTEGER");
-                b.Property<int>("NoteId").HasColumnType("INTEGER");
-                b.Property<string>("Token").IsRequired().HasMaxLength(64).HasColumnType("TEXT");
-                b.HasKey("Id");
-                b.HasIndex("Token").IsUnique().HasDatabaseName("IX_ShareLinks_Token");
-                b.ToTable("ShareLinks");
             });
 
             modelBuilder.Entity("LooseNotes.Models.AuditLog", b =>
             {
-                b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
-                b.Property<string>("Action").IsRequired().HasMaxLength(200).HasColumnType("TEXT");
-                b.Property<string>("ActorUserId").HasColumnType("TEXT");
-                b.Property<string>("Details").HasMaxLength(2000).HasColumnType("TEXT");
+                b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                b.Property<string>("Action").IsRequired().HasMaxLength(100).HasColumnType("TEXT");
+                b.Property<string>("Details").HasMaxLength(500).HasColumnType("TEXT");
                 b.Property<string>("IpAddress").HasMaxLength(45).HasColumnType("TEXT");
                 b.Property<DateTime>("OccurredAt").HasColumnType("TEXT");
-                b.Property<string>("ResourceId").HasMaxLength(100).HasColumnType("TEXT");
-                b.Property<string>("ResourceType").HasMaxLength(100).HasColumnType("TEXT");
+                b.Property<bool>("Success").HasColumnType("INTEGER");
+                b.Property<string>("TargetId").HasMaxLength(200).HasColumnType("TEXT");
+                b.Property<string>("TargetType").HasMaxLength(100).HasColumnType("TEXT");
+                b.Property<string>("UserId").HasColumnType("TEXT");
                 b.HasKey("Id");
-                b.HasIndex("ActorUserId").HasDatabaseName("IX_AuditLogs_ActorUserId");
                 b.HasIndex("OccurredAt").HasDatabaseName("IX_AuditLogs_OccurredAt");
+                b.HasIndex("UserId").HasDatabaseName("IX_AuditLogs_UserId");
                 b.ToTable("AuditLogs");
             });
 #pragma warning restore 612, 618

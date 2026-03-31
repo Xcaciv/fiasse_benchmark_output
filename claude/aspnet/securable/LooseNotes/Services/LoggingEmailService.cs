@@ -1,24 +1,27 @@
-// LoggingEmailService.cs — Development email stub that logs instead of sending.
-// Confidentiality: logs the reset link (which contains a token) at Debug level
-//   so it is NOT emitted in production (log level configured per environment).
 namespace LooseNotes.Services;
 
-/// <summary>Development-only email service that writes to the structured logger.
-/// Replace with an SMTP or cloud email implementation for production.</summary>
-public sealed class LoggingEmailService : IEmailService
+/// <summary>
+/// Development stub — logs email content instead of sending.
+/// Replace with SMTP/SendGrid implementation for production.
+/// Confidentiality: reset link is logged at debug level only — not at info.
+/// </summary>
+public class LoggingEmailService : IEmailService
 {
     private readonly ILogger<LoggingEmailService> _logger;
 
-    public LoggingEmailService(ILogger<LoggingEmailService> logger) => _logger = logger;
-
-    /// <inheritdoc/>
-    public Task SendPasswordResetAsync(string toEmail, string resetLink)
+    public LoggingEmailService(ILogger<LoggingEmailService> logger)
     {
-        // Debug level — suppressed in production by log level config (Confidentiality)
-        _logger.LogDebug(
-            "DEV EMAIL | PasswordReset | To={Email} | Link={Link}",
-            toEmail, resetLink);
+        _logger = logger;
+    }
 
+    public Task SendPasswordResetEmailAsync(
+        string toEmail,
+        string resetLink,
+        CancellationToken ct = default)
+    {
+        // Debug only — do not log reset links at Info or above in production
+        _logger.LogDebug("Password reset email to {Email}. Link: {Link}", toEmail, resetLink);
+        _logger.LogInformation("Password reset email dispatched to {Email}", toEmail);
         return Task.CompletedTask;
     }
 }

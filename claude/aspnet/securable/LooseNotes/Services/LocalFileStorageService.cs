@@ -1,117 +1,67 @@
-// LocalFileStorageService.cs — Local file system implementation of IFileStorageService.
-// Trust boundary: all validation (extension, size, content sniff) happens HERE before saving.
-// Integrity: stored names are UUID-based — no path traversal possible.
-// Availability: file size capped at configurable limit.
-using LooseNotes.Configuration;
-using Microsoft.Extensions.Options;
+using System.Text.RegularExpressions;
 
 namespace LooseNotes.Services;
 
-/// <summary>Saves uploaded files to local disk with full validation at the trust boundary.</summary>
-public sealed class LocalFileStorageService : IFileStorageService
+/// <summary>
+/// Stores files locally under a configured upload directory.
+/// Integrity: stored filenames are UUID-based, never derived from user input.
+/// Resilience: validates stored filename format before any filesystem operation.
+/// </summary>
+public class LocalFileStorageService : IFileStorageService
 {
-    private readonly FileStorageOptions _options;
+    // Only UUID-format names are accepted for filesystem access
+    private static readonly Regex SafeFileNamePattern =
+        new(@"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private readonly string _uploadDirectory;
     private readonly ILogger<LocalFileStorageService> _logger;
 
-    // Static, read-only whitelist — Integrity: explicit allow-list, not deny-list
-    private static readonly IReadOnlyDictionary<string, string> AllowedMimeTypes =
-        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            [".pdf"]  = "application/pdf",
-            [".doc"]  = "application/msword",
-            [".docx"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            [".txt"]  = "text/plain",
-            [".png"]  = "image/png",
-            [".jpg"]  = "image/jpeg",
-            [".jpeg"] = "image/jpeg"
-        };
-
     public LocalFileStorageService(
-        IOptions<FileStorageOptions> options,
+        IConfiguration config,
         ILogger<LocalFileStorageService> logger)
     {
-        _options = options.Value;
         _logger = logger;
-        EnsureStorageDirectoryExists();
+        _uploadDirectory = config["FileStorage:UploadDirectory"]
+            ?? Path.Combine(Directory.GetCurrentDirectory(), "uploads");
+
+        Directory.CreateDirectory(_uploadDirectory);
     }
 
-    /// <inheritdoc/>
-    public async Task<StoredFileResult> SaveAsync(IFormFile file)
+    public async Task<string> StoreAsync(IFormFile file, CancellationToken ct = default)
     {
-        ValidateFile(file);
+        var storedName = Guid.NewGuid().ToString();
+        var destination = Path.Combine(_uploadDirectory, storedName);
 
-        var extension = GetSafeExtension(file.FileName);
-        var storedFileName = $"{Guid.NewGuid():N}{extension}";
-        var fullPath = GetFilePath(storedFileName);
+        await using var stream = File.Create(destination);
+        await file.CopyToAsync(stream, ct);
 
-        await using var stream = new FileStream(
-            fullPath,
-            FileMode.CreateNew,          // Fail if UUID collision (astronomically unlikely)
-            FileAccess.Write,
-            FileShare.None,
-            bufferSize: 81920,
-            useAsync: true);
-
-        await file.CopyToAsync(stream);
-
-        _logger.LogInformation(
-            "File stored | StoredName={StoredName} OriginalName={OriginalName} Size={Size}",
-            storedFileName, file.FileName, file.Length);
-
-        var contentType = AllowedMimeTypes[extension];
-        return new StoredFileResult(storedFileName, contentType, file.Length);
+        _logger.LogInformation("Stored file {StoredName} ({Bytes} bytes)", storedName, file.Length);
+        return storedName;
     }
 
-    /// <inheritdoc/>
-    public string GetFilePath(string storedFileName)
+    public string GetAbsolutePath(string storedFileName)
     {
-        // Trust boundary: ensure storedFileName is just a filename, no directory traversal
-        var safeFileName = Path.GetFileName(storedFileName);
-        return Path.Combine(_options.BasePath, safeFileName);
+        // Trust boundary: reject any name that doesn't match the UUID pattern
+        if (!SafeFileNamePattern.IsMatch(storedFileName))
+            throw new ArgumentException("Invalid stored file name format.", nameof(storedFileName));
+
+        return Path.Combine(_uploadDirectory, storedFileName);
     }
 
-    /// <inheritdoc/>
-    public Task DeleteAsync(string storedFileName)
+    public async Task DeleteAsync(string storedFileName, CancellationToken ct = default)
     {
-        var path = GetFilePath(storedFileName);
-
-        if (File.Exists(path))
+        if (!SafeFileNamePattern.IsMatch(storedFileName))
         {
-            File.Delete(path);
-            _logger.LogInformation("File deleted | StoredName={StoredName}", storedFileName);
+            _logger.LogWarning("Rejected delete attempt with invalid filename: {Name}", storedFileName);
+            return;
         }
 
-        return Task.CompletedTask;
-    }
-
-    // ── Private validation helpers ────────────────────────────────────────────
-
-    private void ValidateFile(IFormFile file)
-    {
-        if (file.Length == 0)
-            throw new InvalidOperationException("Uploaded file is empty.");
-
-        if (file.Length > _options.MaxFileSizeBytes)
-            throw new InvalidOperationException(
-                $"File exceeds maximum allowed size of {_options.MaxFileSizeBytes / 1024 / 1024} MB.");
-
-        var extension = GetSafeExtension(file.FileName);
-
-        // Integrity: allow-list check — reject anything not explicitly permitted
-        if (!AllowedMimeTypes.ContainsKey(extension))
-            throw new InvalidOperationException(
-                $"File type '{extension}' is not permitted.");
-    }
-
-    private static string GetSafeExtension(string fileName)
-    {
-        // Canonicalize: take only the final extension to prevent "file.php.jpg"-style bypasses
-        return Path.GetExtension(fileName).ToLowerInvariant();
-    }
-
-    private void EnsureStorageDirectoryExists()
-    {
-        if (!Directory.Exists(_options.BasePath))
-            Directory.CreateDirectory(_options.BasePath);
+        var path = Path.Combine(_uploadDirectory, storedFileName);
+        if (File.Exists(path))
+        {
+            await Task.Run(() => File.Delete(path), ct);
+            _logger.LogInformation("Deleted stored file {StoredName}", storedFileName);
+        }
     }
 }

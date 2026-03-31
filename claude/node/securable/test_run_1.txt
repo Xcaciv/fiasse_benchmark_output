@@ -1,0 +1,38 @@
+STARTED
+STDOUT:
+[34mdebug[39m: [object Object] {"service":"loose-notes","timestamp":"2026-03-31T00:47:44.637Z"}
+[34mdebug[39m: [object Object] {"service":"loose-notes","timestamp":"2026-03-31T00:47:44.667Z"}
+[34mdebug[39m: [object Object] {"service":"loose-notes","timestamp":"2026-03-31T00:47:44.670Z"}
+
+STDERR:
+PASS src/tests/security.test.js
+  security config
+    √ allowed extensions are a Set (2 ms)
+    √ allowed mime types are a Set (1 ms)
+    √ bcryptRounds is at least 10
+    √ resetTokenExpiryMs is a positive number (1 ms)
+    √ uploadMaxSizeBytes is a positive number (1 ms)
+    √ rate limit windows and maxes are positive
+  fileService.getFilePath — path traversal prevention
+    √ rejects path traversal with .. (5 ms)
+    √ rejects absolute path escape (1 ms)
+    √ rejects traversal with encoded sequences in stored name (1 ms)
+    √ accepts a valid UUID filename (2 ms)
+  share link token validation
+    √ rejects tokens that are too short (1 ms)
+    √ rejects tokens with non-hex characters
+    √ rejects empty token (1 ms)
+  ratingService.clampRating via upsertRating
+    √ throws on rating value 0 (88 ms)
+    √ throws on rating value 6 (3 ms)
+    √ throws on non-numeric rating value (2 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       16 passed, 16 total
+Snapshots:   0 total
+Time:        0.655 s, estimated 1 s
+Ran all test suites.
+
+EXIT: 0
+SIGNAL: null
+ERROR: none

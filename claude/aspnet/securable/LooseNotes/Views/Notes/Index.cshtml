@@ -1,8 +1,7 @@
-@model IReadOnlyList<NoteListItemViewModel>
+@model List<NoteListItemViewModel>
 @{
     ViewData["Title"] = "My Notes";
 }
-
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>My Notes</h2>
     <a asp-action="Create" class="btn btn-primary">+ New Note</a>
@@ -10,10 +9,8 @@
 
 @if (!Model.Any())
 {
-    <div class="text-center py-5 text-muted">
-        <div class="display-4">📝</div>
-        <p class="lead mt-3">You have no notes yet.</p>
-        <a asp-action="Create" class="btn btn-primary">Create your first note</a>
+    <div class="alert alert-info">
+        You haven't created any notes yet. <a asp-action="Create">Create your first note.</a>
     </div>
 }
 else
@@ -21,28 +18,25 @@ else
     <div class="row g-3">
         @foreach (var note in Model)
         {
-            <div class="col-md-6 col-lg-4">
-                <div class="card h-100 shadow-sm">
+            <div class="col-md-6">
+                <div class="card h-100">
                     <div class="card-body">
                         <div class="d-flex justify-content-between">
-                            <h5 class="card-title text-truncate">@note.Title</h5>
-                            <span class="badge @(note.Visibility == NoteVisibility.Public ? "bg-success" : "bg-secondary") ms-2">
-                                @note.Visibility
+                            <h5 class="card-title">
+                                <a asp-action="Details" asp-route-id="@note.Id" class="text-decoration-none">@note.Title</a>
+                            </h5>
+                            <span class="badge @(note.IsPublic ? "bg-success" : "bg-secondary")">
+                                @(note.IsPublic ? "Public" : "Private")
                             </span>
                         </div>
                         <p class="card-text text-muted small">@note.Excerpt</p>
+                    </div>
+                    <div class="card-footer text-muted small d-flex justify-content-between">
+                        <span>@note.CreatedAt.ToString("MMM d, yyyy")</span>
                         @if (note.RatingCount > 0)
                         {
-                            <small class="text-warning">
-                                ★ @note.AverageRating.ToString("F1") (@note.RatingCount)
-                            </small>
+                            <span>&#9733; @note.AverageRating.ToString("F1") (@note.RatingCount)</span>
                         }
-                    </div>
-                    <div class="card-footer d-flex justify-content-between align-items-center">
-                        <small class="text-muted">@note.CreatedAt.ToString("MMM d, yyyy")</small>
-                        <a asp-action="Details" asp-route-id="@note.Id" class="btn btn-sm btn-outline-primary">
-                            View
-                        </a>
                     </div>
                 </div>
             </div>

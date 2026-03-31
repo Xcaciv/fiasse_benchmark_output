@@ -1,33 +1,39 @@
-// AuditLog.cs — Immutable structured audit trail entry.
-// Accountability: captures WHO did WHAT to WHICH resource and WHEN.
-// Confidentiality: no passwords, tokens, or PII stored in Details.
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace LooseNotes.Models;
 
-/// <summary>Immutable audit record. All security-relevant actions produce an entry.</summary>
-public sealed class AuditLog
+/// <summary>
+/// Append-only audit record. Never update or delete rows from this table.
+/// Accountability: records who, what, when, and outcome for security-sensitive actions.
+/// </summary>
+public class AuditLog
 {
-    public int Id { get; set; }
+    public long Id { get; set; }
 
-    /// <summary>UserId of the actor; nullable for unauthenticated events.</summary>
-    public string? ActorUserId { get; set; }
+    [Required, MaxLength(100)]
+    public string Action { get; set; } = string.Empty;
 
-    /// <summary>Human-readable action name (e.g. "Note.Delete", "User.Login.Failed").</summary>
-    public required string Action { get; set; }
+    // UserId may be null for unauthenticated events (e.g., failed login)
+    public string? UserId { get; set; }
 
-    /// <summary>Resource type involved (e.g. "Note", "User", "ShareLink").</summary>
-    public string? ResourceType { get; set; }
+    [ForeignKey(nameof(UserId))]
+    public ApplicationUser? User { get; set; }
 
-    /// <summary>Primary key of the affected resource (as string for flexibility).</summary>
-    public string? ResourceId { get; set; }
+    [MaxLength(200)]
+    public string? TargetId { get; set; }
 
-    /// <summary>Additional context — must NOT contain secrets, passwords, or tokens.</summary>
+    [MaxLength(100)]
+    public string? TargetType { get; set; }
+
+    public bool Success { get; set; }
+
+    [MaxLength(500)]
     public string? Details { get; set; }
 
-    /// <summary>Client IP address for correlation (from X-Forwarded-For or RemoteIp).</summary>
+    // No sensitive data logged
+    [MaxLength(45)]
     public string? IpAddress { get; set; }
 
-    public DateTime OccurredAt { get; init; } = DateTime.UtcNow;
-
-    // ── Navigation ────────────────────────────────────────────────────────────
-    public ApplicationUser? Actor { get; set; }
+    public DateTime OccurredAt { get; set; } = DateTime.UtcNow;
 }

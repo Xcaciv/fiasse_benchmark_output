@@ -1,39 +1,65 @@
-<%@ page contentType="text/html;charset=UTF-8" language="java" %>
+<%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
-<c:set var="pageTitle" value="Top Rated Notes - Loose Notes"/>
-<%@ include file="/WEB-INF/jsp/common/header.jsp" %>
+<jsp:include page="/WEB-INF/jsp/common/header.jsp"/>
 
-<h1 class="h3 mb-4">Top Rated Notes</h1>
-<p class="text-muted">Public notes with at least 3 ratings, sorted by average rating.</p>
+<div class="container mt-4">
+    <h1 class="h2 mb-4">Top Rated Notes</h1>
 
-<c:choose>
-    <c:when test="${empty notes}">
-        <p class="text-muted">No top-rated notes yet. Be the first to rate some notes!</p>
-    </c:when>
-    <c:otherwise>
-        <div class="list-group">
-            <c:forEach var="note" items="${notes}" varStatus="loop">
-                <a href="${pageContext.request.contextPath}/notes/view/<c:out value='${note.id}'/>"
-                   class="list-group-item list-group-item-action">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <span class="badge bg-secondary me-2">#${loop.index + 1}</span>
-                            <strong><c:out value="${note.title}"/></strong>
-                            <small class="text-muted ms-2">by <c:out value="${note.ownerUsername}"/></small>
-                        </div>
-                        <div class="text-warning">
-                            &#9733; <fmt:formatNumber value="${note.averageRating}" maxFractionDigits="1"/>
-                            <small class="text-muted">(<c:out value="${note.ratingCount}"/>)</small>
-                        </div>
-                    </div>
-                    <p class="mb-0 mt-1 small text-muted">
-                        <c:out value="${note.getExcerpt(150)}"/>
-                    </p>
-                </a>
-            </c:forEach>
-        </div>
-    </c:otherwise>
-</c:choose>
+    <c:choose>
+        <c:when test="${empty topRatedNotes}">
+            <div class="text-center py-5">
+                <p class="text-muted fs-5">No rated public notes yet.</p>
+                <a href="${pageContext.request.contextPath}/notes" class="btn btn-outline-primary mt-2">Browse All Notes</a>
+            </div>
+        </c:when>
+        <c:otherwise>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">Title</th>
+                            <th scope="col">Author</th>
+                            <th scope="col" class="text-center">Avg Rating</th>
+                            <th scope="col" class="text-center">Ratings</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <c:forEach var="note" items="${topRatedNotes}" varStatus="status">
+                            <tr>
+                                <td class="text-muted">${status.index + 1}</td>
+                                <td>
+                                    <a href="${pageContext.request.contextPath}/notes/${note.id}"
+                                       class="text-decoration-none fw-semibold">
+                                        <c:out value="${note.title}"/>
+                                    </a>
+                                </td>
+                                <td><c:out value="${note.authorUsername}"/></td>
+                                <td class="text-center">
+                                    <span class="text-warning me-1">
+                                        <c:set var="avgRounded" value="${note.averageRating}"/>
+                                        <c:forEach begin="1" end="5" var="star">
+                                            <c:choose>
+                                                <c:when test="${star <= avgRounded}">&#9733;</c:when>
+                                                <c:otherwise>&#9734;</c:otherwise>
+                                            </c:choose>
+                                        </c:forEach>
+                                    </span>
+                                    <span class="fw-semibold">
+                                        <fmt:formatNumber value="${note.averageRating}" maxFractionDigits="1"/>
+                                    </span>
+                                </td>
+                                <td class="text-center text-muted">
+                                    <c:out value="${note.ratingCount}"/>
+                                </td>
+                            </tr>
+                        </c:forEach>
+                    </tbody>
+                </table>
+            </div>
+        </c:otherwise>
+    </c:choose>
+</div>
 
-<%@ include file="/WEB-INF/jsp/common/footer.jsp" %>
+<jsp:include page="/WEB-INF/jsp/common/footer.jsp"/>

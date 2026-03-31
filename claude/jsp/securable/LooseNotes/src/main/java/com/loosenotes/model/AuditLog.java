@@ -1,60 +1,58 @@
 package com.loosenotes.model;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 /**
- * Represents an audit log entry.
- * SSEM: Accountability - structured security event record.
- * Never populate details with passwords, tokens, or session IDs.
+ * Represents a single entry in the security audit trail.
+ *
+ * SSEM notes:
+ * - Accountability: records who did what, where, and when.
+ * - Confidentiality: ipAddress is truncated (/24 for IPv4) by AuditService.
+ *   No passwords or tokens stored here.
  */
 public class AuditLog {
 
+    /** Typed event categories to avoid free-text event classification. */
+    public enum EventType {
+        AUTH,
+        NOTE,
+        ADMIN,
+        SHARE,
+        ATTACHMENT,
+        RATING
+    }
+
     private long id;
-    /** Nullable - actions before auth or by deleted users have no userId. */
+    /** Nullable – unauthenticated actions (e.g., failed login) have no userId. */
     private Long userId;
-    private String action;
-    private String resourceType;
-    private Long resourceId;
-    /** Human-readable context. Must not contain sensitive data. */
-    private String details;
+    private EventType eventType;
+    private String eventDetail;
     private String ipAddress;
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     public AuditLog() {}
 
-    // ---- Getters ----
-
     public long getId() { return id; }
-
-    public Long getUserId() { return userId; }
-
-    public String getAction() { return action; }
-
-    public String getResourceType() { return resourceType; }
-
-    public Long getResourceId() { return resourceId; }
-
-    public String getDetails() { return details; }
-
-    public String getIpAddress() { return ipAddress; }
-
-    public LocalDateTime getCreatedAt() { return createdAt; }
-
-    // ---- Setters ----
-
     public void setId(long id) { this.id = id; }
 
+    public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
 
-    public void setAction(String action) { this.action = action; }
+    public EventType getEventType() { return eventType; }
+    public void setEventType(EventType eventType) { this.eventType = eventType; }
 
-    public void setResourceType(String resourceType) { this.resourceType = resourceType; }
+    public String getEventDetail() { return eventDetail; }
+    public void setEventDetail(String eventDetail) { this.eventDetail = eventDetail; }
 
-    public void setResourceId(Long resourceId) { this.resourceId = resourceId; }
-
-    public void setDetails(String details) { this.details = details; }
-
+    public String getIpAddress() { return ipAddress; }
     public void setIpAddress(String ipAddress) { this.ipAddress = ipAddress; }
 
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
+
+    @Override
+    public String toString() {
+        return "AuditLog{id=" + id + ", userId=" + userId
+                + ", eventType=" + eventType + ", detail='" + eventDetail + "'}";
+    }
 }

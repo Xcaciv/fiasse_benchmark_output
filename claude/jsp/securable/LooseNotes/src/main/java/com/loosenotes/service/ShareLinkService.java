@@ -2,6 +2,7 @@ package com.loosenotes.service;
 
 import com.loosenotes.dao.NoteDao;
 import com.loosenotes.dao.ShareLinkDao;
+import com.loosenotes.model.AuditLog.EventType;
 import com.loosenotes.model.Note;
 import com.loosenotes.model.ShareLink;
 import com.loosenotes.util.SecureTokenUtil;
@@ -12,10 +13,12 @@ import java.sql.SQLException;
 import java.util.Optional;
 
 /**
- * Manages share link creation, revocation, and validation.
- * SSEM: Authenticity - cryptographically random tokens, stored as hashes.
- * SSEM: Integrity - ownership verified before link generation.
- * SSEM: Confidentiality - raw token returned once; only hash persisted.
+ * Business logic for generating, retrieving, and revoking share links.
+ *
+ * SSEM notes:
+ * - Authenticity: tokens are 256-bit cryptographically random values (SecureTokenUtil).
+ * - Integrity: only the note owner may generate or revoke links.
+ * - Accountability: share events are audited.
  */
 public class ShareLinkService {
 
@@ -23,71 +26,74 @@ public class ShareLinkService {
 
     private final ShareLinkDao shareLinkDao;
     private final NoteDao noteDao;
+    private final AuditService auditService;
 
-    public ShareLinkService(ShareLinkDao shareLinkDao, NoteDao noteDao) {
+    public ShareLinkService(ShareLinkDao shareLinkDao, NoteDao noteDao, AuditService auditService) {
         this.shareLinkDao = shareLinkDao;
-        this.noteDao = noteDao;
+        this.noteDao      = noteDao;
+        this.auditService = auditService;
     }
 
     /**
-     * Generates a new share link for the given note.
-     * The raw token is returned to the caller for inclusion in the share URL.
-     * Only the SHA-256 hash is stored in the database.
-     *
-     * @param noteId  note to share
-     * @param ownerId user requesting the share link
-     * @return raw token (include in URL), or empty if note not found/unauthorized
+     * Generates a new share link for a note, revoking any existing one.
+     * Only the note owner may call this.
      */
-    public Optional<String> generateLink(long noteId, long ownerId) throws SQLException {
-        Optional<Note> note = noteDao.findById(noteId);
-        if (note.isEmpty() || note.get().getUserId() != ownerId) {
-            return Optional.empty();
+    public ShareLink generateLink(long noteId, long requestingUserId, String ipAddress)
+            throws ServiceException, SQLException {
+
+        Note note = noteDao.findById(noteId)
+                .orElseThrow(() -> new ServiceException("Note not found"));
+        if (note.getUserId() != requestingUserId) {
+            throw new ServiceException("Access denied");
         }
 
-        String rawToken  = SecureTokenUtil.generateToken();
-        String tokenHash = SecureTokenUtil.hashToken(rawToken);
+        // Revoke existing link so only one active link per note exists
+        shareLinkDao.deleteByNoteId(noteId);
 
         ShareLink link = new ShareLink();
         link.setNoteId(noteId);
-        link.setToken(tokenHash); // Only hash goes to DB
-        link.setActive(true);
-        shareLinkDao.create(link);
+        link.setToken(SecureTokenUtil.generate());
+        shareLinkDao.insert(link);
 
-        log.info("Share link generated for noteId={} by userId={}", noteId, ownerId);
-        return Optional.of(rawToken); // Raw token returned to user
+        auditService.record(requestingUserId, EventType.SHARE,
+                "share_link_created noteId=" + noteId, ipAddress);
+        return link;
     }
 
     /**
-     * Revokes all share links for a note.
-     * Caller must verify ownership before calling.
+     * Returns the note associated with a share token.
+     * Token lookup succeeds regardless of note visibility (the link IS the access grant).
      */
-    public void revokeLinks(long noteId, long ownerId) throws SQLException {
-        Optional<Note> note = noteDao.findById(noteId);
-        if (note.isEmpty() || note.get().getUserId() != ownerId) {
-            throw new SecurityException("Note not found or access denied");
+    public Note getNoteByToken(String token) throws ServiceException, SQLException {
+        ShareLink link = shareLinkDao.findByToken(token)
+                .orElseThrow(() -> new ServiceException("Share link not found or revoked"));
+        return noteDao.findById(link.getNoteId())
+                .orElseThrow(() -> new ServiceException("Note not found"));
+    }
+
+    /** Returns the current share link for a note (owner view). */
+    public Optional<ShareLink> getLinkForNote(long noteId, long requestingUserId)
+            throws ServiceException, SQLException {
+        Note note = noteDao.findById(noteId)
+                .orElseThrow(() -> new ServiceException("Note not found"));
+        if (note.getUserId() != requestingUserId) {
+            throw new ServiceException("Access denied");
         }
-        shareLinkDao.deactivateByNoteId(noteId);
-        log.info("Share links revoked for noteId={} by userId={}", noteId, ownerId);
+        return shareLinkDao.findByNoteId(noteId);
     }
 
     /**
-     * Resolves a raw token from a URL to the associated note ID.
-     * Computes the hash and looks it up.
-     *
-     * @param rawToken URL token provided by the visitor
-     * @return noteId if the link is active, or empty if invalid/inactive
+     * Revokes the share link for a note. Only the note owner may call this.
      */
-    public Optional<Long> resolveToken(String rawToken) throws SQLException {
-        if (rawToken == null || rawToken.isBlank()) {
-            return Optional.empty();
+    public void revokeLink(long noteId, long requestingUserId, String ipAddress)
+            throws ServiceException, SQLException {
+        Note note = noteDao.findById(noteId)
+                .orElseThrow(() -> new ServiceException("Note not found"));
+        if (note.getUserId() != requestingUserId) {
+            throw new ServiceException("Access denied");
         }
-        String tokenHash = SecureTokenUtil.hashToken(rawToken);
-        Optional<ShareLink> link = shareLinkDao.findActiveByToken(tokenHash);
-        return link.map(ShareLink::getNoteId);
-    }
-
-    /** Returns the active share link record for a note (for display to owner). */
-    public Optional<ShareLink> getActiveLinkForNote(long noteId) throws SQLException {
-        return shareLinkDao.findActiveByNoteId(noteId);
+        shareLinkDao.deleteByNoteId(noteId);
+        auditService.record(requestingUserId, EventType.SHARE,
+                "share_link_revoked noteId=" + noteId, ipAddress);
     }
 }

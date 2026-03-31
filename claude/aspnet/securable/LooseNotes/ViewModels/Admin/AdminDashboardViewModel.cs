@@ -1,19 +1,10 @@
-// AdminDashboardViewModel.cs — Summary statistics for the admin dashboard.
+using LooseNotes.Models;
+
 namespace LooseNotes.ViewModels.Admin;
 
-public sealed class AdminDashboardViewModel
+public class AdminDashboardViewModel
 {
     public int TotalUsers { get; set; }
     public int TotalNotes { get; set; }
-    public IReadOnlyList<RecentAuditEntryViewModel> RecentAuditEntries { get; set; }
-        = Array.Empty<RecentAuditEntryViewModel>();
-}
-
-public sealed class RecentAuditEntryViewModel
-{
-    public string Action { get; set; } = string.Empty;
-    public string? ActorUserName { get; set; }
-    public string? ResourceType { get; set; }
-    public string? ResourceId { get; set; }
-    public DateTime OccurredAt { get; set; }
+    public List<AuditLog> RecentActivity { get; set; } = new();
 }

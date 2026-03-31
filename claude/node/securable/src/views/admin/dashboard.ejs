@@ -1,57 +1,44 @@
-<%- include('../partials/head', {title}) %>
-<%- include('../partials/nav') %>
-<div class="container mt-4">
-  <%- include('../partials/flash') %>
-  <h1 class="h3 mb-4">Admin Dashboard</h1>
+<h1>Admin Dashboard</h1>
 
-  <div class="row g-3 mb-4">
-    <div class="col-md-4">
-      <div class="card text-center shadow-sm">
-        <div class="card-body">
-          <h2 class="display-6 fw-bold text-primary"><%= userCount %></h2>
-          <p class="card-text text-muted">Total Users</p>
-          <a href="/admin/users" class="btn btn-sm btn-outline-primary">View Users</a>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="card text-center shadow-sm">
-        <div class="card-body">
-          <h2 class="display-6 fw-bold text-success"><%= noteCount %></h2>
-          <p class="card-text text-muted">Total Notes</p>
-        </div>
-      </div>
-    </div>
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-value"><%= userCount %></div>
+    <div class="stat-label">Total Users</div>
   </div>
+  <div class="stat-card">
+    <div class="stat-value"><%= noteCount %></div>
+    <div class="stat-label">Total Notes</div>
+  </div>
+</div>
 
-  <h4>Recent Activity</h4>
-  <% if (!recentActivity.length) { %>
-    <p class="text-muted">No activity recorded yet.</p>
+<div class="card">
+  <h2>Recent Activity</h2>
+  <% if (recentActivity.length === 0) { %>
+    <p class="empty-state">No activity recorded yet.</p>
   <% } else { %>
-    <div class="table-responsive">
-      <table class="table table-sm table-hover">
-        <thead>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>User</th>
+          <th>Action</th>
+          <th>Target</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% recentActivity.forEach(log => { %>
           <tr>
-            <th>Time</th>
-            <th>User</th>
-            <th>Action</th>
-            <th>Details</th>
-            <th>IP</th>
+            <td><%= new Date(log.createdAt).toLocaleString() %></td>
+            <td><%= log.actor ? log.actor.username : '(anonymous)' %></td>
+            <td><code><%= log.action %></code></td>
+            <td><%= log.targetType ? `${log.targetType}:${log.targetId}` : '' %></td>
           </tr>
-        </thead>
-        <tbody>
-          <% recentActivity.forEach(ev => { %>
-            <tr>
-              <td class="text-muted small text-nowrap"><%= new Date(ev.created_at).toLocaleString() %></td>
-              <td><%= ev.username || '(guest)' %></td>
-              <td><code><%= ev.action %></code></td>
-              <td class="text-muted small"><%= ev.details || '' %></td>
-              <td class="text-muted small"><%= ev.ip_address || '' %></td>
-            </tr>
-          <% }) %>
-        </tbody>
-      </table>
-    </div>
+        <% }) %>
+      </tbody>
+    </table>
   <% } %>
 </div>
-<%- include('../partials/footer') %>
+
+<div class="admin-links">
+  <a href="/admin/users" class="btn btn-secondary">Manage Users</a>
+</div>

@@ -1,82 +1,69 @@
 package com.loosenotes.dao;
 
 import com.loosenotes.model.AuditLog;
+import com.loosenotes.model.AuditLog.EventType;
 
-import javax.sql.DataSource;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Data access layer for AuditLog entries.
- * SSEM: Accountability - structured security event persistence.
- * SSEM: Resilience - log failures must not break application flow (logged only).
+ * Data access for the audit_logs table.
+ *
+ * SSEM notes:
+ * - Accountability: append-only inserts; no update/delete methods exposed.
+ * - Confidentiality: ipAddress is pre-truncated by AuditService before this call.
  */
 public class AuditLogDao {
 
-    private final DataSource dataSource;
+    private final DatabaseManager db;
 
-    public AuditLogDao(DataSource dataSource) {
-        this.dataSource = dataSource;
+    public AuditLogDao(DatabaseManager db) {
+        this.db = db;
     }
 
-    /** Records a new audit log entry. */
-    public void create(AuditLog entry) throws SQLException {
-        String sql = "INSERT INTO audit_logs (user_id, action, resource_type, resource_id, "
-            + "details, ip_address) VALUES (?, ?, ?, ?, ?, ?)";
-        try (Connection conn = dataSource.getConnection();
+    /** Inserts a new audit log entry. */
+    public void insert(AuditLog entry) throws SQLException {
+        String sql = "INSERT INTO audit_logs (user_id, event_type, event_detail, ip_address) "
+                + "VALUES (?, ?, ?, ?)";
+        try (Connection conn = db.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            setNullableLong(ps, 1, entry.getUserId());
-            ps.setString(2, entry.getAction());
-            ps.setString(3, entry.getResourceType());
-            setNullableLong(ps, 4, entry.getResourceId());
-            ps.setString(5, truncate(entry.getDetails(), 500));
-            ps.setString(6, entry.getIpAddress());
+            if (entry.getUserId() != null) {
+                ps.setLong(1, entry.getUserId());
+            } else {
+                ps.setNull(1, Types.BIGINT);
+            }
+            ps.setString(2, entry.getEventType().name());
+            ps.setString(3, entry.getEventDetail());
+            ps.setString(4, entry.getIpAddress());
             ps.executeUpdate();
         }
     }
 
-    /** Returns recent audit log entries for admin dashboard. */
+    /** Returns the most recent {@code limit} audit log entries (admin dashboard). */
     public List<AuditLog> findRecent(int limit) throws SQLException {
-        String sql = "SELECT al.*, u.username AS username FROM audit_logs al "
-            + "LEFT JOIN users u ON u.id = al.user_id "
-            + "ORDER BY al.created_at DESC LIMIT ?";
-        List<AuditLog> list = new ArrayList<>();
-        try (Connection conn = dataSource.getConnection();
+        String sql = "SELECT id, user_id, event_type, event_detail, ip_address, created_at "
+                + "FROM audit_logs ORDER BY created_at DESC LIMIT ?";
+        try (Connection conn = db.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, limit);
             try (ResultSet rs = ps.executeQuery()) {
+                List<AuditLog> list = new ArrayList<>();
                 while (rs.next()) list.add(mapRow(rs));
+                return list;
             }
         }
-        return list;
     }
 
     private AuditLog mapRow(ResultSet rs) throws SQLException {
-        AuditLog entry = new AuditLog();
-        entry.setId(rs.getLong("id"));
-        long userId = rs.getLong("user_id");
-        entry.setUserId(rs.wasNull() ? null : userId);
-        entry.setAction(rs.getString("action"));
-        entry.setResourceType(rs.getString("resource_type"));
-        long resourceId = rs.getLong("resource_id");
-        entry.setResourceId(rs.wasNull() ? null : resourceId);
-        entry.setDetails(rs.getString("details"));
-        entry.setIpAddress(rs.getString("ip_address"));
-        entry.setCreatedAt(rs.getTimestamp("created_at").toLocalDateTime());
-        return entry;
-    }
-
-    private void setNullableLong(PreparedStatement ps, int idx, Long value) throws SQLException {
-        if (value == null) {
-            ps.setNull(idx, Types.BIGINT);
-        } else {
-            ps.setLong(idx, value);
-        }
-    }
-
-    private String truncate(String value, int maxLength) {
-        if (value == null) return null;
-        return value.length() > maxLength ? value.substring(0, maxLength) : value;
+        AuditLog a = new AuditLog();
+        a.setId(rs.getLong("id"));
+        long uid = rs.getLong("user_id");
+        a.setUserId(rs.wasNull() ? null : uid);
+        a.setEventType(EventType.valueOf(rs.getString("event_type")));
+        a.setEventDetail(rs.getString("event_detail"));
+        a.setIpAddress(rs.getString("ip_address"));
+        a.setCreatedAt(rs.getTimestamp("created_at").toInstant());
+        return a;
     }
 }

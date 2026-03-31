@@ -2,75 +2,73 @@ package com.loosenotes.dao;
 
 import com.loosenotes.model.Attachment;
 
-import javax.sql.DataSource;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 /**
- * Data access layer for Attachment entities.
- * SSEM: Integrity - parameterized queries, cascade delete via FK.
- * SSEM: Resilience - try-with-resources throughout.
+ * Data access for the attachments table.
+ *
+ * SSEM notes:
+ * - Integrity: storedName (UUID) is the only file system reference; originalName is display-only.
+ * - Resilience: try-with-resources on all connections.
  */
 public class AttachmentDao {
 
-    private final DataSource dataSource;
+    private final DatabaseManager db;
 
-    public AttachmentDao(DataSource dataSource) {
-        this.dataSource = dataSource;
+    public AttachmentDao(DatabaseManager db) {
+        this.db = db;
     }
 
-    /** Inserts a new attachment and returns the generated ID. */
-    public long create(Attachment attachment) throws SQLException {
-        String sql = "INSERT INTO attachments (note_id, original_filename, stored_filename, "
-            + "file_size, content_type) VALUES (?, ?, ?, ?, ?)";
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            ps.setLong(1, attachment.getNoteId());
-            ps.setString(2, attachment.getOriginalFilename());
-            ps.setString(3, attachment.getStoredFilename());
-            ps.setLong(4, attachment.getFileSize());
-            ps.setString(5, attachment.getContentType());
-            ps.executeUpdate();
-            try (ResultSet keys = ps.getGeneratedKeys()) {
-                if (keys.next()) return keys.getLong(1);
-            }
-        }
-        throw new SQLException("Attachment creation failed: no generated key");
-    }
-
-    /** Finds an attachment by ID. */
     public Optional<Attachment> findById(long id) throws SQLException {
-        String sql = "SELECT * FROM attachments WHERE id = ?";
-        try (Connection conn = dataSource.getConnection();
+        String sql = "SELECT id, note_id, original_name, stored_name, mime_type, "
+                + "file_size, uploaded_at FROM attachments WHERE id = ?";
+        try (Connection conn = db.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, id);
             try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return Optional.of(mapRow(rs));
+                return rs.next() ? Optional.of(mapRow(rs)) : Optional.empty();
             }
         }
-        return Optional.empty();
     }
 
-    /** Returns all attachments for a given note. */
     public List<Attachment> findByNoteId(long noteId) throws SQLException {
-        String sql = "SELECT * FROM attachments WHERE note_id = ? ORDER BY created_at ASC";
-        List<Attachment> list = new ArrayList<>();
-        try (Connection conn = dataSource.getConnection();
+        String sql = "SELECT id, note_id, original_name, stored_name, mime_type, "
+                + "file_size, uploaded_at FROM attachments WHERE note_id = ? ORDER BY uploaded_at";
+        try (Connection conn = db.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, noteId);
             try (ResultSet rs = ps.executeQuery()) {
+                List<Attachment> list = new ArrayList<>();
                 while (rs.next()) list.add(mapRow(rs));
+                return list;
             }
         }
-        return list;
     }
 
-    /** Deletes an attachment by ID. Caller is responsible for removing the file. */
+    public long insert(Attachment a) throws SQLException {
+        String sql = "INSERT INTO attachments (note_id, original_name, stored_name, "
+                + "mime_type, file_size) VALUES (?, ?, ?, ?, ?)";
+        try (Connection conn = db.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            ps.setLong(1, a.getNoteId());
+            ps.setString(2, a.getOriginalName());
+            ps.setString(3, a.getStoredName());
+            ps.setString(4, a.getMimeType());
+            ps.setLong(5, a.getFileSizeBytes());
+            ps.executeUpdate();
+            try (ResultSet keys = ps.getGeneratedKeys()) {
+                if (keys.next()) return keys.getLong(1);
+                throw new SQLException("No generated key for attachment insert");
+            }
+        }
+    }
+
     public void delete(long id) throws SQLException {
         String sql = "DELETE FROM attachments WHERE id = ?";
-        try (Connection conn = dataSource.getConnection();
+        try (Connection conn = db.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, id);
             ps.executeUpdate();
@@ -81,11 +79,11 @@ public class AttachmentDao {
         Attachment a = new Attachment();
         a.setId(rs.getLong("id"));
         a.setNoteId(rs.getLong("note_id"));
-        a.setOriginalFilename(rs.getString("original_filename"));
-        a.setStoredFilename(rs.getString("stored_filename"));
-        a.setFileSize(rs.getLong("file_size"));
-        a.setContentType(rs.getString("content_type"));
-        a.setCreatedAt(rs.getTimestamp("created_at").toLocalDateTime());
+        a.setOriginalName(rs.getString("original_name"));
+        a.setStoredName(rs.getString("stored_name"));
+        a.setMimeType(rs.getString("mime_type"));
+        a.setFileSizeBytes(rs.getLong("file_size"));
+        a.setUploadedAt(rs.getTimestamp("uploaded_at").toInstant());
         return a;
     }
 }

@@ -1,86 +1,53 @@
-<%- include('../partials/head', {title}) %>
-<%- include('../partials/nav') %>
-<div class="container mt-4">
-  <div class="row justify-content-center">
-    <div class="col-md-7">
-      <h1 class="h3 mb-4">My Profile</h1>
-      <%- include('../partials/flash') %>
+<h1>Edit Profile</h1>
 
-      <!-- Tab navigation -->
-      <ul class="nav nav-tabs mb-4">
-        <li class="nav-item">
-          <a class="nav-link <%= section === 'info' ? 'active' : '' %>" href="/profile">Profile Info</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link <%= section === 'password' ? 'active' : '' %>"
-             href="/profile#password">Change Password</a>
-        </li>
-      </ul>
+<div class="card form-card">
+  <h2>Account Information</h2>
+  <form method="POST" action="/profile/update">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 
-      <!-- Profile info form -->
-      <div class="card mb-4">
-        <div class="card-header"><strong>Profile Information</strong></div>
-        <div class="card-body">
-          <% if (section === 'info') { %>
-            <%- include('../partials/errors') %>
-          <% } %>
-          <form method="POST" action="/profile/info" novalidate>
-            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-            <div class="mb-3">
-              <label class="form-label">Username</label>
-              <input type="text" class="form-control" name="username"
-                     value="<%= user.username %>" required minlength="3" maxlength="30">
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Email Address</label>
-              <input type="email" class="form-control" name="email"
-                     value="<%= user.email %>" required>
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Role</label>
-              <input type="text" class="form-control" value="<%= user.role %>" readonly>
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Member Since</label>
-              <input type="text" class="form-control"
-                     value="<%= new Date(user.created_at).toLocaleDateString() %>" readonly>
-            </div>
-            <button type="submit" class="btn btn-primary">Save Changes</button>
-          </form>
-        </div>
-      </div>
-
-      <!-- Change password form -->
-      <div class="card" id="password">
-        <div class="card-header"><strong>Change Password</strong></div>
-        <div class="card-body">
-          <% if (section === 'password') { %>
-            <%- include('../partials/errors') %>
-          <% } %>
-          <form method="POST" action="/profile/password" novalidate>
-            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-            <div class="mb-3">
-              <label class="form-label">Current Password</label>
-              <input type="password" class="form-control" name="current_password"
-                     required autocomplete="current-password">
-            </div>
-            <div class="mb-3">
-              <label class="form-label">New Password</label>
-              <input type="password" class="form-control" name="password"
-                     required autocomplete="new-password">
-              <div class="form-text">Min 8 chars, one uppercase, one number.</div>
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Confirm New Password</label>
-              <input type="password" class="form-control" name="confirmPassword"
-                     required autocomplete="new-password">
-            </div>
-            <button type="submit" class="btn btn-warning">Change Password</button>
-          </form>
-        </div>
-      </div>
-
+    <div class="form-group">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username"
+             value="<%= user.username %>" required
+             minlength="3" maxlength="64"
+             pattern="[a-zA-Z0-9_.\-]+" autocomplete="username" />
     </div>
-  </div>
+
+    <div class="form-group">
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email"
+             value="<%= user.email %>" required
+             maxlength="254" autocomplete="email" />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Save Changes</button>
+  </form>
 </div>
-<%- include('../partials/footer') %>
+
+<div class="card form-card">
+  <h2>Change Password</h2>
+  <form method="POST" action="/profile/change-password">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+
+    <div class="form-group">
+      <label for="currentPassword">Current Password</label>
+      <input type="password" id="currentPassword" name="currentPassword"
+             required autocomplete="current-password" />
+    </div>
+
+    <div class="form-group">
+      <label for="newPassword">New Password</label>
+      <input type="password" id="newPassword" name="newPassword"
+             required minlength="8" autocomplete="new-password" />
+      <small>At least 8 characters, one uppercase letter, one number.</small>
+    </div>
+
+    <div class="form-group">
+      <label for="confirmPassword">Confirm New Password</label>
+      <input type="password" id="confirmPassword" name="confirmPassword"
+             required minlength="8" autocomplete="new-password" />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Change Password</button>
+  </form>
+</div>

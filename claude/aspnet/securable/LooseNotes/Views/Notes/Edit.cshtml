@@ -2,36 +2,32 @@
 @{
     ViewData["Title"] = "Edit Note";
 }
-
-<h2>Edit Note</h2>
-
-<div class="row">
+<div class="row justify-content-center">
     <div class="col-md-8">
+        <h2>Edit Note</h2>
         <form asp-action="Edit" method="post" enctype="multipart/form-data">
-            <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
-
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
             <input asp-for="Id" type="hidden" />
 
             <div class="mb-3">
-                <label asp-for="Title" class="form-label fw-bold"></label>
-                <input asp-for="Title" class="form-control form-control-lg" />
-                <span asp-validation-for="Title" class="text-danger"></span>
+                <label asp-for="Title" class="form-label"></label>
+                <input asp-for="Title" class="form-control" />
+                <span asp-validation-for="Title" class="text-danger small"></span>
             </div>
             <div class="mb-3">
-                <label asp-for="Content" class="form-label fw-bold"></label>
-                <textarea asp-for="Content" class="form-control" rows="12"></textarea>
-                <span asp-validation-for="Content" class="text-danger"></span>
+                <label asp-for="Content" class="form-label"></label>
+                <textarea asp-for="Content" class="form-control" rows="10"></textarea>
+                <span asp-validation-for="Content" class="text-danger small"></span>
+            </div>
+            <div class="mb-3 form-check">
+                <input asp-for="IsPublic" class="form-check-input" />
+                <label asp-for="IsPublic" class="form-check-label">Make this note public</label>
             </div>
             <div class="mb-3">
-                <label asp-for="Visibility" class="form-label fw-bold"></label>
-                <select asp-for="Visibility" class="form-select"
-                        asp-items="Html.GetEnumSelectList<NoteVisibility>()"></select>
-            </div>
-            <div class="mb-3">
-                <label asp-for="NewAttachment" class="form-label fw-bold">Add Attachment (optional)</label>
-                <input asp-for="NewAttachment" type="file" class="form-control"
+                <label asp-for="NewAttachment" class="form-label">Add Attachment</label>
+                <input asp-for="NewAttachment" class="form-control" type="file"
                        accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" />
-                <div class="form-text">Allowed: PDF, DOC, DOCX, TXT, PNG, JPG. Max 10 MB.</div>
+                <div class="form-text">Allowed: PDF, DOC, DOCX, TXT, PNG, JPG, JPEG. Max 10 MB.</div>
             </div>
             <div class="d-flex gap-2">
                 <button type="submit" class="btn btn-primary">Save Changes</button>
@@ -40,7 +36,4 @@
         </form>
     </div>
 </div>
-
-@section Scripts {
-    <partial name="_ValidationScriptsPartial" />
-}
+@section Scripts { @await Html.PartialAsync("_ValidationScriptsPartial") }

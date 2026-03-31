@@ -1,153 +1,158 @@
 package com.loosenotes.service;
 
-import com.loosenotes.dao.AttachmentDao;
 import com.loosenotes.dao.NoteDao;
-import com.loosenotes.model.Attachment;
+import com.loosenotes.model.AuditLog.EventType;
 import com.loosenotes.model.Note;
-import com.loosenotes.util.InputSanitizer;
+import com.loosenotes.model.Note.Visibility;
 import com.loosenotes.util.ValidationUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.SQLException;
 import java.util.List;
-import java.util.Optional;
 
 /**
- * Business logic for note management.
- * SSEM: Integrity - ownership checks before any mutation.
- * SSEM: Confidentiality - private notes from other users never returned.
+ * Business logic for note lifecycle (create, read, update, delete, search).
+ *
+ * SSEM / ASVS alignment:
+ * - Integrity: ownership verified before mutating operations (Derived Integrity).
+ * - Confidentiality: private notes only returned to owner or admin.
+ * - Accountability: all mutations audited.
  */
 public class NoteService {
 
     private static final Logger log = LoggerFactory.getLogger(NoteService.class);
 
     private final NoteDao noteDao;
-    private final AttachmentDao attachmentDao;
+    private final AuditService auditService;
+    private final int maxTitleLength;
+    private final int maxContentBytes;
 
-    public NoteService(NoteDao noteDao, AttachmentDao attachmentDao) {
-        this.noteDao = noteDao;
-        this.attachmentDao = attachmentDao;
+    public NoteService(NoteDao noteDao, AuditService auditService,
+                       int maxTitleLength, int maxContentBytes) {
+        this.noteDao         = noteDao;
+        this.auditService    = auditService;
+        this.maxTitleLength  = maxTitleLength;
+        this.maxContentBytes = maxContentBytes;
     }
 
     /**
-     * Creates a new note for the given user.
-     * Trust boundary: validates and sanitizes title and content.
+     * Returns a note if the requesting user is allowed to view it.
+     * Owners can see their own notes; others can only see public notes.
      */
-    public long createNote(long userId, String rawTitle,
-                           String rawContent, boolean isPublic) throws SQLException {
-        String title   = InputSanitizer.sanitizeSingleLine(rawTitle);
-        String content = InputSanitizer.sanitizeMultiLine(rawContent);
-
-        if (!ValidationUtil.isValidNoteTitle(title)) {
-            throw new IllegalArgumentException("Note title is required (max 255 chars)");
+    public Note getNoteForUser(long noteId, long requestingUserId, boolean isAdmin)
+            throws ServiceException, SQLException {
+        Note note = noteDao.findById(noteId)
+                .orElseThrow(() -> new ServiceException("Note not found"));
+        if (!isAdmin && note.getUserId() != requestingUserId && !note.isPublic()) {
+            throw new ServiceException("Access denied");
         }
-        if (!ValidationUtil.isValidNoteContent(content)) {
-            throw new IllegalArgumentException("Note content is required (max 50000 chars)");
-        }
-
-        Note note = new Note();
-        note.setUserId(userId);
-        note.setTitle(title);
-        note.setContent(content);
-        note.setPublic(isPublic);
-        return noteDao.create(note);
+        return note;
     }
 
-    /**
-     * Returns a note by ID if the requesting user is authorized to view it.
-     * Rules: owner always; others only if public.
-     */
-    public Optional<Note> getNote(long noteId, long requestingUserId) throws SQLException {
-        Optional<Note> opt = noteDao.findById(noteId);
-        if (opt.isEmpty()) return Optional.empty();
-
-        Note note = opt.get();
-        if (note.getUserId() == requestingUserId || note.isPublic()) {
-            note.setAttachments(attachmentDao.findByNoteId(noteId));
-            return Optional.of(note);
-        }
-        return Optional.empty(); // Private note from another user - do not reveal existence
-    }
-
-    /**
-     * Returns a note for viewing via share link (no auth required).
-     * Only returns the note if it exists; visibility is not checked (link implies consent).
-     */
-    public Optional<Note> getNoteForShare(long noteId) throws SQLException {
-        Optional<Note> opt = noteDao.findById(noteId);
-        if (opt.isPresent()) {
-            opt.get().setAttachments(attachmentDao.findByNoteId(noteId));
-        }
-        return opt;
-    }
-
-    /** Returns all notes owned by the given user. */
-    public List<Note> getUserNotes(long userId) throws SQLException {
+    /** Returns all notes owned by a user. */
+    public List<Note> getNotesForOwner(long userId) throws SQLException {
         return noteDao.findByUserId(userId);
     }
 
+    /** Full-text search respecting visibility rules. */
+    public List<Note> search(String query, long requestingUserId) throws ServiceException, SQLException {
+        String trimmed = ValidationUtil.trimOrNull(query);
+        if (trimmed == null || trimmed.length() < 1) {
+            throw new ServiceException("Search query must not be empty");
+        }
+        return noteDao.search(trimmed, requestingUserId);
+    }
+
+    /** Returns top-rated public notes with at least 3 ratings. */
+    public List<Note> getTopRated() throws SQLException {
+        return noteDao.findTopRated(3, 20);
+    }
+
     /**
-     * Updates an existing note. Verifies ownership before update.
-     * SSEM: Integrity - userId in WHERE clause prevents unauthorized updates.
+     * Creates a new note owned by the given user.
      */
-    public boolean updateNote(long noteId, long userId, String rawTitle,
-                               String rawContent, boolean isPublic) throws SQLException {
-        Optional<Note> opt = noteDao.findById(noteId);
-        if (opt.isEmpty()) return false;
-        if (opt.get().getUserId() != userId) return false; // Ownership check
+    public long createNote(long ownerId, String title, String content,
+                           Visibility visibility, String ipAddress)
+            throws ServiceException, SQLException {
 
-        String title   = InputSanitizer.sanitizeSingleLine(rawTitle);
-        String content = InputSanitizer.sanitizeMultiLine(rawContent);
-
-        if (!ValidationUtil.isValidNoteTitle(title)) {
-            throw new IllegalArgumentException("Note title is required (max 255 chars)");
-        }
-        if (!ValidationUtil.isValidNoteContent(content)) {
-            throw new IllegalArgumentException("Note content is required (max 50000 chars)");
-        }
-
-        Note note = opt.get();
-        note.setTitle(title);
+        validateTitleAndContent(title, content);
+        Note note = new Note();
+        note.setUserId(ownerId);
+        note.setTitle(title.strip());
         note.setContent(content);
-        note.setPublic(isPublic);
+        note.setVisibility(visibility != null ? visibility : Visibility.PRIVATE);
+
+        long id = noteDao.insert(note);
+        auditService.record(ownerId, EventType.NOTE,
+                "note_created noteId=" + id, ipAddress);
+        return id;
+    }
+
+    /**
+     * Updates a note. Only the owner (or admin) may edit.
+     */
+    public void updateNote(long noteId, long requestingUserId, boolean isAdmin,
+                           String title, String content, Visibility visibility,
+                           String ipAddress) throws ServiceException, SQLException {
+
+        Note note = noteDao.findById(noteId)
+                .orElseThrow(() -> new ServiceException("Note not found"));
+        if (!isAdmin && note.getUserId() != requestingUserId) {
+            throw new ServiceException("Access denied");
+        }
+        validateTitleAndContent(title, content);
+        note.setTitle(title.strip());
+        note.setContent(content);
+        note.setVisibility(visibility != null ? visibility : note.getVisibility());
+
         noteDao.update(note);
-        return true;
+        auditService.record(requestingUserId, EventType.NOTE,
+                "note_updated noteId=" + noteId, ipAddress);
     }
 
     /**
-     * Deletes a note. Requires ownership OR admin role.
-     *
-     * @param isAdmin whether the requester has admin role
+     * Deletes a note. Only the owner or an admin may delete.
+     * Cascades to attachments, ratings, and share links via FK ON DELETE CASCADE.
      */
-    public boolean deleteNote(long noteId, long requestingUserId,
-                               boolean isAdmin) throws SQLException {
-        Optional<Note> opt = noteDao.findById(noteId);
-        if (opt.isEmpty()) return false;
-        if (!isAdmin && opt.get().getUserId() != requestingUserId) return false;
+    public void deleteNote(long noteId, long requestingUserId, boolean isAdmin, String ipAddress)
+            throws ServiceException, SQLException {
 
+        Note note = noteDao.findById(noteId)
+                .orElseThrow(() -> new ServiceException("Note not found"));
+        if (!isAdmin && note.getUserId() != requestingUserId) {
+            throw new ServiceException("Access denied");
+        }
         noteDao.delete(noteId);
-        return true;
+        auditService.record(requestingUserId, EventType.NOTE,
+                "note_deleted noteId=" + noteId, ipAddress);
     }
 
     /**
-     * Searches notes visible to the given user.
+     * Reassigns a note to a new owner (admin only).
      */
-    public List<Note> search(String rawQuery, long userId) throws SQLException {
-        String sanitized = InputSanitizer.sanitizeSearchQuery(rawQuery, 100);
-        if (sanitized.isBlank()) return List.of();
-        return noteDao.search(sanitized, userId);
+    public void reassignNote(long noteId, long newOwnerId, long adminUserId, String ipAddress)
+            throws ServiceException, SQLException {
+
+        if (noteDao.findById(noteId).isEmpty()) {
+            throw new ServiceException("Note not found");
+        }
+        noteDao.reassignOwner(noteId, newOwnerId);
+        auditService.record(adminUserId, EventType.ADMIN,
+                "note_reassigned noteId=" + noteId + " newOwner=" + newOwnerId, ipAddress);
     }
 
-    /** Returns top-rated public notes. */
-    public List<Note> getTopRated(int minRatings, int limit) throws SQLException {
-        return noteDao.findTopRated(minRatings, limit);
+    /** Returns total note count (admin dashboard). */
+    public int countAll() throws SQLException {
+        return noteDao.countAll();
     }
 
-    /**
-     * Reassigns note ownership (admin only). Caller must verify admin role.
-     */
-    public void reassignNote(long noteId, long newUserId) throws SQLException {
-        noteDao.reassignOwner(noteId, newUserId);
+    private void validateTitleAndContent(String title, String content) throws ServiceException {
+        if (!ValidationUtil.isValidNoteTitle(title, maxTitleLength)) {
+            throw new ServiceException("Title is required and must be ≤ " + maxTitleLength + " characters");
+        }
+        if (!ValidationUtil.isValidNoteContent(content, maxContentBytes)) {
+            throw new ServiceException("Content is required and must be ≤ " + maxContentBytes + " bytes");
+        }
     }
 }

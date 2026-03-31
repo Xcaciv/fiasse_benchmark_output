@@ -1,32 +1,25 @@
-// RegisterViewModel.cs — Input model for the registration form.
-// Integrity: Email format, password length, and confirmation match enforced via annotations.
 using System.ComponentModel.DataAnnotations;
 
 namespace LooseNotes.ViewModels.Account;
 
-/// <summary>Carries registration data from the form.
-/// Confidentiality: passwords are [DataType.Password] — never stored or logged from here.</summary>
-public sealed class RegisterViewModel
+public class RegisterViewModel
 {
-    [Required]
-    [StringLength(50, MinimumLength = 3)]
+    [Required, MaxLength(50)]
+    [RegularExpression(@"^[a-zA-Z0-9_\-\.]+$", ErrorMessage = "Username may only contain letters, digits, underscores, hyphens, or dots.")]
     [Display(Name = "Username")]
     public string UserName { get; set; } = string.Empty;
 
-    [Required]
-    [EmailAddress]
+    [Required, EmailAddress, MaxLength(200)]
     [Display(Name = "Email")]
     public string Email { get; set; } = string.Empty;
 
-    [Required]
-    [StringLength(100, MinimumLength = 8)]
+    [Required, MinLength(8), MaxLength(128)]
     [DataType(DataType.Password)]
     [Display(Name = "Password")]
     public string Password { get; set; } = string.Empty;
 
-    [Required]
-    [DataType(DataType.Password)]
+    [Required, DataType(DataType.Password)]
     [Compare(nameof(Password), ErrorMessage = "Passwords do not match.")]
-    [Display(Name = "Confirm password")]
+    [Display(Name = "Confirm Password")]
     public string ConfirmPassword { get; set; } = string.Empty;
 }

@@ -3,10 +3,11 @@ package com.loosenotes.service;
 import com.loosenotes.dao.UserDao;
 import com.loosenotes.model.Role;
 import com.loosenotes.model.User;
-import com.loosenotes.util.PasswordUtil;
+import com.loosenotes.util.RateLimiter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -18,107 +19,116 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * Unit tests for UserService.
- * SSEM: Testability - UserService depends on UserDao interface; fully mockable.
+ * Unit tests for UserService – auth and registration logic.
+ *
+ * SSEM: Testability – dependencies mocked via constructor injection;
+ * no database or container needed.
  */
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
 
-    @Mock
-    private UserDao userDao;
+    @Mock private UserDao userDao;
+    @Mock private AuditService auditService;
 
+    private RateLimiter rateLimiter;
     private UserService userService;
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userDao);
+        rateLimiter = new RateLimiter(5, 300);
+        userService = new UserService(userDao, auditService, rateLimiter);
+    }
+
+    // ── Registration ──────────────────────────────────────────────────────────
+
+    @Test
+    void register_throwsOnInvalidUsername() {
+        ServiceException ex = assertThrows(ServiceException.class, () ->
+                userService.register("bad user!", "a@b.com", "password1".toCharArray(), "1.2.3.4"));
+        assertTrue(ex.getMessage().contains("username"));
     }
 
     @Test
-    void register_validInputs_createsUser() throws SQLException {
-        when(userDao.findByUsername("alice")).thenReturn(Optional.empty());
-        when(userDao.findByEmail("alice@example.com")).thenReturn(Optional.empty());
-        when(userDao.create(any(User.class))).thenReturn(1L);
-
-        Optional<User> result = userService.register("alice", "alice@example.com", "P@ssw0rd1");
-
-        assertTrue(result.isPresent());
-        assertEquals("alice", result.get().getUsername());
-        verify(userDao).create(any(User.class));
+    void register_throwsOnInvalidEmail() {
+        ServiceException ex = assertThrows(ServiceException.class, () ->
+                userService.register("gooduser", "notanemail", "password1".toCharArray(), "1.2.3.4"));
+        assertTrue(ex.getMessage().toLowerCase().contains("email"));
     }
 
     @Test
-    void register_duplicateUsername_returnsEmpty() throws SQLException {
-        User existing = new User();
-        existing.setUsername("alice");
-        when(userDao.findByUsername("alice")).thenReturn(Optional.of(existing));
-
-        Optional<User> result = userService.register("alice", "other@example.com", "P@ssw0rd1");
-
-        assertTrue(result.isEmpty());
-        verify(userDao, never()).create(any());
+    void register_throwsOnWeakPassword() {
+        ServiceException ex = assertThrows(ServiceException.class, () ->
+                userService.register("gooduser", "a@b.com", "short".toCharArray(), "1.2.3.4"));
+        assertTrue(ex.getMessage().contains("8"));
     }
 
     @Test
-    void register_invalidUsername_throwsException() {
-        assertThrows(IllegalArgumentException.class,
-            () -> userService.register("a b", "email@example.com", "P@ssw0rd1"));
+    void register_throwsIfUsernameAlreadyTaken() throws Exception {
+        User existing = buildUser("gooduser", "other@b.com");
+        when(userDao.findByUsername("gooduser")).thenReturn(Optional.of(existing));
+
+        assertThrows(ServiceException.class, () ->
+                userService.register("gooduser", "new@b.com", "password1".toCharArray(), "1.2.3.4"));
     }
 
     @Test
-    void register_weakPassword_throwsException() {
-        assertThrows(IllegalArgumentException.class,
-            () -> userService.register("alice", "alice@example.com", "weak"));
+    void register_createsUserOnValidInput() throws Exception {
+        when(userDao.findByUsername("newuser")).thenReturn(Optional.empty());
+        when(userDao.findByEmail("new@example.com")).thenReturn(Optional.empty());
+        when(userDao.insert(any(User.class))).thenReturn(42L);
+
+        long id = userService.register("newuser", "new@example.com",
+                "password1234".toCharArray(), "1.2.3.4");
+
+        assertEquals(42L, id);
+        verify(userDao).insert(argThat(u ->
+                "newuser".equals(u.getUsername()) &&
+                "new@example.com".equals(u.getEmail()) &&
+                Role.USER == u.getRole() &&
+                u.isEnabled()));
+    }
+
+    // ── Authentication ────────────────────────────────────────────────────────
+
+    @Test
+    void authenticate_throwsOnRateLimitExceeded() throws Exception {
+        // Exhaust the limiter
+        for (int i = 0; i < 5; i++) rateLimiter.tryAcquire("1.1.1.1");
+
+        assertThrows(ServiceException.class, () ->
+                userService.authenticate("user", "pass".toCharArray(), "1.1.1.1"));
     }
 
     @Test
-    void authenticate_correctPassword_returnsSuccess() throws SQLException {
-        User user = createTestUser("alice", "P@ssw0rd1");
-        when(userDao.findByUsername("alice")).thenReturn(Optional.of(user));
+    void authenticate_throwsOnUnknownUser() throws Exception {
+        when(userDao.findByUsername(anyString())).thenReturn(Optional.empty());
 
-        UserService.AuthResult result = userService.authenticate("alice", "P@ssw0rd1");
-
-        assertEquals(UserService.AuthResult.SUCCESS, result);
-        verify(userDao).resetFailedLogins(user.getId());
+        assertThrows(ServiceException.class, () ->
+                userService.authenticate("unknown", "pw12345678".toCharArray(), "2.2.2.2"));
     }
 
     @Test
-    void authenticate_wrongPassword_returnsInvalidCredentials() throws SQLException {
-        User user = createTestUser("alice", "P@ssw0rd1");
-        when(userDao.findByUsername("alice")).thenReturn(Optional.of(user));
+    void authenticate_throwsOnDisabledAccount() throws Exception {
+        User disabled = buildUser("alice", "alice@example.com");
+        disabled.setEnabled(false);
+        // Hash for "password1" so the password check passes
+        disabled.setPasswordHash(com.loosenotes.util.PasswordUtil.hash("password1".toCharArray()));
+        when(userDao.findByUsername("alice")).thenReturn(Optional.of(disabled));
 
-        UserService.AuthResult result = userService.authenticate("alice", "WrongP@ss1");
-
-        assertEquals(UserService.AuthResult.INVALID_CREDENTIALS, result);
+        assertThrows(ServiceException.class, () ->
+                userService.authenticate("alice", "password1".toCharArray(), "3.3.3.3"));
     }
 
-    @Test
-    void authenticate_unknownUser_returnsNotFound() throws SQLException {
-        when(userDao.findByUsername("unknown")).thenReturn(Optional.empty());
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
-        UserService.AuthResult result = userService.authenticate("unknown", "P@ssw0rd1");
-
-        assertEquals(UserService.AuthResult.NOT_FOUND, result);
-    }
-
-    @Test
-    void authenticate_lockedAccount_returnsLocked() throws SQLException {
-        User user = createTestUser("alice", "P@ssw0rd1");
-        user.setLockedUntil(java.time.LocalDateTime.now().plusMinutes(10));
-        when(userDao.findByUsername("alice")).thenReturn(Optional.of(user));
-
-        UserService.AuthResult result = userService.authenticate("alice", "P@ssw0rd1");
-
-        assertEquals(UserService.AuthResult.ACCOUNT_LOCKED, result);
-    }
-
-    private User createTestUser(String username, String password) {
-        User user = new User();
-        user.setId(1L);
-        user.setUsername(username);
-        user.setEmail(username + "@example.com");
-        user.setPasswordHash(PasswordUtil.hash(password));
-        user.setRole(Role.USER);
-        return user;
+    private User buildUser(String username, String email) {
+        User u = new User();
+        u.setId(1L);
+        u.setUsername(username);
+        u.setEmail(email);
+        u.setRole(Role.USER);
+        u.setEnabled(true);
+        u.setPasswordHash(com.loosenotes.util.PasswordUtil.hash("password1".toCharArray()));
+        return u;
     }
 }

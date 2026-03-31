@@ -1,105 +1,149 @@
 'use strict';
 
 const express = require('express');
-const { body, validationResult } = require('express-validator');
-
-const db     = require('../config/db');
-const logger = require('../config/logger');
+const { body, param, query } = require('express-validator');
+const { Op } = require('sequelize');
+const { User, Note, AuditLog } = require('../models');
+const noteService = require('../services/noteService');
+const { handleValidationErrors } = require('../middleware/validate');
 const { requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
 router.use(requireAdmin);
 
-function logActivity(userId, action, details, ip) {
+// GET /admin — dashboard
+router.get('/', async (req, res, next) => {
   try {
-    db.prepare(`INSERT INTO activity_log (user_id, action, details, ip_address)
-                VALUES (?, ?, ?, ?)`).run(userId || null, action, details || null, ip || null);
-  } catch (_) { /* non-fatal */ }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// GET /admin  — dashboard
-// ─────────────────────────────────────────────────────────────────────────────
-router.get('/', (req, res) => {
-  const userCount = db.prepare('SELECT COUNT(*) AS cnt FROM users').get().cnt;
-  const noteCount = db.prepare('SELECT COUNT(*) AS cnt FROM notes').get().cnt;
-  const recentActivity = db.prepare(
-    `SELECT al.*, u.username FROM activity_log al
-     LEFT JOIN users u ON u.id = al.user_id
-     ORDER BY al.created_at DESC LIMIT 50`
-  ).all();
-
-  res.render('admin/dashboard', {
-    title: 'Admin Dashboard',
-    userCount,
-    noteCount,
-    recentActivity
-  });
+    const [userCount, noteCount, recentActivity] = await Promise.all([
+      User.count(),
+      Note.count(),
+      AuditLog.findAll({
+        limit: 20,
+        order: [['created_at', 'DESC']],
+        include: [{ association: 'actor', attributes: ['id', 'username'] }],
+      }),
+    ]);
+    res.render('admin/dashboard', {
+      title: 'Admin Dashboard',
+      userCount,
+      noteCount,
+      recentActivity,
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GET /admin/users  — list all users
-// ─────────────────────────────────────────────────────────────────────────────
-router.get('/users', (req, res) => {
-  const q = (req.query.q || '').trim();
-  let users;
+// GET /admin/users
+router.get(
+  '/users',
+  [query('search').optional().trim().isLength({ max: 100 })],
+  handleValidationErrors,
+  async (req, res, next) => {
+    try {
+      const { search } = req.query;
+      const where = search
+        ? {
+            [Op.or]: [
+              { username: { [Op.like]: `%${search}%` } },
+              { email: { [Op.like]: `%${search}%` } },
+            ],
+          }
+        : {};
 
-  if (q) {
-    const pattern = `%${q}%`;
-    users = db.prepare(
-      `SELECT u.*, COUNT(n.id) AS note_count
-       FROM users u LEFT JOIN notes n ON n.user_id = u.id
-       WHERE u.username LIKE ? OR u.email LIKE ?
-       GROUP BY u.id ORDER BY u.created_at DESC`
-    ).all(pattern, pattern);
-  } else {
-    users = db.prepare(
-      `SELECT u.*, COUNT(n.id) AS note_count
-       FROM users u LEFT JOIN notes n ON n.user_id = u.id
-       GROUP BY u.id ORDER BY u.created_at DESC`
-    ).all();
+      const users = await User.findAll({
+        where,
+        attributes: ['id', 'username', 'email', 'role', 'isActive', 'created_at'],
+        include: [{ model: Note, as: 'notes', attributes: ['id'] }],
+        order: [['created_at', 'DESC']],
+      });
+
+      res.render('admin/users', { title: 'Manage Users', users, search: search || '' });
+    } catch (err) {
+      next(err);
+    }
   }
+);
 
-  res.render('admin/users', { title: 'Users', users, q });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /admin/notes/:id/reassign  — change note owner (REQ-016)
-// ─────────────────────────────────────────────────────────────────────────────
-router.post('/notes/:id/reassign', [
-  body('new_user_id').isInt({ min: 1 }).withMessage('A valid user ID is required')
-], (req, res) => {
-  const noteId = parseInt(req.params.id, 10);
-  const errors = validationResult(req);
-
-  if (!errors.isEmpty()) {
-    req.session.flash = { error: errors.array()[0].msg };
-    return res.redirect('/admin/users');
+// GET /admin/reassign/:noteId
+router.get(
+  '/reassign/:noteId',
+  [param('noteId').isUUID().withMessage('Invalid note ID.')],
+  handleValidationErrors,
+  async (req, res, next) => {
+    try {
+      const note = await Note.findByPk(req.params.noteId, {
+        include: [{ model: User, as: 'owner', attributes: ['id', 'username'] }],
+      });
+      if (!note) {
+        req.flash('error', 'Note not found.');
+        return res.redirect('/admin/users');
+      }
+      const users = await User.findAll({
+        attributes: ['id', 'username'],
+        order: [['username', 'ASC']],
+      });
+      res.render('admin/reassign', { title: 'Reassign Note', note, users });
+    } catch (err) {
+      next(err);
+    }
   }
+);
 
-  const newUserId = parseInt(req.body.new_user_id, 10);
-  const note = db.prepare('SELECT * FROM notes WHERE id = ?').get(noteId);
-  if (!note) return res.status(404).render('error', { title: 'Not Found', message: 'Note not found.' });
-
-  const newOwner = db.prepare('SELECT id, username FROM users WHERE id = ?').get(newUserId);
-  if (!newOwner) {
-    req.session.flash = { error: 'Target user not found.' };
-    return res.redirect('/admin/users');
+// POST /admin/reassign/:noteId
+router.post(
+  '/reassign/:noteId',
+  [
+    param('noteId').isUUID().withMessage('Invalid note ID.'),
+    body('newUserId').isUUID().withMessage('Please select a valid user.'),
+  ],
+  handleValidationErrors,
+  async (req, res, next) => {
+    try {
+      const { newUserId } = req.body;
+      // Verify target user exists
+      const targetUser = await User.findByPk(newUserId, { attributes: ['id'] });
+      if (!targetUser) {
+        req.flash('error', 'Selected user does not exist.');
+        return res.redirect(`/admin/reassign/${req.params.noteId}`);
+      }
+      await noteService.reassignNote(req.params.noteId, newUserId, req.user.id);
+      req.flash('success', 'Note ownership reassigned.');
+      res.redirect('/admin/users');
+    } catch (err) {
+      if (err.status === 404) {
+        req.flash('error', err.message);
+        return res.redirect('/admin/users');
+      }
+      next(err);
+    }
   }
+);
 
-  const oldUserId = note.user_id;
-  db.prepare('UPDATE notes SET user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-    .run(newUserId, noteId);
-
-  logActivity(req.session.userId, 'note_reassigned',
-    `noteId=${noteId} from userId=${oldUserId} to userId=${newUserId}`, req.ip);
-  logger.info('Note ownership reassigned', {
-    adminId: req.session.userId, noteId, oldUserId, newUserId
-  });
-
-  req.session.flash = { success: `Note reassigned to ${newOwner.username}.` };
-  res.redirect('/admin/users');
-});
+// POST /admin/users/:id/toggle-active
+router.post(
+  '/users/:id/toggle-active',
+  [param('id').isUUID().withMessage('Invalid user ID.')],
+  handleValidationErrors,
+  async (req, res, next) => {
+    try {
+      if (req.params.id === req.user.id) {
+        req.flash('error', 'You cannot deactivate your own account.');
+        return res.redirect('/admin/users');
+      }
+      const user = await User.findByPk(req.params.id, { attributes: ['id', 'isActive'] });
+      if (!user) {
+        req.flash('error', 'User not found.');
+        return res.redirect('/admin/users');
+      }
+      await user.update({ isActive: !user.isActive });
+      req.flash('success', `User account ${user.isActive ? 'activated' : 'deactivated'}.`);
+      res.redirect('/admin/users');
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 module.exports = router;

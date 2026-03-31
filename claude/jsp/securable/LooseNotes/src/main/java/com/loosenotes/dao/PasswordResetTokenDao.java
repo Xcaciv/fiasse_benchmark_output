@@ -1,69 +1,71 @@
 package com.loosenotes.dao;
 
-import javax.sql.DataSource;
 import java.sql.*;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Optional;
 
 /**
- * Data access layer for password reset tokens.
- * SSEM: Authenticity - tokens are stored as SHA-256 hashes, not plaintext.
- * SSEM: Integrity - expired and used tokens are rejected.
+ * Data access for the password_reset_tokens table.
+ *
+ * SSEM notes:
+ * - Authenticity: stores token_hash (SHA-256 of the raw token), not the raw token.
+ *   The raw token is sent only via email; never persisted.
+ * - Integrity: expiry and used-flag are checked atomically in findValidToken.
+ * - Resilience: markUsed is separate from delete to enable forensic review.
  */
 public class PasswordResetTokenDao {
 
-    private final DataSource dataSource;
+    private final DatabaseManager db;
 
-    public PasswordResetTokenDao(DataSource dataSource) {
-        this.dataSource = dataSource;
+    public PasswordResetTokenDao(DatabaseManager db) {
+        this.db = db;
     }
 
     /**
-     * Creates a new password reset token record.
+     * Stores a hashed reset token for a user.
+     * The raw token is never stored; only its SHA-256 hex hash.
      *
-     * @param userId    user requesting the reset
-     * @param tokenHash SHA-256 hash of the raw token (raw token goes in the email)
+     * @param userId    the user requesting the reset
+     * @param tokenHash SHA-256 hex hash of the raw token
      * @param expiresAt expiry timestamp
      */
-    public void create(long userId, String tokenHash, LocalDateTime expiresAt) throws SQLException {
-        // Invalidate any previous unused tokens for this user
+    public void insert(long userId, String tokenHash, Instant expiresAt) throws SQLException {
+        // Invalidate any existing unused tokens for this user first
         invalidateExistingTokens(userId);
-        String sql = "INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) "
-            + "VALUES (?, ?, ?)";
-        try (Connection conn = dataSource.getConnection();
+        String sql = "INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)";
+        try (Connection conn = db.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, userId);
             ps.setString(2, tokenHash);
-            ps.setTimestamp(3, Timestamp.valueOf(expiresAt));
+            ps.setTimestamp(3, Timestamp.from(expiresAt));
             ps.executeUpdate();
         }
     }
 
     /**
-     * Finds a valid (unused, non-expired) token record by token hash.
-     * Returns the associated user ID if valid.
+     * Finds a valid (unused, unexpired) token record by its hash.
+     * Returns the associated userId if found.
      */
-    public Optional<Long> findValidUserId(String tokenHash) throws SQLException {
+    public Optional<Long> findValidUserIdByTokenHash(String tokenHash) throws SQLException {
         String sql = "SELECT user_id FROM password_reset_tokens "
-            + "WHERE token_hash = ? AND used_at IS NULL AND expires_at > CURRENT_TIMESTAMP";
-        try (Connection conn = dataSource.getConnection();
+                + "WHERE token_hash = ? AND used = FALSE AND expires_at > CURRENT_TIMESTAMP";
+        try (Connection conn = db.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, tokenHash);
             try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return Optional.of(rs.getLong("user_id"));
+                return rs.next() ? Optional.of(rs.getLong("user_id")) : Optional.empty();
             }
         }
-        return Optional.empty();
     }
 
     /**
-     * Marks a token as used so it cannot be reused.
-     * SSEM: Authenticity - single-use enforcement.
+     * Marks a token as used so it cannot be replayed.
+     *
+     * @param tokenHash the hash of the consumed token
      */
     public void markUsed(String tokenHash) throws SQLException {
-        String sql = "UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP "
-            + "WHERE token_hash = ?";
-        try (Connection conn = dataSource.getConnection();
+        String sql = "UPDATE password_reset_tokens SET used = TRUE WHERE token_hash = ?";
+        try (Connection conn = db.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, tokenHash);
             ps.executeUpdate();
@@ -71,9 +73,9 @@ public class PasswordResetTokenDao {
     }
 
     private void invalidateExistingTokens(long userId) throws SQLException {
-        String sql = "UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP "
-            + "WHERE user_id = ? AND used_at IS NULL";
-        try (Connection conn = dataSource.getConnection();
+        String sql = "UPDATE password_reset_tokens SET used = TRUE "
+                + "WHERE user_id = ? AND used = FALSE";
+        try (Connection conn = db.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, userId);
             ps.executeUpdate();

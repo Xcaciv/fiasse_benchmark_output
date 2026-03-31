@@ -1,34 +1,59 @@
-/* Loose Notes - Site Styles */
+/* LooseNotes — site-wide custom styles */
 
+/* ── Layout ───────────────────────────────────────────────── */
+
+/* Push content below the fixed Bootstrap navbar (height ~56 px) */
 body {
-    background-color: #f8f9fa;
+    padding-top: 64px;
 }
 
-.note-content {
-    background-color: #fffdf7;
-    border-left: 4px solid #ffc107;
+/* Give the main content area a little breathing room at the bottom */
+body > .container,
+body > .container-fluid {
+    padding-bottom: 2rem;
 }
 
-.navbar-brand {
-    font-weight: 600;
+/* ── Typography helpers ───────────────────────────────────── */
+
+.letter-spacing-1 {
+    letter-spacing: 0.05em;
 }
 
-.card {
-    border-radius: 0.5rem;
+/* ── Cards ────────────────────────────────────────────────── */
+
+/* Subtle lift on interactive cards */
+.card-lift {
+    transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
 
-/* Star rating display */
-.rating-stars {
-    color: #ffc107;
-    font-size: 1.2rem;
+.card-lift:hover {
+    box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.1) !important;
+    transform: translateY(-2px);
 }
 
-/* Attachment list items */
-.list-group-item .btn {
-    min-width: 80px;
+/* ── Tables ───────────────────────────────────────────────── */
+
+/* Prevent very long words from blowing out table columns */
+.table td {
+    word-break: break-word;
 }
 
-/* Admin tables */
-.table td, .table th {
-    vertical-align: middle;
+/* ── Utility ──────────────────────────────────────────────── */
+
+/* Muted placeholder colour (used in select elements) */
+select option[value=""] {
+    color: #6c757d;
+}
+
+/* Slightly smaller monospace text for IDs / IP addresses */
+.text-mono {
+    font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+                 "Courier New", monospace;
+    font-size: 0.875em;
+}
+
+/* ── Flash / alert tweaks ─────────────────────────────────── */
+
+.alert {
+    border-left-width: 4px;
 }

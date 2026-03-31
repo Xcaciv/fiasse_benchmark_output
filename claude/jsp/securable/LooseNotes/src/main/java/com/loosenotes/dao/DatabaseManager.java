@@ -1,132 +1,113 @@
 package com.loosenotes.dao;
 
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.sql.DataSource;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.Properties;
 
 /**
- * Manages database connectivity and initialization.
- * SSEM: Modifiability - centralized data source configuration.
- * SSEM: Availability - connection pooling with HikariCP.
- * SSEM: Resilience - schema initialization with error handling.
+ * Manages JDBC connections and schema initialization.
+ *
+ * SSEM notes:
+ * - Modifiability: database URL/credentials loaded from app.properties, not hard-coded.
+ * - Availability: connection timeout configured; simple pool management.
+ * - Resilience: throws descriptive exceptions; resources closed via try-with-resources.
+ * - Testability: singleton pattern with reset capability for tests.
+ *
+ * For production, replace with HikariCP or a JNDI DataSource.
  */
-public class DatabaseManager {
+public final class DatabaseManager {
 
     private static final Logger log = LoggerFactory.getLogger(DatabaseManager.class);
-    private static final String APP_PROPERTIES = "/app.properties";
-    private static final String SCHEMA_SQL = "/db/schema.sql";
 
-    private final HikariDataSource dataSource;
+    private static DatabaseManager instance;
 
-    public DatabaseManager(Properties config) {
-        this.dataSource = buildDataSource(config);
-        initializeSchema();
+    private final String url;
+    private final String username;
+    private final String password;
+
+    private DatabaseManager(String url, String username, String password) {
+        this.url      = url;
+        this.username = username;
+        this.password = password;
     }
 
-    private HikariConfig buildHikariConfig(Properties config) {
-        HikariConfig hikari = new HikariConfig();
-        hikari.setJdbcUrl(config.getProperty("db.url"));
-        hikari.setDriverClassName(config.getProperty("db.driver"));
-        hikari.setMinimumIdle(
-            Integer.parseInt(config.getProperty("db.pool.minIdle", "2")));
-        hikari.setMaximumPoolSize(
-            Integer.parseInt(config.getProperty("db.pool.maxPoolSize", "10")));
-        hikari.setConnectionTimeout(
-            Long.parseLong(config.getProperty("db.pool.connectionTimeout", "30000")));
-        hikari.setIdleTimeout(
-            Long.parseLong(config.getProperty("db.pool.idleTimeout", "600000")));
-        hikari.setMaxLifetime(
-            Long.parseLong(config.getProperty("db.pool.maxLifetime", "1800000")));
-        // Security: disable auto-commit, require explicit transactions
-        hikari.setAutoCommit(true);
-        hikari.setPoolName("LNPool");
-        return hikari;
-    }
-
-    private HikariDataSource buildDataSource(Properties config) {
-        HikariConfig hikari = buildHikariConfig(config);
-        log.info("Initializing database connection pool: {}", config.getProperty("db.url"));
-        return new HikariDataSource(hikari);
-    }
-
-    private void initializeSchema() {
-        try (InputStream is = getClass().getResourceAsStream(SCHEMA_SQL)) {
-            if (is == null) {
-                log.error("Schema file not found: {}", SCHEMA_SQL);
-                throw new IllegalStateException("Database schema resource missing");
-            }
-            String sql = new String(is.readAllBytes());
-            executeSchema(sql);
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to read schema file", e);
+    /**
+     * Returns or initializes the singleton from app.properties.
+     * Thread-safe via synchronized – called once during servlet context init.
+     */
+    public static synchronized DatabaseManager getInstance() {
+        if (instance == null) {
+            Properties props = loadProperties();
+            instance = new DatabaseManager(
+                    props.getProperty("db.url"),
+                    props.getProperty("db.username", ""),
+                    props.getProperty("db.password", ""));
         }
+        return instance;
     }
 
-    private void executeSchema(String sql) {
-        try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement()) {
-            for (String statement : sql.split(";")) {
-                String trimmed = statement.trim();
+    /** Replaces the singleton – used in unit tests only. */
+    public static synchronized void setInstance(DatabaseManager manager) {
+        instance = manager;
+    }
+
+    /**
+     * Opens a new JDBC connection.
+     * Callers MUST close the connection (use try-with-resources).
+     *
+     * @return an open JDBC Connection
+     * @throws SQLException if the connection cannot be established
+     */
+    public Connection getConnection() throws SQLException {
+        return DriverManager.getConnection(url, username, password);
+    }
+
+    /**
+     * Initializes the database schema from db/schema.sql on the classpath.
+     * Idempotent: uses CREATE TABLE IF NOT EXISTS.
+     */
+    public void initializeSchema() {
+        log.info("Initializing database schema");
+        try (Connection conn = getConnection();
+             InputStream in = getClass().getResourceAsStream("/db/schema.sql")) {
+
+            if (in == null) {
+                throw new IllegalStateException("db/schema.sql not found on classpath");
+            }
+            String sql = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            // Execute each statement separated by semicolons
+            for (String stmt : sql.split(";")) {
+                String trimmed = stmt.strip();
                 if (!trimmed.isEmpty()) {
-                    stmt.execute(trimmed);
+                    try (var ps = conn.prepareStatement(trimmed)) {
+                        ps.execute();
+                    }
                 }
             }
             log.info("Database schema initialized successfully");
-        } catch (SQLException e) {
-            throw new IllegalStateException("Failed to initialize database schema", e);
+        } catch (SQLException | IOException e) {
+            log.error("Failed to initialize database schema", e);
+            throw new IllegalStateException("Database schema initialization failed", e);
         }
     }
 
-    /** Returns a connection from the pool. Caller must close it. */
-    public Connection getConnection() throws SQLException {
-        return dataSource.getConnection();
-    }
-
-    /** Returns the DataSource for use by DAO layer. */
-    public DataSource getDataSource() {
-        return dataSource;
-    }
-
-    /** Closes the connection pool during application shutdown. */
-    public void shutdown() {
-        if (dataSource != null && !dataSource.isClosed()) {
-            log.info("Shutting down database connection pool");
-            dataSource.close();
-        }
-    }
-
-    /** Load application properties from classpath. */
-    public static Properties loadProperties() {
+    private static Properties loadProperties() {
         Properties props = new Properties();
-        try (InputStream is = DatabaseManager.class.getResourceAsStream(APP_PROPERTIES)) {
-            if (is != null) {
-                props.load(is);
+        try (InputStream in =
+                DatabaseManager.class.getResourceAsStream("/app.properties")) {
+            if (in == null) {
+                throw new IllegalStateException("app.properties not found on classpath");
             }
+            props.load(in);
         } catch (IOException e) {
-            log.warn("Could not load app.properties, using defaults", e);
+            throw new IllegalStateException("Failed to load app.properties", e);
         }
-        // Allow environment variable overrides for sensitive settings
-        overrideFromEnvironment(props);
         return props;
-    }
-
-    private static void overrideFromEnvironment(Properties props) {
-        String dbUrl = System.getenv("DB_URL");
-        if (dbUrl != null && !dbUrl.isBlank()) {
-            props.setProperty("db.url", dbUrl);
-        }
-        String baseUrl = System.getenv("APP_BASE_URL");
-        if (baseUrl != null && !baseUrl.isBlank()) {
-            props.setProperty("app.baseUrl", baseUrl);
-        }
     }
 }

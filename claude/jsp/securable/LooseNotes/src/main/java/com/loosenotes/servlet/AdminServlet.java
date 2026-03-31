@@ -1,144 +1,138 @@
 package com.loosenotes.servlet;
 
 import com.loosenotes.model.AuditLog;
-import com.loosenotes.model.Note;
 import com.loosenotes.model.User;
+import com.loosenotes.service.ServiceException;
 import com.loosenotes.util.InputSanitizer;
 import com.loosenotes.util.ValidationUtil;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 /**
- * Admin dashboard and user management.
- * SSEM: Authenticity - admin role required on every request.
- * SSEM: Accountability - all admin actions logged.
+ * Admin dashboard: user management and note reassignment.
+ * All routes require ADMIN role (enforced by AuthenticationFilter).
+ *
+ * SSEM notes:
+ * - Accountability: all admin actions logged by services.
+ * - Authenticity: admin role verified in AuthenticationFilter, confirmed here too.
  */
-@WebServlet("/admin/*")
 public class AdminServlet extends BaseServlet {
 
-    private static final Logger log = LoggerFactory.getLogger(AdminServlet.class);
-
-    private static final String DASHBOARD_JSP = "/WEB-INF/jsp/admin/dashboard.jsp";
-    private static final String USERS_JSP     = "/WEB-INF/jsp/admin/users.jsp";
-    private static final String REASSIGN_JSP  = "/WEB-INF/jsp/admin/reassignNote.jsp";
-
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse res)
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        User user = getCurrentUser(req);
-        if (requireAdmin(user, res)) return;
+        User admin = getRequiredUser(req, resp);
+        if (admin == null) return;
+        if (!admin.isAdmin()) { resp.sendError(403); return; }
 
-        String action = getAction(req);
-        switch (action) {
-            case ""        -> showDashboard(req, res);
-            case "users"   -> showUsers(req, res);
-            case "reassign"-> showReassign(req, res);
-            default        -> sendNotFound(res);
+        String path = req.getPathInfo() == null ? "/" : req.getPathInfo();
+
+        switch (path) {
+            case "/", "/dashboard" -> showDashboard(req, resp);
+            case "/users"          -> showUsers(req, resp);
+            default -> {
+                if (path.startsWith("/reassign/")) {
+                    showReassignForm(req, resp);
+                } else {
+                    resp.sendError(404);
+                }
+            }
         }
     }
 
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse res)
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        User user = getCurrentUser(req);
-        if (requireAdmin(user, res)) return;
+        User admin = getRequiredUser(req, resp);
+        if (admin == null) return;
+        if (!admin.isAdmin()) { resp.sendError(403); return; }
 
-        String action = getAction(req);
-        if ("reassign".equals(action)) {
-            handleReassign(req, res, user);
+        String path = req.getPathInfo() == null ? "/" : req.getPathInfo();
+        if (path.startsWith("/reassign/")) {
+            processReassign(req, resp, admin);
         } else {
-            sendNotFound(res);
+            resp.sendError(404);
         }
     }
 
-    private void showDashboard(HttpServletRequest req, HttpServletResponse res)
+    private void showDashboard(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         try {
-            long userCount = getUserService().findById(1L).isPresent() ? countUsers() : 0;
-            List<AuditLog> recent = getAuditService().getRecentActivity(20);
-            req.setAttribute("userCount", userCount);
-            req.setAttribute("recentActivity", recent);
-            forward(req, res, DASHBOARD_JSP);
+            int userCount  = getUserService().countAll();
+            int noteCount  = getNoteService().countAll();
+            List<AuditLog> activity = getAuditService().getRecentActivity(20);
+            req.setAttribute("userCount",  userCount);
+            req.setAttribute("noteCount",  noteCount);
+            req.setAttribute("activity",   activity);
+            forward(req, resp, "admin/dashboard.jsp");
         } catch (SQLException e) {
             log.error("Error loading admin dashboard", e);
-            forwardWithError(req, res, DASHBOARD_JSP, "Could not load dashboard data.");
+            sendError(req, resp, 500, "Could not load dashboard");
         }
     }
 
-    private void showUsers(HttpServletRequest req, HttpServletResponse res)
+    private void showUsers(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        String searchQuery = InputSanitizer.sanitizeSingleLine(req.getParameter("q"));
-        int page = ValidationUtil.parseIntSafe(req.getParameter("page"), 1);
+        String q = InputSanitizer.sanitizeLine(req.getParameter("q"));
         try {
-            List<User> users = loadUsers(searchQuery, page);
+            List<User> users = (q != null && !q.isBlank())
+                    ? getUserService().search(q)
+                    : getUserService().findAll();
             req.setAttribute("users", users);
-            req.setAttribute("searchQuery", searchQuery);
-            req.setAttribute("page", page);
-            forward(req, res, USERS_JSP);
+            req.setAttribute("query", q != null ? q : "");
+            forward(req, resp, "admin/users.jsp");
         } catch (SQLException e) {
-            log.error("Error loading users list", e);
-            forwardWithError(req, res, USERS_JSP, "Could not load users.");
+            log.error("Error loading user list", e);
+            sendError(req, resp, 500, "Could not load users");
         }
     }
 
-    private void showReassign(HttpServletRequest req, HttpServletResponse res)
+    private void showReassignForm(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        long noteId = ValidationUtil.parseLongSafe(req.getParameter("noteId"));
-        if (!ValidationUtil.isValidId(noteId)) { sendNotFound(res); return; }
+        long noteId = parseNoteIdFromAdminPath(req);
+        if (noteId < 0) { resp.sendError(404); return; }
         try {
-            Optional<Note> note = getNoteService().getNoteForShare(noteId);
-            if (note.isEmpty()) { sendNotFound(res); return; }
-            req.setAttribute("note", note.get());
-            forward(req, res, REASSIGN_JSP);
+            req.setAttribute("noteId", noteId);
+            req.setAttribute("users", getUserService().findAll());
+            forward(req, resp, "admin/reassignNote.jsp");
         } catch (SQLException e) {
-            log.error("Error loading note for reassign id={}", noteId, e);
-            sendNotFound(res);
+            log.error("Error loading reassign form", e);
+            sendError(req, resp, 500, "Could not load form");
         }
     }
 
-    private void handleReassign(HttpServletRequest req, HttpServletResponse res,
-                                  User admin) throws ServletException, IOException {
-        long noteId   = ValidationUtil.parseLongSafe(req.getParameter("noteId"));
-        long newOwner = ValidationUtil.parseLongSafe(req.getParameter("newOwnerId"));
+    private void processReassign(HttpServletRequest req, HttpServletResponse resp, User admin)
+            throws IOException {
+        long noteId = parseNoteIdFromAdminPath(req);
+        if (noteId < 0) { resp.sendError(404); return; }
 
-        if (!ValidationUtil.isValidId(noteId) || !ValidationUtil.isValidId(newOwner)) {
-            res.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid parameters");
-            return;
-        }
+        String newOwnerParam = InputSanitizer.sanitizeLine(req.getParameter("newOwnerId"));
+        long newOwnerId = ValidationUtil.parseLongId(newOwnerParam);
+        if (newOwnerId < 0) { resp.sendError(400, "Invalid owner ID"); return; }
+
         try {
-            getNoteService().reassignNote(noteId, newOwner);
-            getAuditService().logNoteReassigned(admin.getId(), noteId, newOwner, getClientIp(req));
-            redirect(res, req, "/admin/users");
+            getNoteService().reassignNote(noteId, newOwnerId, admin.getId(), getClientIp(req));
+            resp.sendRedirect(req.getContextPath() + "/admin/users");
+        } catch (ServiceException e) {
+            sendError(req, resp, 400, e.getMessage());
         } catch (SQLException e) {
-            log.error("Error reassigning note id={}", noteId, e);
-            forwardWithError(req, res, REASSIGN_JSP, "Could not reassign note.");
+            log.error("Error reassigning note {}", noteId, e);
+            sendError(req, resp, 500, "Could not reassign note");
         }
     }
 
-    private List<User> loadUsers(String query, int page) throws SQLException {
-        int pageSize = 25;
-        if (query != null && !query.isBlank()) {
-            return getUserService().searchUsers(query, pageSize);
-        }
-        return getUserService().listUsers(page, pageSize);
-    }
-
-    private long countUsers() throws SQLException {
-        return getUserService().countUsers();
-    }
-
-    private String getAction(HttpServletRequest req) {
-        String pathInfo = req.getPathInfo();
-        if (pathInfo == null || pathInfo.equals("/")) return "";
-        return pathInfo.substring(1).split("/")[0];
+    private long parseNoteIdFromAdminPath(HttpServletRequest req) {
+        // /admin/reassign/{noteId}
+        String path = req.getPathInfo();
+        if (path == null) return -1;
+        String[] parts = path.split("/");
+        if (parts.length < 3) return -1;
+        return ValidationUtil.parseLongId(parts[2]);
     }
 }

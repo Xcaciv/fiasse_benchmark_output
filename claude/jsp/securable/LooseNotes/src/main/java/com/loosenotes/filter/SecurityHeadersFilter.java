@@ -1,54 +1,45 @@
 package com.loosenotes.filter;
 
 import jakarta.servlet.*;
-import jakarta.servlet.annotation.WebFilter;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 
 /**
- * Adds security HTTP headers to every response.
- * SSEM: Integrity - prevents MIME sniffing, clickjacking.
- * SSEM: Confidentiality - limits information leakage via headers.
- * SSEM: Availability - cache-control for sensitive pages.
+ * Adds security-relevant HTTP response headers to every response.
+ *
+ * SSEM / ASVS alignment:
+ * - ASVS V3.4 (HTTP Security Headers): X-Content-Type-Options, X-Frame-Options,
+ *   Content-Security-Policy, Referrer-Policy.
+ * - Availability: sets a restrictive CSP to reduce XSS attack surface.
+ * - Analyzability: all header constants are named; no magic strings inline.
  */
-@WebFilter("/*")
 public class SecurityHeadersFilter implements Filter {
+
+    private static final String CSP = String.join("; ",
+            "default-src 'self'",
+            "script-src 'self'",
+            "style-src 'self' 'unsafe-inline'",
+            "img-src 'self' data:",
+            "font-src 'self'",
+            "frame-ancestors 'none'",
+            "base-uri 'self'",
+            "form-action 'self'"
+    );
 
     @Override
     public void doFilter(ServletRequest request, ServletResponse response,
                          FilterChain chain) throws IOException, ServletException {
-        HttpServletResponse res = (HttpServletResponse) response;
+        HttpServletResponse httpResp = (HttpServletResponse) response;
 
-        // Prevent MIME type sniffing
-        res.setHeader("X-Content-Type-Options", "nosniff");
-
-        // Prevent clickjacking
-        res.setHeader("X-Frame-Options", "DENY");
-
-        // Enable XSS filter in older browsers
-        res.setHeader("X-XSS-Protection", "1; mode=block");
-
-        // Strict referrer policy
-        res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-
-        // Permissions policy - restrict browser features
-        res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-
-        // Content Security Policy
-        res.setHeader("Content-Security-Policy",
-            "default-src 'self'; "
-            + "script-src 'self' 'unsafe-inline'; "
-            + "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
-            + "font-src 'self' https://cdn.jsdelivr.net; "
-            + "img-src 'self' data:; "
-            + "object-src 'none'; "
-            + "base-uri 'self'; "
-            + "form-action 'self'");
-
-        // No caching for dynamic content
-        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
-        res.setHeader("Pragma", "no-cache");
+        httpResp.setHeader("X-Content-Type-Options",   "nosniff");
+        httpResp.setHeader("X-Frame-Options",           "DENY");
+        httpResp.setHeader("X-XSS-Protection",          "0");          // Deprecated; CSP is primary
+        httpResp.setHeader("Referrer-Policy",            "strict-origin-when-cross-origin");
+        httpResp.setHeader("Content-Security-Policy",   CSP);
+        httpResp.setHeader("Permissions-Policy",        "geolocation=(), microphone=(), camera=()");
+        // HSTS – uncomment when running behind TLS in production
+        // httpResp.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
 
         chain.doFilter(request, response);
     }

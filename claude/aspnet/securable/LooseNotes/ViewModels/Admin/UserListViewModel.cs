@@ -1,18 +1,12 @@
-// UserListViewModel.cs — Projection for the admin user list.
-// Confidentiality: password hashes are never included in view models.
-using System.ComponentModel.DataAnnotations;
-
 namespace LooseNotes.ViewModels.Admin;
 
-public sealed class UserListViewModel
+public class UserListViewModel
 {
-    [StringLength(100)]
-    public string SearchQuery { get; set; } = string.Empty;
-
-    public IReadOnlyList<UserSummaryViewModel> Users { get; set; } = Array.Empty<UserSummaryViewModel>();
+    public string? SearchQuery { get; set; }
+    public List<UserSummary> Users { get; set; } = new();
 }
 
-public sealed class UserSummaryViewModel
+public class UserSummary
 {
     public string Id { get; set; } = string.Empty;
     public string UserName { get; set; } = string.Empty;

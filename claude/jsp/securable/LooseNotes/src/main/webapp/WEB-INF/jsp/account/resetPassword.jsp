@@ -1,44 +1,48 @@
-<%@ page contentType="text/html;charset=UTF-8" language="java" %>
+<%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
-<c:set var="pageTitle" value="Reset Password - Loose Notes"/>
-<%@ include file="/WEB-INF/jsp/common/header.jsp" %>
+<jsp:include page="/WEB-INF/jsp/common/header.jsp"/>
 
 <div class="row justify-content-center">
     <div class="col-md-5">
         <div class="card shadow-sm">
             <div class="card-body p-4">
-                <h2 class="card-title mb-4">Set New Password</h2>
+                <h2 class="card-title mb-4 text-center">Reset Password</h2>
 
-                <c:if test="${error != null}">
-                    <div class="alert alert-danger"><c:out value="${error}"/></div>
+                <c:if test="${not empty error}">
+                    <div class="alert alert-danger">
+                        <c:out value="${error}"/>
+                    </div>
                 </c:if>
 
-                <form method="post"
-                      action="${pageContext.request.contextPath}/auth/forgot-password">
-                    <input type="hidden" name="_csrf" value="<c:out value='${csrfToken}'/>">
-                    <%-- Pass the token through the form, not the URL, to avoid logging --%>
-                    <input type="hidden" name="token" value="<c:out value='${token}'/>">
+                <form method="post" action="${pageContext.request.contextPath}/auth/reset-password" novalidate>
+                    <input type="hidden" name="_csrf" value="${csrfToken}">
+                    <input type="hidden" name="token" value="<c:out value="${token}"/>">
 
                     <div class="mb-3">
                         <label for="newPassword" class="form-label">New Password</label>
-                        <input type="password" class="form-control" id="newPassword"
-                               name="newPassword" required minlength="8" maxlength="128"
-                               autocomplete="new-password">
-                        <div class="form-text">
-                            Min 8 chars with uppercase, lowercase, digit, and special character.
-                        </div>
+                        <input type="password" class="form-control" id="newPassword" name="newPassword"
+                               required autocomplete="new-password" autofocus>
                     </div>
+
                     <div class="mb-3">
                         <label for="confirmPassword" class="form-label">Confirm New Password</label>
-                        <input type="password" class="form-control" id="confirmPassword"
-                               name="confirmPassword" required maxlength="128"
-                               autocomplete="new-password">
+                        <input type="password" class="form-control" id="confirmPassword" name="confirmPassword"
+                               required autocomplete="new-password">
                     </div>
-                    <button type="submit" class="btn btn-primary w-100">Reset Password</button>
+
+                    <div class="d-grid mb-3">
+                        <button type="submit" class="btn btn-primary">Reset Password</button>
+                    </div>
                 </form>
+
+                <hr>
+
+                <div class="text-center small">
+                    <a href="${pageContext.request.contextPath}/auth/login">Back to Login</a>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<%@ include file="/WEB-INF/jsp/common/footer.jsp" %>
+<jsp:include page="/WEB-INF/jsp/common/footer.jsp"/>

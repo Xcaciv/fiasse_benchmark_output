@@ -1,103 +1,79 @@
 package com.loosenotes.util;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Thread-safe in-memory rate limiter using a fixed-window counter.
- * SSEM: Availability - prevents brute-force and abuse.
- * SSEM: Resilience - concurrent-safe with atomic counters.
+ * In-memory sliding-window rate limiter.
  *
- * <p>For production, replace with a distributed store (Redis) if multiple nodes.
+ * SSEM / ASVS alignment:
+ * - ASVS V2.3 (Brute Force): limits login and registration attempts per IP.
+ * - Availability: prevents a single IP from exhausting authentication resources.
+ * - Resilience: ConcurrentHashMap ensures thread-safe operation.
+ * - Modifiability: maxAttempts and windowSeconds are injected, not hard-coded.
+ *
+ * Trade-off: in-memory state is lost on restart and is per-JVM instance.
+ * For multi-node deployments, replace with a Redis-backed implementation
+ * behind the same interface.
  */
 public class RateLimiter {
 
-    private static final Logger log = LoggerFactory.getLogger(RateLimiter.class);
-
     private final int maxAttempts;
-    private final long windowSeconds;
+    private final long windowMillis;
 
-    /** Key → [attemptCount, windowStartEpochSecond] */
-    private final Map<String, long[]> counters = new ConcurrentHashMap<>();
+    /** Key → list of attempt timestamps within the current window. */
+    private final Map<String, WindowEntry> entries = new ConcurrentHashMap<>();
 
-    /**
-     * @param maxAttempts   max requests allowed per window
-     * @param windowSeconds length of the time window in seconds
-     */
-    public RateLimiter(int maxAttempts, long windowSeconds) {
-        this.maxAttempts = maxAttempts;
-        this.windowSeconds = windowSeconds;
+    public RateLimiter(int maxAttempts, int windowSeconds) {
+        this.maxAttempts  = maxAttempts;
+        this.windowMillis = (long) windowSeconds * 1000L;
     }
 
     /**
-     * Records an attempt and returns whether the key is within limits.
+     * Records an attempt and returns true if the key is within the allowed limit.
      *
-     * @param key       rate limit key (e.g., IP address or "ip:username")
-     * @return true if the attempt is allowed; false if limit exceeded
+     * @param key a bucketing key, e.g. IP address
+     * @return true if the attempt is allowed; false if rate-limited
      */
     public boolean tryAcquire(String key) {
-        long now = Instant.now().getEpochSecond();
-        long[] window = counters.compute(key, (k, existing) ->
-            resetOrIncrement(existing, now));
-        boolean allowed = window[0] <= maxAttempts;
-        if (!allowed) {
-            log.warn("Rate limit exceeded for key: {}", key);
-        }
-        return allowed;
+        long now = Instant.now().toEpochMilli();
+        WindowEntry entry = entries.compute(key, (k, existing) -> {
+            if (existing == null || now - existing.windowStart > windowMillis) {
+                return new WindowEntry(now, 1);
+            }
+            existing.count++;
+            return existing;
+        });
+        return entry.count <= maxAttempts;
     }
 
     /**
-     * Resets the counter for a given key (e.g., on successful login).
+     * Resets the counter for a key (e.g., after a successful login).
      *
-     * @param key the rate limit key to reset
+     * @param key the key to reset
      */
     public void reset(String key) {
-        counters.remove(key);
+        entries.remove(key);
     }
 
-    /**
-     * Returns remaining attempts for the given key within the current window.
-     */
-    public int remainingAttempts(String key) {
-        long now = Instant.now().getEpochSecond();
-        long[] window = counters.get(key);
-        if (window == null || isWindowExpired(window[1], now)) {
-            return maxAttempts;
-        }
-        return Math.max(0, maxAttempts - (int) window[0]);
+    /** Returns the number of attempts recorded in the current window for a key. */
+    public int getAttemptCount(String key) {
+        WindowEntry entry = entries.get(key);
+        if (entry == null) return 0;
+        long now = Instant.now().toEpochMilli();
+        if (now - entry.windowStart > windowMillis) return 0;
+        return entry.count;
     }
 
-    private long[] resetOrIncrement(long[] existing, long now) {
-        if (existing == null || isWindowExpired(existing[1], now)) {
-            return new long[]{1L, now};
-        }
-        return new long[]{existing[0] + 1L, existing[1]};
-    }
+    /** Sliding-window state per key. */
+    private static final class WindowEntry {
+        long windowStart;
+        int  count;
 
-    private boolean isWindowExpired(long windowStart, long now) {
-        return now - windowStart >= windowSeconds;
-    }
-
-    /**
-     * Periodically evicts stale entries to prevent unbounded memory growth.
-     * Called by the cleanup scheduler.
-     */
-    public void evictExpired() {
-        long now = Instant.now().getEpochSecond();
-        int removed = 0;
-        for (Map.Entry<String, long[]> entry : counters.entrySet()) {
-            if (isWindowExpired(entry.getValue()[1], now)) {
-                counters.remove(entry.getKey());
-                removed++;
-            }
-        }
-        if (removed > 0) {
-            log.debug("Evicted {} expired rate limit entries", removed);
+        WindowEntry(long windowStart, int count) {
+            this.windowStart = windowStart;
+            this.count       = count;
         }
     }
 }

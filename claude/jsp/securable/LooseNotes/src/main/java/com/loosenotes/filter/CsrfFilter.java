@@ -2,62 +2,52 @@ package com.loosenotes.filter;
 
 import com.loosenotes.util.CsrfUtil;
 import jakarta.servlet.*;
-import jakarta.servlet.annotation.WebFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 
 import java.io.IOException;
 import java.util.Set;
 
 /**
- * CSRF protection filter using the Synchronizer Token Pattern.
- * SSEM: Authenticity - validates CSRF token on all state-changing requests.
- * SSEM: Integrity - prevents cross-site request forgery.
+ * Enforces CSRF protection on all state-changing (non-idempotent) requests.
  *
- * <p>Trust boundary: All POST/PUT/DELETE requests are validated here.
+ * SSEM / ASVS alignment:
+ * - ASVS V4.3 (CSRF): synchronizer token pattern.
+ * - Integrity: rejects POST/PUT/DELETE without a valid session-bound token.
+ * - Analyzability: skip list of methods is explicit and named.
+ *
+ * Excluded: GET, HEAD, OPTIONS, TRACE (safe methods per RFC 7231).
+ * Also excluded: /share/view/* (public, unauthenticated view – no session required).
  */
-@WebFilter("/*")
 public class CsrfFilter implements Filter {
 
     private static final Set<String> SAFE_METHODS = Set.of("GET", "HEAD", "OPTIONS", "TRACE");
 
-    /** Paths exempt from CSRF validation (no state changes). */
-    private static final Set<String> CSRF_EXEMPT = Set.of(
-        "/share/"
-    );
-
     @Override
     public void doFilter(ServletRequest request, ServletResponse response,
                          FilterChain chain) throws IOException, ServletException {
-        HttpServletRequest req  = (HttpServletRequest) request;
-        HttpServletResponse res = (HttpServletResponse) response;
 
-        if (SAFE_METHODS.contains(req.getMethod())) {
+        HttpServletRequest  req  = (HttpServletRequest)  request;
+        HttpServletResponse resp = (HttpServletResponse) response;
+
+        String method = req.getMethod().toUpperCase();
+        if (SAFE_METHODS.contains(method)) {
+            // Ensure a CSRF token exists in the session for upcoming form renders
+            HttpSession session = req.getSession(false);
+            if (session != null) {
+                CsrfUtil.getOrCreate(session);
+            }
             chain.doFilter(request, response);
             return;
         }
 
-        String path = getRelativePath(req);
-        if (isCsrfExempt(path)) {
-            chain.doFilter(request, response);
-            return;
-        }
-
-        if (!CsrfUtil.isTokenValid(req)) {
-            res.sendError(HttpServletResponse.SC_FORBIDDEN, "Invalid or missing CSRF token");
+        // State-changing request – validate the submitted CSRF token
+        if (!CsrfUtil.isValid(req)) {
+            resp.sendError(HttpServletResponse.SC_FORBIDDEN, "Invalid CSRF token");
             return;
         }
 
         chain.doFilter(request, response);
-    }
-
-    private String getRelativePath(HttpServletRequest req) {
-        String contextPath = req.getContextPath();
-        String uri = req.getRequestURI();
-        return uri.startsWith(contextPath) ? uri.substring(contextPath.length()) : uri;
-    }
-
-    private boolean isCsrfExempt(String path) {
-        return CSRF_EXEMPT.stream().anyMatch(path::startsWith);
     }
 }

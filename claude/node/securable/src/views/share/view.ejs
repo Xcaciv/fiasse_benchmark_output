@@ -1,0 +1,31 @@
+<div class="note-detail">
+  <div class="share-banner">
+    <span>Shared note — <a href="/auth/register">Create an account</a> to write your own.</span>
+  </div>
+
+  <h1><%= note.title %></h1>
+  <div class="note-meta">
+    By <strong><%= note.owner.username %></strong> &nbsp;|&nbsp;
+    <%= new Date(note.createdAt).toLocaleDateString() %>
+  </div>
+
+  <div class="note-content"><%- note.content.replace(/\n/g, '<br>') %></div>
+
+  <% if (note.attachments && note.attachments.length > 0) { %>
+    <div class="attachments-section">
+      <h3>Attachments</h3>
+      <ul class="attachment-list">
+        <% note.attachments.forEach(att => { %>
+          <li class="attachment-item">
+            <% if (user) { %>
+              <a href="/attachments/<%= att.id %>/download"><%= att.originalFilename %></a>
+            <% } else { %>
+              <span><%= att.originalFilename %> (login to download)</span>
+            <% } %>
+            <span class="attachment-size"><%= (att.sizeBytes / 1024).toFixed(1) %> KB</span>
+          </li>
+        <% }) %>
+      </ul>
+    </div>
+  <% } %>
+</div>

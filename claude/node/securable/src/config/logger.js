@@ -1,37 +1,40 @@
 'use strict';
 
-const path = require('path');
-const fs = require('fs');
-const winston = require('winston');
+/**
+ * Structured logger — SSEM Transparency / Accountability.
+ * All log entries are JSON so they can be parsed by log aggregators.
+ * Sensitive data (passwords, tokens, PII) MUST NOT be passed to any logger call.
+ */
 
-const logDir = path.join(process.cwd(), 'logs');
-if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+const { createLogger, format, transports } = require('winston');
 
-const logger = winston.createLogger({
-  level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.errors({ stack: true }),
-    winston.format.json()
+const { combine, timestamp, json, errors, colorize, simple } = format;
+
+const isDev = process.env.NODE_ENV !== 'production';
+
+const logger = createLogger({
+  level: isDev ? 'debug' : 'info',
+  format: combine(
+    errors({ stack: true }),
+    timestamp(),
+    json()
   ),
+  defaultMeta: { service: 'loose-notes' },
   transports: [
-    new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.printf(({ level, message, timestamp, ...meta }) => {
-          const metaStr = Object.keys(meta).length ? ' ' + JSON.stringify(meta) : '';
-          return `${timestamp} [${level}]: ${message}${metaStr}`;
-        })
-      )
+    new transports.Console({
+      format: isDev ? combine(colorize(), simple()) : combine(timestamp(), json()),
     }),
-    new winston.transports.File({
-      filename: path.join(logDir, 'error.log'),
-      level: 'error'
-    }),
-    new winston.transports.File({
-      filename: path.join(logDir, 'app.log')
-    })
-  ]
+  ],
+  exitOnError: false,
 });
+
+/**
+ * Log a security audit event.
+ * @param {string} action  - e.g. 'LOGIN_SUCCESS', 'NOTE_DELETE'
+ * @param {object} context - { userId, targetId, ip, ... } — no secrets
+ */
+logger.audit = (action, context = {}) => {
+  logger.info({ event: 'AUDIT', action, ...context });
+};
 
 module.exports = logger;

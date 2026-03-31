@@ -3,22 +3,32 @@ package com.loosenotes.servlet;
 import com.loosenotes.model.User;
 import com.loosenotes.service.*;
 import com.loosenotes.util.CsrfUtil;
-import com.loosenotes.util.RateLimiter;
+import jakarta.servlet.RequestDispatcher;
+import jakarta.servlet.ServletContext;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.Properties;
 
 /**
- * Base servlet providing shared utilities for all application servlets.
- * SSEM: Modifiability - centralized helper methods reduce duplication.
- * SSEM: Analyzability - clear patterns for common operations.
+ * Base servlet providing shared helpers: service lookup, user resolution,
+ * CSRF token injection, and error forwarding.
+ *
+ * SSEM notes:
+ * - Analyzability: common plumbing in one place; subclasses focus on business logic.
+ * - Modifiability: services retrieved from ServletContext – swap implementations without code change.
+ * - Resilience: getUser() never returns null; getRequiredUser() throws if unauthenticated.
  */
 public abstract class BaseServlet extends HttpServlet {
+
+    protected final Logger log = LoggerFactory.getLogger(getClass());
+
+    // ── Service accessors ───────────────────────────────────────────────────
 
     protected UserService getUserService() {
         return (UserService) getServletContext().getAttribute("userService");
@@ -48,69 +58,79 @@ public abstract class BaseServlet extends HttpServlet {
         return (PasswordResetService) getServletContext().getAttribute("passwordResetService");
     }
 
-    protected RateLimiter getLoginRateLimiter() {
-        return (RateLimiter) getServletContext().getAttribute("loginRateLimiter");
-    }
+    // ── Session helpers ──────────────────────────────────────────────────────
 
-    protected Properties getAppConfig() {
-        return (Properties) getServletContext().getAttribute("appConfig");
-    }
-
-    /** Returns the authenticated user from the session. */
+    /** Returns the current authenticated user, or null if not logged in. */
     protected User getCurrentUser(HttpServletRequest req) {
-        return (User) req.getAttribute("currentUser");
+        HttpSession session = req.getSession(false);
+        return session != null ? (User) session.getAttribute("currentUser") : null;
     }
 
-    /** Returns the client IP, respecting reverse proxy headers. */
+    /**
+     * Returns the current authenticated user.
+     * Sends 401 and returns null if no user is found.
+     */
+    protected User getRequiredUser(HttpServletRequest req, HttpServletResponse resp)
+            throws IOException {
+        User user = getCurrentUser(req);
+        if (user == null) {
+            resp.sendRedirect(req.getContextPath() + "/auth/login");
+        }
+        return user;
+    }
+
+    /** Returns the client IP address (non-null). */
     protected String getClientIp(HttpServletRequest req) {
         String forwarded = req.getHeader("X-Forwarded-For");
         if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
+            // Take only the first IP from a potentially spoofed chain
+            return forwarded.split(",")[0].strip();
         }
-        return req.getRemoteAddr();
+        return req.getRemoteAddr() != null ? req.getRemoteAddr() : "unknown";
     }
 
-    /** Forwards to a JSP view. */
-    protected void forward(HttpServletRequest req, HttpServletResponse res,
-                           String jspPath) throws ServletException, IOException {
-        // Inject CSRF token into all forwarded requests
+    // ── View helpers ─────────────────────────────────────────────────────────
+
+    /**
+     * Forwards to a JSP view, injecting the CSRF token and current user.
+     *
+     * @param jspPath relative path under /WEB-INF/jsp/
+     */
+    protected void forward(HttpServletRequest req, HttpServletResponse resp, String jspPath)
+            throws ServletException, IOException {
+        // Inject CSRF token for form rendering
         HttpSession session = req.getSession(false);
         if (session != null) {
-            req.setAttribute("csrfToken", CsrfUtil.getOrCreateToken(session));
+            req.setAttribute("csrfToken", CsrfUtil.getOrCreate(session));
         }
-        req.getRequestDispatcher(jspPath).forward(req, res);
+        req.setAttribute("currentUser", getCurrentUser(req));
+        resp.setContentType("text/html;charset=UTF-8");
+        RequestDispatcher rd = req.getRequestDispatcher("/WEB-INF/jsp/" + jspPath);
+        rd.forward(req, resp);
     }
 
-    /** Redirects to a context-relative path. */
-    protected void redirect(HttpServletResponse res, HttpServletRequest req,
-                             String path) throws IOException {
-        res.sendRedirect(req.getContextPath() + path);
+    /** Sends an HTTP error with a simple message attribute for the error JSP. */
+    protected void sendError(HttpServletRequest req, HttpServletResponse resp,
+                              int status, String message) throws IOException {
+        req.setAttribute("errorMessage", message);
+        resp.sendError(status, message);
     }
 
-    /** Sets an error message in the request and forwards to the given JSP. */
-    protected void forwardWithError(HttpServletRequest req, HttpServletResponse res,
-                                     String jspPath, String error)
-            throws ServletException, IOException {
-        req.setAttribute("error", error);
-        forward(req, res, jspPath);
-    }
-
-    /** Sends a 403 Forbidden response. */
-    protected void sendForbidden(HttpServletResponse res) throws IOException {
-        res.sendError(HttpServletResponse.SC_FORBIDDEN, "Access denied");
-    }
-
-    /** Sends a 404 Not Found response. */
-    protected void sendNotFound(HttpServletResponse res) throws IOException {
-        res.sendError(HttpServletResponse.SC_NOT_FOUND, "Resource not found");
-    }
-
-    /** Returns true and sends 403 if user is not an admin. */
-    protected boolean requireAdmin(User user, HttpServletResponse res) throws IOException {
-        if (user == null || !user.isAdmin()) {
-            sendForbidden(res);
-            return true;
+    /**
+     * Parses the last path segment as a long ID.
+     * Returns -1 on parse failure.
+     * Example: /notes/42/edit → 42
+     */
+    protected long parseIdFromPath(HttpServletRequest req) {
+        String path = req.getPathInfo();
+        if (path == null || path.equals("/")) return -1L;
+        // Strip leading slash and take the first segment
+        String[] parts = path.substring(1).split("/");
+        try {
+            long id = Long.parseLong(parts[0]);
+            return id > 0 ? id : -1L;
+        } catch (NumberFormatException e) {
+            return -1L;
         }
-        return false;
     }
 }

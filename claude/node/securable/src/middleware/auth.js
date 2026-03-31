@@ -1,40 +1,45 @@
 'use strict';
 
-/** Attach user info to res.locals on every request. */
-function loadUser(req, res, next) {
-  if (req.session && req.session.userId) {
-    res.locals.currentUser = {
-      id: req.session.userId,
-      username: req.session.username,
-      role: req.session.userRole
-    };
-  } else {
-    res.locals.currentUser = null;
-  }
-  next();
-}
+/**
+ * Authentication and authorisation guards.
+ * SSEM Authenticity: every route that requires login is protected here.
+ * SSEM Accountability: denial events are logged before redirecting.
+ */
 
-/** Redirect unauthenticated users to /auth/login. */
+const logger = require('../config/logger');
+
 function requireAuth(req, res, next) {
-  if (!req.session || !req.session.userId) {
-    req.session.returnTo = req.originalUrl;
-    return res.redirect('/auth/login');
+  if (req.isAuthenticated()) {
+    return next();
   }
-  next();
+  logger.audit('AUTHZ_DENY', {
+    reason: 'NOT_AUTHENTICATED',
+    path: req.path,
+    ip: req.ip,
+  });
+  req.flash('error', 'You must be logged in to access this page.');
+  res.redirect('/auth/login');
 }
 
-/** Require the 'admin' role. */
 function requireAdmin(req, res, next) {
-  if (!req.session || !req.session.userId) {
-    return res.redirect('/auth/login');
+  if (req.isAuthenticated() && req.user.role === 'admin') {
+    return next();
   }
-  if (req.session.userRole !== 'admin') {
-    return res.status(403).render('error', {
-      title: 'Forbidden',
-      message: 'Administrator access is required.'
-    });
+  logger.audit('AUTHZ_DENY', {
+    reason: 'NOT_ADMIN',
+    userId: req.user?.id,
+    path: req.path,
+    ip: req.ip,
+  });
+  req.flash('error', 'You do not have permission to access this page.');
+  res.redirect('/notes');
+}
+
+function redirectIfAuthenticated(req, res, next) {
+  if (req.isAuthenticated()) {
+    return res.redirect('/notes');
   }
   next();
 }
 
-module.exports = { loadUser, requireAuth, requireAdmin };
+module.exports = { requireAuth, requireAdmin, redirectIfAuthenticated };

@@ -1,22 +1,20 @@
-// CreateNoteViewModel.cs — Input model for creating a new note.
-// Integrity: Required + MaxLength constraints at the trust boundary.
-using LooseNotes.Models;
 using System.ComponentModel.DataAnnotations;
 
 namespace LooseNotes.ViewModels.Notes;
 
-public sealed class CreateNoteViewModel
+public class CreateNoteViewModel
 {
-    [Required]
-    [StringLength(300, MinimumLength = 1)]
+    [Required, MaxLength(200)]
+    [Display(Name = "Title")]
     public string Title { get; set; } = string.Empty;
 
     [Required]
-    [StringLength(100000)]
+    [Display(Name = "Content")]
     public string Content { get; set; } = string.Empty;
 
-    public NoteVisibility Visibility { get; set; } = NoteVisibility.Private;
+    [Display(Name = "Make Public")]
+    public bool IsPublic { get; set; } = false;
 
-    /// <summary>Optional file attachment. Validated in IFileStorageService.</summary>
+    [Display(Name = "Attachment")]
     public IFormFile? Attachment { get; set; }
 }

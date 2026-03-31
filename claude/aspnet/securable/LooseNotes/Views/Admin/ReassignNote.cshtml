@@ -2,41 +2,31 @@
 @{
     ViewData["Title"] = "Reassign Note";
 }
-
 <div class="row justify-content-center">
     <div class="col-md-6">
         <h2>Reassign Note</h2>
-        <div class="card mb-3">
-            <div class="card-body">
-                <p><strong>Note:</strong> @Model.NoteTitle</p>
-                <p><strong>Current Owner:</strong> @Model.CurrentOwnerUserName</p>
-            </div>
-        </div>
-
+        <dl class="mb-4">
+            <dt>Note</dt>
+            <dd>@Model.NoteTitle</dd>
+            <dt>Current Owner</dt>
+            <dd>@Model.CurrentOwnerUserName</dd>
+        </dl>
         <form asp-action="ReassignNote" method="post">
-            <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
-
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
             <input asp-for="NoteId" type="hidden" />
-            <input asp-for="NoteTitle" type="hidden" />
-            <input asp-for="CurrentOwnerUserName" type="hidden" />
-
             <div class="mb-3">
-                <label asp-for="TargetUserId" class="form-label fw-bold">New Owner</label>
-                <select asp-for="TargetUserId" class="form-select"
-                        asp-items="@(new SelectList(Model.AvailableUsers, "Id", "UserName"))">
-                    <option value="">— Select a user —</option>
+                <label asp-for="NewOwnerId" class="form-label">New Owner</label>
+                <select asp-for="NewOwnerId" class="form-select"
+                        asp-items="@(new SelectList(Model.AllUsers, "Id", "UserName"))">
+                    <option value="">-- Select User --</option>
                 </select>
-                <span asp-validation-for="TargetUserId" class="text-danger"></span>
+                <span asp-validation-for="NewOwnerId" class="text-danger small"></span>
             </div>
-
             <div class="d-flex gap-2">
                 <button type="submit" class="btn btn-warning">Reassign</button>
-                <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+                <a asp-action="Dashboard" class="btn btn-outline-secondary">Cancel</a>
             </div>
         </form>
     </div>
 </div>
-
-@section Scripts {
-    <partial name="_ValidationScriptsPartial" />
-}
+@section Scripts { @await Html.PartialAsync("_ValidationScriptsPartial") }

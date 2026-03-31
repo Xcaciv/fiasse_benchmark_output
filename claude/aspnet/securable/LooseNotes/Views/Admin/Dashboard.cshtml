@@ -2,60 +2,69 @@
 @{
     ViewData["Title"] = "Admin Dashboard";
 }
-
 <h2>Admin Dashboard</h2>
-
 <div class="row g-3 mb-4">
     <div class="col-md-3">
-        <div class="card text-center bg-primary text-white">
+        <div class="card text-center">
             <div class="card-body">
-                <h3>@Model.TotalUsers</h3>
-                <p class="mb-0">Total Users</p>
+                <h3 class="card-title">@Model.TotalUsers</h3>
+                <p class="card-text text-muted">Total Users</p>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card text-center bg-success text-white">
+        <div class="card text-center">
             <div class="card-body">
-                <h3>@Model.TotalNotes</h3>
-                <p class="mb-0">Total Notes</p>
+                <h3 class="card-title">@Model.TotalNotes</h3>
+                <p class="card-text text-muted">Total Notes</p>
             </div>
         </div>
     </div>
 </div>
 
-<div class="d-flex gap-2 mb-4">
-    <a asp-action="Users" class="btn btn-outline-primary">Manage Users</a>
+<div class="d-flex justify-content-between align-items-center mb-2">
+    <h5>Recent Activity</h5>
+    <a asp-action="Users" class="btn btn-sm btn-outline-primary">Manage Users</a>
 </div>
 
-<h5>Recent Activity</h5>
-@if (!Model.RecentAuditEntries.Any())
-{
-    <p class="text-muted">No audit entries yet.</p>
-}
-else
+@if (Model.RecentActivity.Any())
 {
     <div class="table-responsive">
-        <table class="table table-sm table-hover">
+        <table class="table table-sm table-striped">
             <thead>
                 <tr>
                     <th>Time</th>
-                    <th>Actor</th>
                     <th>Action</th>
-                    <th>Resource</th>
+                    <th>User</th>
+                    <th>Target</th>
+                    <th>Success</th>
                 </tr>
             </thead>
             <tbody>
-                @foreach (var entry in Model.RecentAuditEntries)
+                @foreach (var log in Model.RecentActivity)
                 {
                     <tr>
-                        <td><small class="text-muted">@entry.OccurredAt.ToString("yyyy-MM-dd HH:mm")</small></td>
-                        <td>@(entry.ActorUserName ?? "—")</td>
-                        <td><code>@entry.Action</code></td>
-                        <td>@(entry.ResourceType)/@(entry.ResourceId)</td>
+                        <td class="text-muted small">@log.OccurredAt.ToString("MM/dd HH:mm")</td>
+                        <td>@log.Action</td>
+                        <td>@(log.User?.UserName ?? log.UserId ?? "anonymous")</td>
+                        <td class="text-muted small">@log.TargetType @log.TargetId</td>
+                        <td>
+                            @if (log.Success)
+                            {
+                                <span class="badge bg-success">OK</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger">Fail</span>
+                            }
+                        </td>
                     </tr>
                 }
             </tbody>
         </table>
     </div>
+}
+else
+{
+    <p class="text-muted">No activity logged yet.</p>
 }

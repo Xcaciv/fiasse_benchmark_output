@@ -1,70 +1,55 @@
 package com.loosenotes.util;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for RateLimiter.
- * SSEM: Availability - validates that rate limiting functions correctly.
+ * Tests for RateLimiter – sliding window logic.
+ *
+ * SSEM: Availability – rate limiting prevents brute-force exhaustion.
  */
 class RateLimiterTest {
 
-    private RateLimiter rateLimiter;
-
-    @BeforeEach
-    void setUp() {
-        rateLimiter = new RateLimiter(3, 60); // 3 attempts per 60 seconds
+    @Test
+    void tryAcquire_allowsAttemptsWithinLimit() {
+        RateLimiter limiter = new RateLimiter(3, 60);
+        assertTrue(limiter.tryAcquire("1.2.3.4"));
+        assertTrue(limiter.tryAcquire("1.2.3.4"));
+        assertTrue(limiter.tryAcquire("1.2.3.4"));
     }
 
     @Test
-    void tryAcquire_withinLimit_returnsTrue() {
-        assertTrue(rateLimiter.tryAcquire("192.168.1.1:user"));
-        assertTrue(rateLimiter.tryAcquire("192.168.1.1:user"));
-        assertTrue(rateLimiter.tryAcquire("192.168.1.1:user"));
+    void tryAcquire_blocksWhenLimitExceeded() {
+        RateLimiter limiter = new RateLimiter(2, 60);
+        limiter.tryAcquire("5.6.7.8");
+        limiter.tryAcquire("5.6.7.8");
+        assertFalse(limiter.tryAcquire("5.6.7.8"), "Third attempt should be blocked");
     }
 
     @Test
-    void tryAcquire_exceedsLimit_returnsFalse() {
-        String key = "192.168.1.2:user";
-        rateLimiter.tryAcquire(key);
-        rateLimiter.tryAcquire(key);
-        rateLimiter.tryAcquire(key);
-        assertFalse(rateLimiter.tryAcquire(key)); // 4th attempt should fail
+    void reset_clearsCounterForKey() {
+        RateLimiter limiter = new RateLimiter(2, 60);
+        limiter.tryAcquire("9.9.9.9");
+        limiter.tryAcquire("9.9.9.9");
+        limiter.reset("9.9.9.9");
+        assertTrue(limiter.tryAcquire("9.9.9.9"), "After reset, attempt should be allowed");
     }
 
     @Test
-    void reset_afterReset_allowsNewAttempts() {
-        String key = "192.168.1.3:user";
-        rateLimiter.tryAcquire(key);
-        rateLimiter.tryAcquire(key);
-        rateLimiter.tryAcquire(key);
-        assertFalse(rateLimiter.tryAcquire(key));
-
-        rateLimiter.reset(key);
-        assertTrue(rateLimiter.tryAcquire(key));
+    void tryAcquire_tracksKeysSeparately() {
+        RateLimiter limiter = new RateLimiter(1, 60);
+        limiter.tryAcquire("10.0.0.1");
+        assertFalse(limiter.tryAcquire("10.0.0.1"), "IP1 should be blocked");
+        assertTrue(limiter.tryAcquire("10.0.0.2"),  "IP2 should still be allowed");
     }
 
     @Test
-    void differentKeys_areIndependent() {
-        String key1 = "192.168.1.4:user1";
-        String key2 = "192.168.1.4:user2";
-
-        rateLimiter.tryAcquire(key1);
-        rateLimiter.tryAcquire(key1);
-        rateLimiter.tryAcquire(key1);
-        assertFalse(rateLimiter.tryAcquire(key1));
-
-        // Different key should still be allowed
-        assertTrue(rateLimiter.tryAcquire(key2));
-    }
-
-    @Test
-    void remainingAttempts_decreasesWithUse() {
-        String key = "192.168.1.5:user";
-        assertEquals(3, rateLimiter.remainingAttempts(key));
-        rateLimiter.tryAcquire(key);
-        assertEquals(2, rateLimiter.remainingAttempts(key));
+    void getAttemptCount_returnsCurrentCount() {
+        RateLimiter limiter = new RateLimiter(5, 60);
+        assertEquals(0, limiter.getAttemptCount("2.2.2.2"));
+        limiter.tryAcquire("2.2.2.2");
+        limiter.tryAcquire("2.2.2.2");
+        assertEquals(2, limiter.getAttemptCount("2.2.2.2"));
     }
 }

@@ -1,81 +1,55 @@
-// AuditService.cs — Persists audit entries to the database.
-// Accountability: all security-relevant actions are durably recorded.
-// Confidentiality: details field must never carry passwords, tokens, or raw PII.
 using LooseNotes.Data;
 using LooseNotes.Models;
-using Microsoft.AspNetCore.Http;
 
 namespace LooseNotes.Services;
 
-/// <summary>Database-backed audit logger. Captures actor, action, resource, and IP.</summary>
-public sealed class AuditService : IAuditService
+public class AuditService : IAuditService
 {
     private readonly ApplicationDbContext _db;
-    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<AuditService> _logger;
 
-    public AuditService(
-        ApplicationDbContext db,
-        IHttpContextAccessor httpContextAccessor,
-        ILogger<AuditService> logger)
+    public AuditService(ApplicationDbContext db, ILogger<AuditService> logger)
     {
         _db = db;
-        _httpContextAccessor = httpContextAccessor;
         _logger = logger;
     }
 
-    /// <inheritdoc/>
     public async Task LogAsync(
-        string? actorUserId,
         string action,
-        string? resourceType = null,
-        string? resourceId = null,
-        string? details = null)
+        string? userId,
+        bool success,
+        string? targetId = null,
+        string? targetType = null,
+        string? details = null,
+        string? ipAddress = null)
     {
-        var ipAddress = ResolveClientIp();
+        // Structured log for observability — no sensitive data
+        _logger.LogInformation(
+            "Audit {Action} UserId={UserId} TargetId={TargetId} Success={Success}",
+            action, userId ?? "anonymous", targetId, success);
 
         var entry = new AuditLog
         {
-            ActorUserId = actorUserId,
             Action = action,
-            ResourceType = resourceType,
-            ResourceId = resourceId,
+            UserId = userId,
+            TargetId = targetId,
+            TargetType = targetType,
+            Success = success,
             Details = details,
-            IpAddress = ipAddress
+            IpAddress = ipAddress,
+            OccurredAt = DateTime.UtcNow
         };
+
+        _db.AuditLogs.Add(entry);
 
         try
         {
-            _db.AuditLogs.Add(entry);
             await _db.SaveChangesAsync();
-
-            // Structured log mirrors DB record — Transparency principle
-            _logger.LogInformation(
-                "AUDIT | Action={Action} Actor={ActorId} Resource={ResourceType}/{ResourceId} IP={Ip}",
-                action, actorUserId ?? "anonymous", resourceType, resourceId, ipAddress);
         }
         catch (Exception ex)
         {
-            // Resilience: audit failure must not break the primary operation
+            // Audit failures should not break the primary flow
             _logger.LogError(ex, "Failed to persist audit log for action {Action}", action);
         }
-    }
-
-    // ── Private helpers ───────────────────────────────────────────────────────
-
-    private string? ResolveClientIp()
-    {
-        var context = _httpContextAccessor.HttpContext;
-        if (context is null) return null;
-
-        // Trust X-Forwarded-For only if behind a known proxy in production
-        var forwarded = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(forwarded))
-        {
-            // Take only the first IP (client) — not proxies further down the chain
-            return forwarded.Split(',')[0].Trim();
-        }
-
-        return context.Connection.RemoteIpAddress?.ToString();
     }
 }

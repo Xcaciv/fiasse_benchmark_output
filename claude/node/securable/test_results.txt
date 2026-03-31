@@ -1,0 +1,34 @@
+STARTED
+[34mdebug[39m: [object Object] {"service":"loose-notes","timestamp":"2026-03-31T00:50:59.032Z"}
+[34mdebug[39m: [object Object] {"service":"loose-notes","timestamp":"2026-03-31T00:50:59.053Z"}
+[34mdebug[39m: [object Object] {"service":"loose-notes","timestamp":"2026-03-31T00:50:59.055Z"}
+PASS src/tests/security.test.js
+  security config
+    √ allowed extensions are a Set (2 ms)
+    √ allowed mime types are a Set
+    √ bcryptRounds is at least 10
+    √ resetTokenExpiryMs is a positive number
+    √ uploadMaxSizeBytes is a positive number
+    √ rate limit windows and maxes are positive (1 ms)
+  fileService.getFilePath — path traversal prevention
+    √ rejects path traversal with .. (4 ms)
+    √ rejects absolute path escape (1 ms)
+    √ rejects traversal with encoded sequences in stored name
+    √ accepts a valid UUID filename
+  share link token validation
+    √ rejects tokens that are too short
+    √ rejects tokens with non-hex characters
+    √ rejects empty token
+  ratingService.clampRating via upsertRating
+    √ throws on rating value 0 (29 ms)
+    √ throws on rating value 6 (1 ms)
+    √ throws on non-numeric rating value (3 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       16 passed, 16 total
+Snapshots:   0 total
+Time:        0.769 s, estimated 1 s
+Ran all test suites.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?
+
+EXIT_CODE: 0

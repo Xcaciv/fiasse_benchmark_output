@@ -1,23 +1,10 @@
-## .gitignore for LooseNotes ASP.NET Core application
-
-# Build output
 bin/
 obj/
-
-# Database files (contain user data)
 *.db
 *.db-shm
 *.db-wal
-
-# Upload directories (contain user files)
 uploads/
-uploads_dev/
-
-# User secrets (Confidentiality: never commit secrets)
-appsettings.*.local.json
-secrets.json
-
-# IDE
+logs/
 .vs/
-.vscode/
 *.user
+appsettings.Production.json

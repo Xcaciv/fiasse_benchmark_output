@@ -1,129 +1,157 @@
 'use strict';
 
-require('dotenv').config();
+/**
+ * Express application factory.
+ * Security middleware applied before any route handlers.
+ * SSEM Integrity / Availability / Authenticity.
+ */
 
-const path    = require('path');
+const path = require('path');
 const express = require('express');
-const helmet  = require('helmet');
-const morgan  = require('morgan');
+const helmet = require('helmet');
 const session = require('express-session');
-const SqliteStore = require('connect-sqlite3')(session);
+const flash = require('connect-flash');
+const expressLayouts = require('express-ejs-layouts');
+const methodOverride = require('method-override');
+const { csrfSync } = require('csrf-sync');
 
-const logger   = require('./config/logger');
-const { loadUser } = require('./middleware/auth');
-const csrf     = require('./middleware/csrf');
+const passport = require('./config/passport');
+const security = require('./config/security');
+const logger = require('./config/logger');
+const { generalLimiter } = require('./middleware/rateLimiter');
+const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 
-// Route handlers
-const authRoutes    = require('./routes/auth');
-const notesRoutes   = require('./routes/notes');
-const adminRoutes   = require('./routes/admin');
-const profileRoutes = require('./routes/profile');
-const searchRoutes  = require('./routes/search');
-const shareRoutes   = require('./routes/share');
+const indexRouter = require('./routes/index');
+const authRouter = require('./routes/auth');
+const notesRouter = require('./routes/notes');
+const attachmentsRouter = require('./routes/attachments');
+const profileRouter = require('./routes/profile');
+const shareRouter = require('./routes/share');
+const adminRouter = require('./routes/admin');
 
-const app  = express();
-const PORT = parseInt(process.env.PORT || '3000', 10);
+function createApp() {
+  const app = express();
 
-// ── Security headers ────────────────────────────────────────────────────────
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc:  ["'self'", 'cdn.jsdelivr.net'],
-      styleSrc:   ["'self'", 'cdn.jsdelivr.net'],
-      fontSrc:    ["'self'", 'cdn.jsdelivr.net'],
-      imgSrc:     ["'self'", 'data:'],
-      frameSrc:   ["'none'"],
-      objectSrc:  ["'none'"]
-    }
-  },
-  crossOriginEmbedderPolicy: false
-}));
+  // ── Security headers ────────────────────────────────────────────────────────
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:'],
+          fontSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+        },
+      },
+      crossOriginEmbedderPolicy: false,
+    })
+  );
 
-// ── HTTP request logging ────────────────────────────────────────────────────
-app.use(morgan('combined', {
-  stream: { write: (msg) => logger.info(msg.trim()) }
-}));
+  // ── View engine ─────────────────────────────────────────────────────────────
+  app.set('view engine', 'ejs');
+  app.set('views', path.join(__dirname, 'views'));
+  app.use(expressLayouts);
+  app.set('layout', 'layout');
 
-// ── Body parsing ────────────────────────────────────────────────────────────
-app.use(express.urlencoded({ extended: false, limit: '1mb' }));
-app.use(express.json({ limit: '1mb' }));
+  // ── Static files ────────────────────────────────────────────────────────────
+  app.use(express.static(path.join(__dirname, '..', 'public')));
 
-// ── Static files ─────────────────────────────────────────────────────────────
-app.use(express.static(path.join(__dirname, '..', 'public')));
+  // ── Body parsers ─────────────────────────────────────────────────────────────
+  app.use(express.urlencoded({ extended: false, limit: '256kb' }));
+  app.use(express.json({ limit: '256kb' }));
+  app.use(methodOverride('_method'));
 
-// ── Session ──────────────────────────────────────────────────────────────────
-const sessionStore = new SqliteStore({
-  db: 'sessions.db',
-  dir: path.resolve('./data')
-});
+  // ── Session ──────────────────────────────────────────────────────────────────
+  app.use(
+    session({
+      secret: security.sessionSecret,
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: security.sessionCookieMaxAge,
+      },
+    })
+  );
 
-app.use(session({
-  store: sessionStore,
-  secret: process.env.SESSION_SECRET || 'CHANGE_ME_IN_PRODUCTION',
-  resave: false,
-  saveUninitialized: false,
-  name: 'lnSid',   // avoid default 'connect.sid' fingerprinting
-  cookie: {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 24 * 60 * 60 * 1000  // 24 hours
-  }
-}));
+  // ── Passport ─────────────────────────────────────────────────────────────────
+  app.use(passport.initialize());
+  app.use(passport.session());
 
-// ── View engine ───────────────────────────────────────────────────────────────
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
+  // ── Flash messages ───────────────────────────────────────────────────────────
+  app.use(flash());
 
-// ── Global middleware ─────────────────────────────────────────────────────────
-app.use(loadUser);   // attach currentUser to res.locals
-app.use(csrf);       // CSRF token for all mutating routes
-
-// Flash-message helper (simple session-based)
-app.use((req, res, next) => {
-  res.locals.flash = req.session.flash || {};
-  delete req.session.flash;
-
-  res.flash = (type, msg) => {
-    req.session.flash = req.session.flash || {};
-    req.session.flash[type] = msg;
-  };
-  next();
-});
-
-// ── Routes ────────────────────────────────────────────────────────────────────
-app.get('/', (req, res) => {
-  if (req.session.userId) return res.redirect('/notes');
-  res.redirect('/auth/login');
-});
-
-app.use('/auth',    authRoutes);
-app.use('/notes',   notesRoutes);
-app.use('/admin',   adminRoutes);
-app.use('/profile', profileRoutes);
-app.use('/search',  searchRoutes);
-app.use('/share',   shareRoutes);
-
-// ── 404 ───────────────────────────────────────────────────────────────────────
-app.use((_req, res) => {
-  res.status(404).render('error', { title: 'Not Found', message: 'Page not found.' });
-});
-
-// ── Global error handler ──────────────────────────────────────────────────────
-// eslint-disable-next-line no-unused-vars
-app.use((err, req, res, _next) => {
-  logger.error('Unhandled error', { err: err.message, stack: err.stack, url: req.originalUrl });
-  const status = err.status || 500;
-  res.status(status).render('error', {
-    title: 'Error',
-    message: process.env.NODE_ENV === 'production' ? 'An unexpected error occurred.' : err.message
+  // ── CSRF protection ──────────────────────────────────────────────────────────
+  // csrf-sync uses the synchronizer token pattern.
+  // The token is injected into res.locals so views can include it in forms.
+  const { csrfSynchronisedProtection, generateToken } = csrfSync({
+    getTokenFromRequest: (req) => {
+      return req.body && req.body._csrf;
+    },
   });
-});
 
-// ── Start ──────────────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  logger.info(`Loose Notes started on http://localhost:${PORT} [${process.env.NODE_ENV || 'development'}]`);
-});
+  // Attach CSRF token generator to res.locals for all views
+  app.use((req, res, next) => {
+    res.locals.csrfToken = generateToken(req);
+    next();
+  });
 
-module.exports = app;
+  // Apply CSRF protection to all state-changing routes
+  app.use((req, res, next) => {
+    const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS']);
+    if (safeMethods.has(req.method)) return next();
+    csrfSynchronisedProtection(req, res, next);
+  });
+
+  // ── Rate limiting ────────────────────────────────────────────────────────────
+  app.use(generalLimiter);
+
+  // ── Template locals ───────────────────────────────────────────────────────────
+  app.use((req, res, next) => {
+    res.locals.user = req.user || null;
+    res.locals.flash = {
+      success: req.flash('success'),
+      error: req.flash('error'),
+    };
+    next();
+  });
+
+  // ── Request logging ───────────────────────────────────────────────────────────
+  app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+      logger.info({
+        event: 'HTTP_REQUEST',
+        method: req.method,
+        path: req.path,
+        status: res.statusCode,
+        ms: Date.now() - start,
+        userId: req.user?.id,
+        ip: req.ip,
+      });
+    });
+    next();
+  });
+
+  // ── Routes ────────────────────────────────────────────────────────────────────
+  app.use('/', indexRouter);
+  app.use('/auth', authRouter);
+  app.use('/notes', notesRouter);
+  app.use('/attachments', attachmentsRouter);
+  app.use('/profile', profileRouter);
+  app.use('/share', shareRouter);
+  app.use('/admin', adminRouter);
+
+  // ── 404 / Error ───────────────────────────────────────────────────────────────
+  app.use(notFoundHandler);
+  app.use(errorHandler);
+
+  return app;
+}
+
+module.exports = createApp;

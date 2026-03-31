@@ -1,67 +1,28 @@
-<%- include('../partials/head', {title}) %>
-<%- include('../partials/nav') %>
-<div class="container mt-4">
-  <div class="row justify-content-center">
-    <div class="col-md-8">
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3">Edit Note</h1>
-        <form method="POST" action="/notes/<%= note.id %>/delete"
-              onsubmit="return confirm('Delete this note and all its attachments permanently?')">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <button type="submit" class="btn btn-sm btn-outline-danger">Delete Note</button>
-        </form>
-      </div>
-      <%- include('../partials/errors') %>
-      <form method="POST" action="/notes/<%= note.id %>/edit" enctype="multipart/form-data" novalidate>
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <div class="mb-3">
-          <label for="title" class="form-label fw-semibold">Title <span class="text-danger">*</span></label>
-          <input type="text" class="form-control" id="title" name="title"
-                 value="<%= note.title %>" required maxlength="255">
-        </div>
-        <div class="mb-3">
-          <label for="content" class="form-label fw-semibold">Content <span class="text-danger">*</span></label>
-          <textarea class="form-control" id="content" name="content" rows="10" required><%= note.content %></textarea>
-        </div>
-        <div class="mb-3 form-check">
-          <input type="checkbox" class="form-check-input" id="is_public" name="is_public"
-                 <%= note.is_public ? 'checked' : '' %>>
-          <label class="form-check-label" for="is_public">Make this note public</label>
-        </div>
+<div class="card form-card form-card-wide">
+  <h1>Edit Note</h1>
+  <form method="POST" action="/notes/<%= note.id %>/edit">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 
-        <% if (attachments.length) { %>
-          <div class="mb-3">
-            <label class="form-label fw-semibold">Current Attachments</label>
-            <ul class="list-group mb-2">
-              <% attachments.forEach(att => { %>
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                  <span>📎 <%= att.original_name %>
-                    <span class="text-muted small">(<%= (att.size / 1024).toFixed(1) %> KB)</span>
-                  </span>
-                  <form method="POST" action="/notes/<%= note.id %>/attachments/<%= att.id %>/delete"
-                        onsubmit="return confirm('Remove this attachment?')" class="d-inline">
-                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                    <button class="btn btn-sm btn-outline-danger">Remove</button>
-                  </form>
-                </li>
-              <% }) %>
-            </ul>
-          </div>
-        <% } %>
-
-        <div class="mb-4">
-          <label class="form-label fw-semibold">Add Attachments</label>
-          <input type="file" class="form-control" name="attachments" multiple
-                 accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg">
-          <div class="form-text">Supported: PDF, DOC, DOCX, TXT, PNG, JPG, JPEG. Max 10 MB each, up to 5 files.</div>
-        </div>
-
-        <div class="d-flex gap-2">
-          <button type="submit" class="btn btn-primary">Save Changes</button>
-          <a href="/notes/<%= note.id %>" class="btn btn-outline-secondary">Cancel</a>
-        </div>
-      </form>
+    <div class="form-group">
+      <label for="title">Title <span class="required">*</span></label>
+      <input type="text" id="title" name="title" value="<%= note.title %>"
+             required maxlength="255" />
     </div>
-  </div>
+
+    <div class="form-group">
+      <label for="content">Content <span class="required">*</span></label>
+      <textarea id="content" name="content" rows="12" required><%= note.content %></textarea>
+    </div>
+
+    <div class="form-group form-check">
+      <input type="checkbox" id="isPublic" name="isPublic" value="on"
+             <%= note.isPublic ? 'checked' : '' %> />
+      <label for="isPublic">Make this note public</label>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+      <a href="/notes/<%= note.id %>" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
 </div>
-<%- include('../partials/footer') %>

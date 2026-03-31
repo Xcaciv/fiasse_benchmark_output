@@ -2,74 +2,67 @@ package com.loosenotes.dao;
 
 import com.loosenotes.model.ShareLink;
 
-import javax.sql.DataSource;
 import java.sql.*;
 import java.util.Optional;
 
 /**
- * Data access layer for ShareLink entities.
- * SSEM: Authenticity - tokens stored as hashes (see SecureTokenUtil).
- * SSEM: Resilience - try-with-resources throughout.
+ * Data access for the share_links table.
+ *
+ * SSEM notes:
+ * - Authenticity: token lookup uses parameterized query only.
+ * - Integrity: deleting by noteId revokes all share links for a note.
  */
 public class ShareLinkDao {
 
-    private final DataSource dataSource;
+    private final DatabaseManager db;
 
-    public ShareLinkDao(DataSource dataSource) {
-        this.dataSource = dataSource;
+    public ShareLinkDao(DatabaseManager db) {
+        this.db = db;
     }
 
-    /** Creates a new share link and returns the generated ID. */
-    public long create(ShareLink link) throws SQLException {
-        // Deactivate any existing active links for this note before creating new one
-        deactivateByNoteId(link.getNoteId());
-        String sql = "INSERT INTO share_links (note_id, token, is_active) VALUES (?, ?, ?)";
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            ps.setLong(1, link.getNoteId());
-            ps.setString(2, link.getToken());
-            ps.setBoolean(3, link.isActive());
-            ps.executeUpdate();
-            try (ResultSet keys = ps.getGeneratedKeys()) {
-                if (keys.next()) return keys.getLong(1);
-            }
-        }
-        throw new SQLException("ShareLink creation failed: no generated key");
-    }
-
-    /**
-     * Finds an active share link by token hash.
-     * The token parameter must be the SHA-256 hash of the raw URL token.
-     */
-    public Optional<ShareLink> findActiveByToken(String tokenHash) throws SQLException {
-        String sql = "SELECT * FROM share_links WHERE token = ? AND is_active = TRUE";
-        try (Connection conn = dataSource.getConnection();
+    /** Finds a share link by its token. */
+    public Optional<ShareLink> findByToken(String token) throws SQLException {
+        String sql = "SELECT id, note_id, token, created_at FROM share_links WHERE token = ?";
+        try (Connection conn = db.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, tokenHash);
+            ps.setString(1, token);
             try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return Optional.of(mapRow(rs));
+                return rs.next() ? Optional.of(mapRow(rs)) : Optional.empty();
             }
         }
-        return Optional.empty();
     }
 
-    /** Returns the active share link for a note, if any. */
-    public Optional<ShareLink> findActiveByNoteId(long noteId) throws SQLException {
-        String sql = "SELECT * FROM share_links WHERE note_id = ? AND is_active = TRUE";
-        try (Connection conn = dataSource.getConnection();
+    /** Finds the share link for a specific note (if any). */
+    public Optional<ShareLink> findByNoteId(long noteId) throws SQLException {
+        String sql = "SELECT id, note_id, token, created_at FROM share_links WHERE note_id = ?";
+        try (Connection conn = db.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, noteId);
             try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return Optional.of(mapRow(rs));
+                return rs.next() ? Optional.of(mapRow(rs)) : Optional.empty();
             }
         }
-        return Optional.empty();
     }
 
-    /** Deactivates all share links for a note (revoke). */
-    public void deactivateByNoteId(long noteId) throws SQLException {
-        String sql = "UPDATE share_links SET is_active = FALSE WHERE note_id = ?";
-        try (Connection conn = dataSource.getConnection();
+    /** Inserts a new share link. Returns the generated ID. */
+    public long insert(ShareLink link) throws SQLException {
+        String sql = "INSERT INTO share_links (note_id, token) VALUES (?, ?)";
+        try (Connection conn = db.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            ps.setLong(1, link.getNoteId());
+            ps.setString(2, link.getToken());
+            ps.executeUpdate();
+            try (ResultSet keys = ps.getGeneratedKeys()) {
+                if (keys.next()) return keys.getLong(1);
+                throw new SQLException("No generated key for share_link insert");
+            }
+        }
+    }
+
+    /** Deletes all share links for a note (revoke). */
+    public void deleteByNoteId(long noteId) throws SQLException {
+        String sql = "DELETE FROM share_links WHERE note_id = ?";
+        try (Connection conn = db.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, noteId);
             ps.executeUpdate();
@@ -77,12 +70,11 @@ public class ShareLinkDao {
     }
 
     private ShareLink mapRow(ResultSet rs) throws SQLException {
-        ShareLink link = new ShareLink();
-        link.setId(rs.getLong("id"));
-        link.setNoteId(rs.getLong("note_id"));
-        link.setToken(rs.getString("token"));
-        link.setCreatedAt(rs.getTimestamp("created_at").toLocalDateTime());
-        link.setActive(rs.getBoolean("is_active"));
-        return link;
+        ShareLink sl = new ShareLink();
+        sl.setId(rs.getLong("id"));
+        sl.setNoteId(rs.getLong("note_id"));
+        sl.setToken(rs.getString("token"));
+        sl.setCreatedAt(rs.getTimestamp("created_at").toInstant());
+        return sl;
     }
 }

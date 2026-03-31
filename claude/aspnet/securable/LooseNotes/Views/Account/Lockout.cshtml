@@ -1,16 +1,10 @@
 @{
     ViewData["Title"] = "Account Locked";
 }
-
 <div class="row justify-content-center">
     <div class="col-md-6 text-center">
-        <div class="display-4 mb-3">🔐</div>
         <h2>Account Temporarily Locked</h2>
-        <p class="lead">
-            Too many failed login attempts. Your account has been locked for a short period.
-        </p>
-        <p class="text-muted">Please try again later or reset your password.</p>
-        <a asp-action="ForgotPassword" class="btn btn-outline-primary me-2">Reset Password</a>
-        <a asp-controller="Home" asp-action="Index" class="btn btn-secondary">Go Home</a>
+        <p class="lead">Too many failed login attempts. Please try again in 15 minutes.</p>
+        <a asp-action="Login" class="btn btn-secondary">Back to Login</a>
     </div>
 </div>

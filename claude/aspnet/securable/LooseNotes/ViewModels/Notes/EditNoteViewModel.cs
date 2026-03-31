@@ -1,24 +1,22 @@
-// EditNoteViewModel.cs — Input model for editing an existing note.
-// Integrity: Id is bound from route, not trust-boundary form data, for IDOR prevention.
-using LooseNotes.Models;
 using System.ComponentModel.DataAnnotations;
 
 namespace LooseNotes.ViewModels.Notes;
 
-public sealed class EditNoteViewModel
+public class EditNoteViewModel
 {
     public int Id { get; set; }
 
-    [Required]
-    [StringLength(300, MinimumLength = 1)]
+    [Required, MaxLength(200)]
+    [Display(Name = "Title")]
     public string Title { get; set; } = string.Empty;
 
     [Required]
-    [StringLength(100000)]
+    [Display(Name = "Content")]
     public string Content { get; set; } = string.Empty;
 
-    public NoteVisibility Visibility { get; set; }
+    [Display(Name = "Make Public")]
+    public bool IsPublic { get; set; }
 
-    /// <summary>Optional new attachment to add.</summary>
+    [Display(Name = "Add Attachment")]
     public IFormFile? NewAttachment { get; set; }
 }

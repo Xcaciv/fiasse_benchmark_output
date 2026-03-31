@@ -2,10 +2,12 @@ package com.loosenotes.service;
 
 import com.loosenotes.dao.NoteDao;
 import com.loosenotes.dao.RatingDao;
+import com.loosenotes.model.AuditLog.EventType;
 import com.loosenotes.model.Note;
 import com.loosenotes.model.Rating;
-import com.loosenotes.util.InputSanitizer;
 import com.loosenotes.util.ValidationUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.SQLException;
 import java.util.List;
@@ -13,70 +15,73 @@ import java.util.Optional;
 
 /**
  * Business logic for note ratings.
- * SSEM: Integrity - rating value constraint 1-5, comment sanitized.
+ *
+ * SSEM notes:
+ * - Integrity: stars range validated via ValidationUtil before persistence.
+ * - Confidentiality: users cannot see other users' private notes (enforced via NoteDao).
  */
 public class RatingService {
 
+    private static final Logger log = LoggerFactory.getLogger(RatingService.class);
+
     private final RatingDao ratingDao;
     private final NoteDao noteDao;
+    private final AuditService auditService;
 
-    public RatingService(RatingDao ratingDao, NoteDao noteDao) {
-        this.ratingDao = ratingDao;
-        this.noteDao = noteDao;
+    public RatingService(RatingDao ratingDao, NoteDao noteDao, AuditService auditService) {
+        this.ratingDao    = ratingDao;
+        this.noteDao      = noteDao;
+        this.auditService = auditService;
     }
 
-    /**
-     * Submits or updates a rating for a note.
-     * Trust boundary: validates and sanitizes inputs.
-     *
-     * @param noteId    note to rate
-     * @param userId    rater's user ID
-     * @param value     rating value 1-5
-     * @param rawComment optional comment (may be null or blank)
-     */
-    public void submitRating(long noteId, long userId, int value,
-                              String rawComment) throws SQLException {
-        if (!ValidationUtil.isValidRatingValue(value)) {
-            throw new IllegalArgumentException("Rating must be between 1 and 5");
-        }
-
-        String comment = InputSanitizer.sanitizeMultiLine(rawComment);
-        if (!ValidationUtil.isValidRatingComment(comment)) {
-            throw new IllegalArgumentException("Comment exceeds maximum length of 1000 characters");
-        }
-
-        verifyNoteAccessible(noteId, userId);
-
-        Rating rating = new Rating();
-        rating.setNoteId(noteId);
-        rating.setUserId(userId);
-        rating.setValue(value);
-        rating.setComment(comment != null && comment.isBlank() ? null : comment);
-        ratingDao.upsert(rating);
-    }
-
-    /** Returns all ratings for a note. */
-    public List<Rating> getRatings(long noteId) throws SQLException {
+    /** Returns all ratings for a publicly visible note. */
+    public List<Rating> getRatingsForNote(long noteId) throws ServiceException, SQLException {
+        noteDao.findById(noteId).orElseThrow(() -> new ServiceException("Note not found"));
         return ratingDao.findByNoteId(noteId);
     }
 
-    /** Returns the current user's rating for a note, if any. */
-    public Optional<Rating> getUserRating(long noteId, long userId) throws SQLException {
-        return ratingDao.findByNoteAndUser(noteId, userId);
+    /**
+     * Submits or updates a rating. A user may have at most one rating per note.
+     * Users cannot rate their own note.
+     */
+    public void rate(long noteId, long userId, int stars, String comment, String ipAddress)
+            throws ServiceException, SQLException {
+
+        if (!ValidationUtil.isValidRating(stars)) {
+            throw new ServiceException("Rating must be between 1 and 5");
+        }
+
+        Note note = noteDao.findById(noteId)
+                .orElseThrow(() -> new ServiceException("Note not found"));
+
+        if (note.getUserId() == userId) {
+            throw new ServiceException("You cannot rate your own note");
+        }
+
+        Optional<Rating> existing = ratingDao.findByNoteAndUser(noteId, userId);
+        if (existing.isPresent()) {
+            // Update existing rating
+            Rating r = existing.get();
+            r.setStars(stars);
+            r.setComment(comment);
+            ratingDao.update(r);
+            auditService.record(userId, EventType.RATING,
+                    "rating_updated noteId=" + noteId, ipAddress);
+        } else {
+            // Insert new rating
+            Rating r = new Rating();
+            r.setNoteId(noteId);
+            r.setUserId(userId);
+            r.setStars(stars);
+            r.setComment(comment);
+            ratingDao.insert(r);
+            auditService.record(userId, EventType.RATING,
+                    "rating_created noteId=" + noteId + " stars=" + stars, ipAddress);
+        }
     }
 
-    /**
-     * Verifies the note exists and is accessible (public or owned).
-     * Users can only rate notes they can view.
-     */
-    private void verifyNoteAccessible(long noteId, long userId) throws SQLException {
-        Optional<Note> note = noteDao.findById(noteId);
-        if (note.isEmpty()) {
-            throw new IllegalArgumentException("Note not found");
-        }
-        boolean ownedByUser = note.get().getUserId() == userId;
-        if (!ownedByUser && !note.get().isPublic()) {
-            throw new SecurityException("Cannot rate a private note owned by another user");
-        }
+    /** Returns whether the given user has already rated this note. */
+    public Optional<Rating> getExistingRating(long noteId, long userId) throws SQLException {
+        return ratingDao.findByNoteAndUser(noteId, userId);
     }
 }

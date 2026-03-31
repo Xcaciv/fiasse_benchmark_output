@@ -1,23 +1,21 @@
-// ShareLink.cs — A unique, revocable share token for a note.
-// Authenticity: token is a cryptographically random byte array (see ShareTokenService).
-// Availability: tokens can be revoked (IsActive flag).
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace LooseNotes.Models;
 
-/// <summary>A revocable share link that grants read access to a note without authentication.</summary>
-public sealed class ShareLink
+public class ShareLink
 {
     public int Id { get; set; }
 
+    // Cryptographically random token — generated server-side only
+    [Required, MaxLength(128)]
+    public string Token { get; set; } = string.Empty;
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public bool IsRevoked { get; set; } = false;
+
     public int NoteId { get; set; }
 
-    /// <summary>URL-safe Base64-encoded cryptographically random token.
-    /// Indexed for fast lookup. Never logged.</summary>
-    public required string Token { get; set; }
-
-    public bool IsActive { get; set; } = true;
-
-    public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
-
-    // ── Navigation ────────────────────────────────────────────────────────────
+    [ForeignKey(nameof(NoteId))]
     public Note? Note { get; set; }
 }

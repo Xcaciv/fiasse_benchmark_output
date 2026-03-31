@@ -1,57 +1,54 @@
 package com.loosenotes.model;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 /**
- * Represents a user rating on a note.
- * SSEM: Integrity - value constrained 1-5 at DB and validation level.
+ * Represents a user's rating (1-5 stars) on a note.
+ *
+ * SSEM notes:
+ * - Integrity: stars range constraint validated in service layer AND DB CHECK constraint.
  */
 public class Rating {
 
     private long id;
     private long noteId;
     private long userId;
+    /** Denormalized for display. */
     private String raterUsername;
-    private int value;
+    /** 1–5 inclusive; validated at service layer. */
+    private int stars;
     private String comment;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private Instant createdAt;
+    private Instant updatedAt;
 
     public Rating() {}
 
-    // ---- Getters ----
-
     public long getId() { return id; }
-
-    public long getNoteId() { return noteId; }
-
-    public long getUserId() { return userId; }
-
-    public String getRaterUsername() { return raterUsername; }
-
-    public int getValue() { return value; }
-
-    public String getComment() { return comment; }
-
-    public LocalDateTime getCreatedAt() { return createdAt; }
-
-    public LocalDateTime getUpdatedAt() { return updatedAt; }
-
-    // ---- Setters ----
-
     public void setId(long id) { this.id = id; }
 
+    public long getNoteId() { return noteId; }
     public void setNoteId(long noteId) { this.noteId = noteId; }
 
+    public long getUserId() { return userId; }
     public void setUserId(long userId) { this.userId = userId; }
 
+    public String getRaterUsername() { return raterUsername; }
     public void setRaterUsername(String raterUsername) { this.raterUsername = raterUsername; }
 
-    public void setValue(int value) { this.value = value; }
+    public int getStars() { return stars; }
+    public void setStars(int stars) { this.stars = stars; }
 
+    public String getComment() { return comment; }
     public void setComment(String comment) { this.comment = comment; }
 
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 
-    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
+
+    @Override
+    public String toString() {
+        return "Rating{id=" + id + ", noteId=" + noteId + ", userId=" + userId + ", stars=" + stars + '}';
+    }
 }

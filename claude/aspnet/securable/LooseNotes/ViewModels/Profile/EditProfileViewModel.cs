@@ -1,33 +1,29 @@
-// EditProfileViewModel.cs — Input model for editing user profile.
-// Confidentiality: current password required to change settings (Authenticity check).
 using System.ComponentModel.DataAnnotations;
 
 namespace LooseNotes.ViewModels.Profile;
 
-public sealed class EditProfileViewModel
+public class EditProfileViewModel
 {
-    [Required]
-    [StringLength(50, MinimumLength = 3)]
+    [Required, MaxLength(50)]
+    [RegularExpression(@"^[a-zA-Z0-9_\-\.]+$", ErrorMessage = "Username may only contain letters, digits, underscores, hyphens, or dots.")]
     [Display(Name = "Username")]
     public string UserName { get; set; } = string.Empty;
 
-    [Required]
-    [EmailAddress]
+    [Required, EmailAddress, MaxLength(200)]
     [Display(Name = "Email")]
     public string Email { get; set; } = string.Empty;
 
-    // ── Optional password change ───────────────────────────────────────────────
     [DataType(DataType.Password)]
-    [Display(Name = "Current password (required to save changes)")]
+    [Display(Name = "Current Password")]
     public string? CurrentPassword { get; set; }
 
-    [StringLength(100, MinimumLength = 8)]
+    [MinLength(8), MaxLength(128)]
     [DataType(DataType.Password)]
-    [Display(Name = "New password (leave blank to keep current)")]
+    [Display(Name = "New Password")]
     public string? NewPassword { get; set; }
 
     [DataType(DataType.Password)]
     [Compare(nameof(NewPassword), ErrorMessage = "Passwords do not match.")]
-    [Display(Name = "Confirm new password")]
+    [Display(Name = "Confirm New Password")]
     public string? ConfirmNewPassword { get; set; }
 }

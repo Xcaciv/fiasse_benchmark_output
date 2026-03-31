@@ -2,132 +2,86 @@ package com.loosenotes.service;
 
 import com.loosenotes.dao.AuditLogDao;
 import com.loosenotes.model.AuditLog;
+import com.loosenotes.model.AuditLog.EventType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.sql.SQLException;
 import java.util.List;
 
 /**
- * Service for recording and retrieving security audit events.
- * SSEM: Accountability - every security-sensitive action is logged.
- * SSEM: Resilience - audit failures are logged but do not propagate
- *   to callers (audit must not break business operations).
+ * Records security-sensitive actions to the audit trail.
  *
- * <p>NEVER pass passwords, tokens, or session IDs to log methods.
+ * SSEM / ASVS alignment:
+ * - ASVS V7.2 (Log Events): all auth and admin actions logged.
+ * - Accountability: structured "who/what/where" format on every entry.
+ * - Confidentiality: ipAddress is anonymized before storage (/24 subnet).
+ * - Resilience: logging failure is non-fatal – a warning is emitted but the
+ *   primary operation is not blocked.
  */
 public class AuditService {
 
-    private static final Logger log = LoggerFactory.getLogger("com.loosenotes.audit");
+    private static final Logger log      = LoggerFactory.getLogger(AuditService.class);
+    private static final Logger auditLog = LoggerFactory.getLogger("AUDIT");
+
     private final AuditLogDao auditLogDao;
 
     public AuditService(AuditLogDao auditLogDao) {
         this.auditLogDao = auditLogDao;
     }
 
-    /** Records a login success event. */
-    public void logLoginSuccess(long userId, String username, String ipAddress) {
-        log("LOGIN_SUCCESS", userId, null, null,
-            "user=" + username, ipAddress);
-    }
-
-    /** Records a login failure event. Does NOT log the attempted password. */
-    public void logLoginFailure(String username, String ipAddress) {
-        log("LOGIN_FAILURE", null, null, null,
-            "attempted_user=" + username, ipAddress);
-    }
-
-    /** Records a logout event. */
-    public void logLogout(long userId, String username, String ipAddress) {
-        log("LOGOUT", userId, null, null,
-            "user=" + username, ipAddress);
-    }
-
-    /** Records a registration event. */
-    public void logRegistration(long userId, String username, String ipAddress) {
-        log("REGISTER", userId, null, null,
-            "user=" + username, ipAddress);
-    }
-
-    /** Records a note creation. */
-    public void logNoteCreated(long userId, long noteId, String ipAddress) {
-        log("NOTE_CREATED", userId, "note", noteId, null, ipAddress);
-    }
-
-    /** Records a note update. */
-    public void logNoteUpdated(long userId, long noteId, String ipAddress) {
-        log("NOTE_UPDATED", userId, "note", noteId, null, ipAddress);
-    }
-
-    /** Records a note deletion. */
-    public void logNoteDeleted(long userId, long noteId, String ipAddress) {
-        log("NOTE_DELETED", userId, "note", noteId, null, ipAddress);
-    }
-
-    /** Records note ownership reassignment (admin action). */
-    public void logNoteReassigned(long adminId, long noteId, long newOwnerId, String ipAddress) {
-        log("NOTE_REASSIGNED", adminId, "note", noteId,
-            "new_owner_id=" + newOwnerId, ipAddress);
-    }
-
-    /** Records a password reset request. Does NOT log the token. */
-    public void logPasswordResetRequested(String email, String ipAddress) {
-        log("PASSWORD_RESET_REQUESTED", null, null, null,
-            "email_domain=" + emailDomain(email), ipAddress);
-    }
-
-    /** Records a successful password reset. */
-    public void logPasswordResetCompleted(long userId, String ipAddress) {
-        log("PASSWORD_RESET_COMPLETED", userId, null, null, null, ipAddress);
-    }
-
-    /** Returns recent audit entries for the admin dashboard. */
-    public List<AuditLog> getRecentActivity(int limit) {
-        try {
-            return auditLogDao.findRecent(limit);
-        } catch (Exception e) {
-            log.error("Failed to retrieve audit log", e);
-            return List.of();
-        }
-    }
-
-    private void log(String action, Long userId, String resourceType,
-                     Long resourceId, String details, String ipAddress) {
-        AuditLog entry = buildEntry(action, userId, resourceType, resourceId, details, ipAddress);
-        persistEntry(entry);
-        logToSlf4j(entry);
-    }
-
-    private AuditLog buildEntry(String action, Long userId, String resourceType,
-                                 Long resourceId, String details, String ipAddress) {
+    /**
+     * Records an audit event.
+     *
+     * @param userId      the acting user ID (null for unauthenticated actions)
+     * @param eventType   category of the event
+     * @param detail      human-readable description (no PII, no passwords)
+     * @param rawIpAddress the client IP, anonymized before storage
+     */
+    public void record(Long userId, EventType eventType, String detail, String rawIpAddress) {
+        String anonymizedIp = anonymizeIp(rawIpAddress);
+        // Write structured line to dedicated audit log file
+        auditLog.info("type={} userId={} ip={} detail={}",
+                eventType, userId != null ? userId : "anon", anonymizedIp, detail);
+        // Persist to database for admin dashboard
         AuditLog entry = new AuditLog();
-        entry.setAction(action);
         entry.setUserId(userId);
-        entry.setResourceType(resourceType);
-        entry.setResourceId(resourceId);
-        entry.setDetails(details);
-        entry.setIpAddress(ipAddress);
-        return entry;
-    }
-
-    private void persistEntry(AuditLog entry) {
+        entry.setEventType(eventType);
+        entry.setEventDetail(detail);
+        entry.setIpAddress(anonymizedIp);
         try {
-            auditLogDao.create(entry);
-        } catch (Exception e) {
-            // SSEM: Resilience - audit persistence failure must not crash the app
-            log.error("Failed to persist audit log entry: action={}", entry.getAction(), e);
+            auditLogDao.insert(entry);
+        } catch (SQLException e) {
+            // Non-fatal: log warning but do not propagate – audit must not block ops
+            log.warn("Failed to persist audit log entry: type={}, userId={}", eventType, userId, e);
         }
     }
 
-    private void logToSlf4j(AuditLog entry) {
-        log.info("action={} userId={} resourceType={} resourceId={} details={} ip={}",
-            entry.getAction(), entry.getUserId(), entry.getResourceType(),
-            entry.getResourceId(), entry.getDetails(), entry.getIpAddress());
+    /** Returns the most recent {@code limit} audit entries for the admin dashboard. */
+    public List<AuditLog> getRecentActivity(int limit) throws SQLException {
+        return auditLogDao.findRecent(Math.min(limit, 200));
     }
 
-    /** Returns only the domain part of an email for safe logging. */
-    private String emailDomain(String email) {
-        if (email == null) return "unknown";
-        int at = email.indexOf('@');
-        return at >= 0 ? email.substring(at + 1) : "unknown";
+    /**
+     * Anonymizes an IPv4 address to its /24 prefix (e.g., 192.168.1.x).
+     * IPv6 addresses are returned as-is (shortened) to avoid identifying data.
+     * Null input returns "unknown".
+     */
+    private String anonymizeIp(String rawIp) {
+        if (rawIp == null || rawIp.isBlank()) return "unknown";
+        if (rawIp.contains(":")) {
+            // IPv6 – truncate to first 4 groups
+            String[] parts = rawIp.split(":");
+            int groupsToKeep = Math.min(parts.length, 4);
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < groupsToKeep; i++) {
+                if (i > 0) sb.append(':');
+                sb.append(parts[i]);
+            }
+            return sb + "::/48";
+        }
+        // IPv4 – keep first three octets only
+        int lastDot = rawIp.lastIndexOf('.');
+        return lastDot > 0 ? rawIp.substring(0, lastDot) + ".x" : rawIp;
     }
 }

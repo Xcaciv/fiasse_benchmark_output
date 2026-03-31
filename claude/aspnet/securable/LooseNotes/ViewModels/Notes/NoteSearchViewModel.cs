@@ -1,13 +1,12 @@
-// NoteSearchViewModel.cs — Carries search query and results.
-// Integrity: Query is sanitized in the controller before being used in LINQ.
 using System.ComponentModel.DataAnnotations;
 
 namespace LooseNotes.ViewModels.Notes;
 
-public sealed class NoteSearchViewModel
+public class NoteSearchViewModel
 {
-    [StringLength(200)]
-    public string Query { get; set; } = string.Empty;
+    [MaxLength(200)]
+    [Display(Name = "Search")]
+    public string? Query { get; set; }
 
-    public IReadOnlyList<NoteListItemViewModel> Results { get; set; } = Array.Empty<NoteListItemViewModel>();
+    public List<NoteListItemViewModel> Results { get; set; } = new();
 }

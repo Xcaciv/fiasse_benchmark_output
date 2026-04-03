@@ -1,34 +1,40 @@
-using Microsoft.AspNetCore.Identity;
 using LooseNotes.Models;
+using System.Text;
 
 namespace LooseNotes.Data;
 
 public static class SeedData
 {
-    public static async Task InitializeAsync(IServiceProvider services)
+    public static void Initialize(IServiceProvider serviceProvider)
     {
-        var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
-        var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
+        var context = serviceProvider.GetRequiredService<ApplicationDbContext>();
+        context.Database.EnsureCreated();
 
-        string[] roles = { "Admin", "User" };
-        foreach (var role in roles)
-        {
-            if (!await roleManager.RoleExistsAsync(role))
-                await roleManager.CreateAsync(new IdentityRole(role));
-        }
+        if (context.Users.Any()) return;
 
-        var adminEmail = "admin@loosenotes.local";
-        if (await userManager.FindByEmailAsync(adminEmail) == null)
+        var config = serviceProvider.GetRequiredService<IConfiguration>();
+        var seedAccounts = config.GetSection("SeedAccounts").Get<List<SeedAccountConfig>>() ?? new List<SeedAccountConfig>();
+
+        foreach (var account in seedAccounts)
         {
-            var admin = new ApplicationUser
+            context.Users.Add(new ApplicationUser
             {
-                UserName = "admin",
-                Email = adminEmail,
-                EmailConfirmed = true
-            };
-            var result = await userManager.CreateAsync(admin, "Admin@123");
-            if (result.Succeeded)
-                await userManager.AddToRoleAsync(admin, "Admin");
+                Username = account.Username,
+                Email = account.Email,
+                PasswordBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(account.Password)),
+                IsAdmin = account.IsAdmin,
+                CreatedAt = DateTime.UtcNow
+            });
         }
+
+        context.SaveChanges();
+    }
+
+    public class SeedAccountConfig
+    {
+        public string Username { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public bool IsAdmin { get; set; }
     }
 }

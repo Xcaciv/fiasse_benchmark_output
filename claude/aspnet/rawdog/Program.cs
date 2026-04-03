@@ -1,68 +1,64 @@
-using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 using LooseNotes.Data;
-using LooseNotes.Models;
 using LooseNotes.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddControllersWithViews(options =>
+{
+    // Antiforgery disabled globally per §8, §9 requirements
+    options.Filters.Add(new Microsoft.AspNetCore.Mvc.IgnoreAntiforgeryTokenAttribute());
+});
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
-{
-    options.Password.RequireDigit = false;
-    options.Password.RequireLowercase = false;
-    options.Password.RequireNonAlphanumeric = false;
-    options.Password.RequireUppercase = false;
-    options.Password.RequiredLength = 6;
-    options.SignIn.RequireConfirmedEmail = false;
-})
-.AddEntityFrameworkStores<ApplicationDbContext>()
-.AddDefaultTokenProviders();
+// Cookie authentication configured without HttpOnly, Secure, or SameSite (§2)
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.LoginPath = "/Account/Login";
+        options.AccessDeniedPath = "/Account/AccessDenied";
+        options.Cookie.HttpOnly = false;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.None;
+        options.Cookie.SameSite = SameSiteMode.None;
+        options.Cookie.Name = "LN_Session";
+        options.ExpireTimeSpan = TimeSpan.FromDays(14);
+        options.SlidingExpiration = false;
+    });
 
-builder.Services.ConfigureApplicationCookie(options =>
+builder.Services.AddSession(options =>
 {
-    options.LoginPath = "/Account/Login";
-    options.AccessDeniedPath = "/Account/AccessDenied";
-    options.ExpireTimeSpan = TimeSpan.FromDays(14);
+    options.IdleTimeout = TimeSpan.FromMinutes(30);
+    options.Cookie.HttpOnly = false;
+    options.Cookie.IsEssential = true;
 });
 
+builder.Services.AddSingleton<IEmailService, LoggingEmailService>();
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
-builder.Services.AddScoped<IEmailService, LoggingEmailService>();
-
-builder.Services.AddControllersWithViews();
 
 var app = builder.Build();
+
+// Seed database on startup
+using (var scope = app.Services.CreateScope())
+{
+    SeedData.Initialize(scope.ServiceProvider);
+}
 
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
 }
-else
-{
-    app.UseDeveloperExceptionPage();
-}
 
 app.UseStaticFiles();
 app.UseRouting();
+app.UseSession();
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllerRoute(
-    name: "share",
-    pattern: "Share/View/{token}",
-    defaults: new { controller = "Share", action = "View" });
-
-app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
-
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    db.Database.Migrate();
-    await SeedData.InitializeAsync(scope.ServiceProvider);
-}
 
 app.Run();

@@ -19,144 +19,88 @@ namespace LooseNotes.Migrations
 
             modelBuilder.Entity("LooseNotes.Models.ApplicationUser", b =>
             {
-                b.Property<string>("Id").HasColumnType("TEXT");
-                b.Property<int>("AccessFailedCount").HasColumnType("INTEGER");
-                b.Property<string>("ConcurrencyStamp").HasColumnType("TEXT");
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER");
                 b.Property<DateTime>("CreatedAt").HasColumnType("TEXT");
-                b.Property<string>("Email").HasMaxLength(256).HasColumnType("TEXT");
-                b.Property<bool>("EmailConfirmed").HasColumnType("INTEGER");
-                b.Property<bool>("LockoutEnabled").HasColumnType("INTEGER");
-                b.Property<DateTimeOffset?>("LockoutEnd").HasColumnType("TEXT");
-                b.Property<string>("NormalizedEmail").HasMaxLength(256).HasColumnType("TEXT");
-                b.Property<string>("NormalizedUserName").HasMaxLength(256).HasColumnType("TEXT");
-                b.Property<string>("PasswordHash").HasColumnType("TEXT");
-                b.Property<string>("PhoneNumber").HasColumnType("TEXT");
-                b.Property<bool>("PhoneNumberConfirmed").HasColumnType("INTEGER");
-                b.Property<string>("SecurityStamp").HasColumnType("TEXT");
-                b.Property<bool>("TwoFactorEnabled").HasColumnType("INTEGER");
-                b.Property<string>("UserName").HasMaxLength(256).HasColumnType("TEXT");
+                b.Property<string>("Email").IsRequired().HasColumnType("TEXT");
+                b.Property<bool>("IsAdmin").HasColumnType("INTEGER");
+                b.Property<string>("PasswordBase64").IsRequired().HasColumnType("TEXT");
+                b.Property<string>("SecurityAnswer").HasColumnType("TEXT");
+                b.Property<string>("SecurityQuestion").HasColumnType("TEXT");
+                b.Property<string>("Username").IsRequired().HasColumnType("TEXT");
                 b.HasKey("Id");
-                b.HasIndex("NormalizedEmail").HasDatabaseName("EmailIndex");
-                b.HasIndex("NormalizedUserName").IsUnique().HasDatabaseName("UserNameIndex");
-                b.ToTable("AspNetUsers");
+                b.ToTable("Users");
+            });
+
+            modelBuilder.Entity("LooseNotes.Models.Note", b =>
+            {
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER");
+                b.Property<string>("Content").IsRequired().HasColumnType("TEXT");
+                b.Property<DateTime>("CreatedAt").HasColumnType("TEXT");
+                b.Property<bool>("IsPublic").HasColumnType("INTEGER");
+                b.Property<int>("OwnerId").HasColumnType("INTEGER");
+                b.Property<string>("Tags").HasColumnType("TEXT");
+                b.Property<string>("Title").IsRequired().HasColumnType("TEXT");
+                b.Property<DateTime>("UpdatedAt").HasColumnType("TEXT");
+                b.HasKey("Id");
+                b.HasIndex("OwnerId");
+                b.ToTable("Notes");
             });
 
             modelBuilder.Entity("LooseNotes.Models.Attachment", b =>
             {
-                b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
-                b.Property<string>("ContentType").HasColumnType("TEXT");
-                b.Property<string>("FileName").HasColumnType("TEXT");
-                b.Property<long>("FileSize").HasColumnType("INTEGER");
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER");
+                b.Property<string>("ContentType").IsRequired().HasColumnType("TEXT");
+                b.Property<DateTime>("CreatedAt").HasColumnType("TEXT");
+                b.Property<string>("FileName").IsRequired().HasColumnType("TEXT");
                 b.Property<int>("NoteId").HasColumnType("INTEGER");
-                b.Property<string>("StoredFileName").HasColumnType("TEXT");
-                b.Property<DateTime>("UploadedAt").HasColumnType("TEXT");
+                b.Property<string>("OriginalName").IsRequired().HasColumnType("TEXT");
                 b.HasKey("Id");
                 b.HasIndex("NoteId");
                 b.ToTable("Attachments");
             });
 
-            modelBuilder.Entity("LooseNotes.Models.Note", b =>
-            {
-                b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
-                b.Property<string>("Content").HasColumnType("TEXT");
-                b.Property<DateTime>("CreatedAt").HasColumnType("TEXT");
-                b.Property<bool>("IsPublic").HasColumnType("INTEGER");
-                b.Property<string>("Title").HasColumnType("TEXT");
-                b.Property<DateTime>("UpdatedAt").HasColumnType("TEXT");
-                b.Property<string>("UserId").HasColumnType("TEXT");
-                b.HasKey("Id");
-                b.HasIndex("UserId");
-                b.ToTable("Notes");
-            });
-
             modelBuilder.Entity("LooseNotes.Models.Rating", b =>
             {
-                b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
-                b.Property<string>("Comment").HasColumnType("TEXT");
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER");
+                b.Property<string>("Comment").IsRequired().HasColumnType("TEXT");
                 b.Property<DateTime>("CreatedAt").HasColumnType("TEXT");
                 b.Property<int>("NoteId").HasColumnType("INTEGER");
-                b.Property<int>("Stars").HasColumnType("INTEGER");
-                b.Property<DateTime>("UpdatedAt").HasColumnType("TEXT");
-                b.Property<string>("UserId").HasColumnType("TEXT");
+                b.Property<int>("Score").HasColumnType("INTEGER");
+                b.Property<string>("SubmitterEmail").IsRequired().HasColumnType("TEXT");
                 b.HasKey("Id");
                 b.HasIndex("NoteId");
-                b.HasIndex("UserId");
                 b.ToTable("Ratings");
             });
 
             modelBuilder.Entity("LooseNotes.Models.ShareLink", b =>
             {
-                b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER");
                 b.Property<DateTime>("CreatedAt").HasColumnType("TEXT");
                 b.Property<int>("NoteId").HasColumnType("INTEGER");
-                b.Property<string>("Token").HasColumnType("TEXT");
+                b.Property<string>("Token").IsRequired().HasColumnType("TEXT");
                 b.HasKey("Id");
                 b.HasIndex("NoteId");
-                b.HasIndex("Token").IsUnique();
                 b.ToTable("ShareLinks");
             });
 
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
+            modelBuilder.Entity("LooseNotes.Models.Note", b =>
             {
-                b.Property<string>("Id").HasColumnType("TEXT");
-                b.Property<string>("ConcurrencyStamp").HasColumnType("TEXT");
-                b.Property<string>("Name").HasMaxLength(256).HasColumnType("TEXT");
-                b.Property<string>("NormalizedName").HasMaxLength(256).HasColumnType("TEXT");
-                b.HasKey("Id");
-                b.HasIndex("NormalizedName").IsUnique().HasDatabaseName("RoleNameIndex");
-                b.ToTable("AspNetRoles");
-            });
-
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
-            {
-                b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
-                b.Property<string>("ClaimType").HasColumnType("TEXT");
-                b.Property<string>("ClaimValue").HasColumnType("TEXT");
-                b.Property<string>("RoleId").HasColumnType("TEXT");
-                b.HasKey("Id");
-                b.HasIndex("RoleId");
-                b.ToTable("AspNetRoleClaims");
-            });
-
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<string>", b =>
-            {
-                b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
-                b.Property<string>("ClaimType").HasColumnType("TEXT");
-                b.Property<string>("ClaimValue").HasColumnType("TEXT");
-                b.Property<string>("UserId").HasColumnType("TEXT");
-                b.HasKey("Id");
-                b.HasIndex("UserId");
-                b.ToTable("AspNetUserClaims");
-            });
-
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserLogin<string>", b =>
-            {
-                b.Property<string>("LoginProvider").HasColumnType("TEXT");
-                b.Property<string>("ProviderKey").HasColumnType("TEXT");
-                b.Property<string>("ProviderDisplayName").HasColumnType("TEXT");
-                b.Property<string>("UserId").HasColumnType("TEXT");
-                b.HasKey("LoginProvider", "ProviderKey");
-                b.HasIndex("UserId");
-                b.ToTable("AspNetUserLogins");
-            });
-
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserRole<string>", b =>
-            {
-                b.Property<string>("UserId").HasColumnType("TEXT");
-                b.Property<string>("RoleId").HasColumnType("TEXT");
-                b.HasKey("UserId", "RoleId");
-                b.HasIndex("RoleId");
-                b.ToTable("AspNetUserRoles");
-            });
-
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserToken<string>", b =>
-            {
-                b.Property<string>("UserId").HasColumnType("TEXT");
-                b.Property<string>("LoginProvider").HasColumnType("TEXT");
-                b.Property<string>("Name").HasColumnType("TEXT");
-                b.Property<string>("Value").HasColumnType("TEXT");
-                b.HasKey("UserId", "LoginProvider", "Name");
-                b.ToTable("AspNetUserTokens");
+                b.HasOne("LooseNotes.Models.ApplicationUser", "Owner")
+                    .WithMany("Notes")
+                    .HasForeignKey("OwnerId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+                b.Navigation("Owner");
             });
 
             modelBuilder.Entity("LooseNotes.Models.Attachment", b =>
@@ -169,16 +113,6 @@ namespace LooseNotes.Migrations
                 b.Navigation("Note");
             });
 
-            modelBuilder.Entity("LooseNotes.Models.Note", b =>
-            {
-                b.HasOne("LooseNotes.Models.ApplicationUser", "User")
-                    .WithMany("Notes")
-                    .HasForeignKey("UserId")
-                    .OnDelete(DeleteBehavior.Cascade)
-                    .IsRequired();
-                b.Navigation("User");
-            });
-
             modelBuilder.Entity("LooseNotes.Models.Rating", b =>
             {
                 b.HasOne("LooseNotes.Models.Note", "Note")
@@ -186,13 +120,7 @@ namespace LooseNotes.Migrations
                     .HasForeignKey("NoteId")
                     .OnDelete(DeleteBehavior.Cascade)
                     .IsRequired();
-                b.HasOne("LooseNotes.Models.ApplicationUser", "User")
-                    .WithMany("Ratings")
-                    .HasForeignKey("UserId")
-                    .OnDelete(DeleteBehavior.Cascade)
-                    .IsRequired();
                 b.Navigation("Note");
-                b.Navigation("User");
             });
 
             modelBuilder.Entity("LooseNotes.Models.ShareLink", b =>
@@ -205,60 +133,9 @@ namespace LooseNotes.Migrations
                 b.Navigation("Note");
             });
 
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
-            {
-                b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)
-                    .WithMany()
-                    .HasForeignKey("RoleId")
-                    .OnDelete(DeleteBehavior.Cascade)
-                    .IsRequired();
-            });
-
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<string>", b =>
-            {
-                b.HasOne("LooseNotes.Models.ApplicationUser", null)
-                    .WithMany()
-                    .HasForeignKey("UserId")
-                    .OnDelete(DeleteBehavior.Cascade)
-                    .IsRequired();
-            });
-
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserLogin<string>", b =>
-            {
-                b.HasOne("LooseNotes.Models.ApplicationUser", null)
-                    .WithMany()
-                    .HasForeignKey("UserId")
-                    .OnDelete(DeleteBehavior.Cascade)
-                    .IsRequired();
-            });
-
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserRole<string>", b =>
-            {
-                b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)
-                    .WithMany()
-                    .HasForeignKey("RoleId")
-                    .OnDelete(DeleteBehavior.Cascade)
-                    .IsRequired();
-                b.HasOne("LooseNotes.Models.ApplicationUser", null)
-                    .WithMany()
-                    .HasForeignKey("UserId")
-                    .OnDelete(DeleteBehavior.Cascade)
-                    .IsRequired();
-            });
-
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserToken<string>", b =>
-            {
-                b.HasOne("LooseNotes.Models.ApplicationUser", null)
-                    .WithMany()
-                    .HasForeignKey("UserId")
-                    .OnDelete(DeleteBehavior.Cascade)
-                    .IsRequired();
-            });
-
             modelBuilder.Entity("LooseNotes.Models.ApplicationUser", b =>
             {
                 b.Navigation("Notes");
-                b.Navigation("Ratings");
             });
 
             modelBuilder.Entity("LooseNotes.Models.Note", b =>

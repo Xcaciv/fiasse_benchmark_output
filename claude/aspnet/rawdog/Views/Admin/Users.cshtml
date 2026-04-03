@@ -1,5 +1,40 @@
-@model AdminDashboardViewModel
+@model UserListViewModel
 @{
-    ViewData["Title"] = "User Management";
+    ViewData["Title"] = "Manage Users";
 }
-@await Html.PartialAsync("Index", Model)
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Users</h2>
+    <a asp-action="Index" class="btn btn-outline-secondary btn-sm">&larr; Dashboard</a>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Admin</th>
+                <th>Created</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var user in Model.Users)
+            {
+                <tr>
+                    <td>@user.Id</td>
+                    <td>@user.Username</td>
+                    <td>@user.Email</td>
+                    <td>@(user.IsAdmin ? "Yes" : "No")</td>
+                    <td>@user.CreatedAt.ToString("yyyy-MM-dd")</td>
+                    <td>
+                        <a asp-action="ReassignNote" asp-route-targetUserId="@user.Id"
+                           class="btn btn-sm btn-outline-secondary">Reassign Notes</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

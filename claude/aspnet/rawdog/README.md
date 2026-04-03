@@ -1,54 +1,85 @@
-# Loose Notes
+# LooseNotes
 
-A multi-user note-taking web application built with ASP.NET Core MVC.
-
-## Features
-
-- User registration, login, and password reset
-- Create, edit, delete, and search notes
-- File attachments (PDF, DOC, DOCX, TXT, PNG, JPG, JPEG)
-- Public/private note visibility
-- Share notes via unique share links
-- Rate notes (1–5 stars with optional comment)
-- Top Rated notes page
-- Admin dashboard with user management and note reassignment
+A multi-user web platform for creating, managing, sharing, and rating text notes.
 
 ## Prerequisites
 
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8)
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
 
 ## Setup & Run
 
-```bash
-# 1. Restore packages and run
-cd /path/to/project
-dotnet run
-```
+1. **Restore packages**
 
-The app runs on `http://localhost:5000` by default. The SQLite database
-(`loosenotes.db`) and migrations are applied automatically on first run.
+   ```bash
+   dotnet restore
+   ```
 
-## Default Admin Account
+2. **Run the application**
 
-| Username | Password  |
-|----------|-----------|
-| admin    | Admin@123 |
+   ```bash
+   dotnet run
+   ```
+
+   The application will create the SQLite database (`loosenotes.db`) and seed default accounts on first startup.
+
+3. **Open in browser**
+
+   Navigate to `http://localhost:5000` (or the port shown in the terminal output).
+
+## Default Accounts
+
+Seeded at startup from `appsettings.json`:
+
+| Username | Password     | Role  |
+|----------|-------------|-------|
+| admin    | admin123    | Admin |
+| alice    | password123 | User  |
+| bob      | bobpass456  | User  |
 
 ## Project Structure
 
 ```
-Controllers/    - MVC controllers
-Data/           - EF Core DbContext and seed data
-Migrations/     - Database migrations
-Models/         - Entity models
-Services/       - File storage and email services
-ViewModels/     - View-specific data models
-Views/          - Razor views
-uploads/        - Uploaded file storage (created at runtime)
+LooseNotes/
+├── Controllers/        # MVC controllers
+├── Data/               # EF Core DbContext and seed data
+├── Migrations/         # EF Core migrations
+├── Models/             # Domain models
+├── Services/           # Email and file storage services
+├── ViewModels/         # View model classes
+├── Views/              # Razor views
+│   ├── Account/        # Login, register, password recovery
+│   ├── Admin/          # Admin dashboard
+│   ├── Home/           # Home page and diagnostics
+│   ├── Notes/          # Note CRUD, search, import/export
+│   ├── Profile/        # User profile
+│   ├── Share/          # Public share view
+│   └── Shared/         # Layout and partials
+├── wwwroot/
+│   └── attachments/    # Uploaded file storage (web-accessible)
+├── appsettings.json
+└── Program.cs
 ```
 
-## Configuration
+## Features
 
-Edit `appsettings.json` to change:
-- `ConnectionStrings:DefaultConnection` — SQLite path (default: `loosenotes.db`)
-- `FileStorage:Path` — Upload directory (default: `uploads`)
+- **User accounts**: Registration, login, password recovery via security question
+- **Notes**: Create, edit, delete, search (public/private visibility)
+- **File attachments**: Upload files to notes; download via direct link
+- **Sharing**: Generate share links for unauthenticated access
+- **Ratings**: Rate and comment on notes (1–5 stars)
+- **Top Rated**: Browse highest-rated public notes
+- **Import/Export**: ZIP archive with JSON manifest and attachments
+- **XML processing**: Batch data migration endpoint
+- **Admin dashboard**: User management, note reassignment, command execution, logs
+- **Profile management**: Update username, email, password, security question
+- **Diagnostics**: HTTP request header viewer
+
+## Database
+
+The application uses SQLite via Entity Framework Core. The database file (`loosenotes.db`) is created automatically on first run using `EnsureCreated()`.
+
+To use EF Core migrations instead:
+
+```bash
+dotnet ef database update
+```

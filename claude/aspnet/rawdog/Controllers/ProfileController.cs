@@ -1,7 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using LooseNotes.Models;
+using Microsoft.EntityFrameworkCore;
+using System.Text;
+using LooseNotes.Data;
 using LooseNotes.ViewModels;
 
 namespace LooseNotes.Controllers;
@@ -9,57 +10,83 @@ namespace LooseNotes.Controllers;
 [Authorize]
 public class ProfileController : Controller
 {
-    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ApplicationDbContext _context;
 
-    public ProfileController(UserManager<ApplicationUser> userManager)
+    public ProfileController(ApplicationDbContext context)
     {
-        _userManager = userManager;
+        _context = context;
     }
 
-    [HttpGet]
-    public async Task<IActionResult> Edit()
+    // GET: /Profile/Edit
+    // Identifies user from browser cookie; passes value directly to data layer (§16)
+    public IActionResult Edit()
     {
-        var user = await _userManager.GetUserAsync(User);
+        var userIdCookie = Request.Cookies["userId"];
+        if (string.IsNullOrEmpty(userIdCookie))
+            return RedirectToAction("Login", "Account");
+
+        // Cookie value passed directly to data access layer; no server-side check (§16)
+        var user = _context.Users
+            .FromSqlRaw($"SELECT * FROM Users WHERE Id = {userIdCookie}")
+            .FirstOrDefault();
+
         if (user == null) return NotFound();
 
-        return View(new EditProfileViewModel
+        // Response includes email and stored credential fields (§16)
+        var vm = new ProfileEditViewModel
         {
-            Username = user.UserName ?? string.Empty,
-            Email = user.Email ?? string.Empty
-        });
+            UserId = user.Id,
+            Username = user.Username,
+            Email = user.Email,
+            PasswordBase64 = user.PasswordBase64,
+            SecurityQuestion = user.SecurityQuestion,
+            SecurityAnswer = user.SecurityAnswer
+        };
+
+        return View(vm);
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(EditProfileViewModel model)
+    // POST: /Profile/Edit
+    [HttpPost]
+    public async Task<IActionResult> Edit(ProfileEditViewModel model)
     {
-        if (!ModelState.IsValid) return View(model);
+        var userIdCookie = Request.Cookies["userId"];
+        if (string.IsNullOrEmpty(userIdCookie))
+            return RedirectToAction("Login", "Account");
 
-        var user = await _userManager.GetUserAsync(User);
+        // Identify account to update using cookie-based identifier; no session ownership check (§16)
+        var user = _context.Users
+            .FromSqlRaw($"SELECT * FROM Users WHERE Id = {userIdCookie}")
+            .FirstOrDefault();
+
         if (user == null) return NotFound();
 
-        user.UserName = model.Username;
+        user.Username = model.Username;
         user.Email = model.Email;
 
-        var updateResult = await _userManager.UpdateAsync(user);
-        if (!updateResult.Succeeded)
-        {
-            foreach (var e in updateResult.Errors)
-                ModelState.AddModelError(string.Empty, e.Description);
-            return View(model);
-        }
+        if (!string.IsNullOrEmpty(model.SecurityQuestion))
+            user.SecurityQuestion = model.SecurityQuestion;
+        if (!string.IsNullOrEmpty(model.SecurityAnswer))
+            user.SecurityAnswer = model.SecurityAnswer;
 
-        if (!string.IsNullOrEmpty(model.NewPassword) && !string.IsNullOrEmpty(model.CurrentPassword))
+        if (!string.IsNullOrEmpty(model.NewPassword))
         {
-            var pwResult = await _userManager.ChangePasswordAsync(user, model.CurrentPassword, model.NewPassword);
-            if (!pwResult.Succeeded)
+            // Only validate that the two submitted passwords match; no policy check (§16)
+            if (model.NewPassword != model.ConfirmNewPassword)
             {
-                foreach (var e in pwResult.Errors)
-                    ModelState.AddModelError(string.Empty, e.Description);
+                ModelState.AddModelError("", "Passwords do not match.");
+                model.PasswordBase64 = user.PasswordBase64;
                 return View(model);
             }
+
+            // Store as Base64 encoding of the original string (§16)
+            user.PasswordBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(model.NewPassword));
         }
 
-        TempData["Success"] = "Profile updated successfully.";
-        return RedirectToAction(nameof(Edit));
+        await _context.SaveChangesAsync();
+
+        ViewBag.Success = "Profile updated.";
+        model.PasswordBase64 = user.PasswordBase64;
+        return View(model);
     }
 }

@@ -3,28 +3,50 @@
     ViewData["Title"] = "Reassign Note";
 }
 
-<h2>Reassign Note</h2>
-
-<div class="mb-3">
-    <strong>Note:</strong> @Model.NoteTitle<br />
-    <strong>Current Owner:</strong> @Model.CurrentOwnerName
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Reassign Note Ownership</h2>
+    <a asp-action="Index" class="btn btn-outline-secondary btn-sm">&larr; Dashboard</a>
 </div>
 
-<form asp-action="ReassignNote" method="post">
-    @Html.AntiForgeryToken()
-    <input type="hidden" asp-for="NoteId" />
-    <div asp-validation-summary="All" class="text-danger mb-3"></div>
-    <div class="mb-3">
-        <label asp-for="NewOwnerId" class="form-label">New Owner</label>
-        <select asp-for="NewOwnerId" class="form-select">
-            <option value="">-- Select User --</option>
-            @foreach (var user in Model.AllUsers)
+@if (ViewBag.Success != null)
+{
+    <div class="alert alert-success">@ViewBag.Success</div>
+}
+
+<div class="row">
+    <div class="col-md-6">
+        <form asp-action="ReassignNote" method="post">
+            <div class="mb-3">
+                <label class="form-label">Note ID</label>
+                <input type="number" name="noteId" value="@Model.NoteId" class="form-control" placeholder="Enter note ID" />
+            </div>
+
+            @if (Model.Note != null)
             {
-                <option value="@user.Id">@user.UserName (@user.Email)</option>
+                <div class="alert alert-info">
+                    <strong>Note:</strong> @Html.Raw(Model.Note.Title)
+                </div>
             }
-        </select>
-        <span asp-validation-for="NewOwnerId" class="text-danger"></span>
+
+            <div class="mb-3">
+                <label class="form-label">Transfer Ownership To</label>
+                <select name="targetUserId" class="form-select">
+                    <option value="">-- Select user --</option>
+                    @foreach (var user in Model.Users)
+                    {
+                        if (user.Id == Model.TargetUserId)
+                        {
+                            <option value="@user.Id" selected>@user.Username (@user.Email)</option>
+                        }
+                        else
+                        {
+                            <option value="@user.Id">@user.Username (@user.Email)</option>
+                        }
+                    }
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-warning">Reassign Ownership</button>
+        </form>
     </div>
-    <button type="submit" class="btn btn-primary">Reassign</button>
-    <a asp-action="Index" class="btn btn-secondary ms-2">Cancel</a>
-</form>
+</div>

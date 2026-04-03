@@ -1,0 +1,25 @@
+@model AttachFileViewModel
+@{
+    ViewData["Title"] = "Attach File";
+}
+
+<div class="row">
+    <div class="col-md-6">
+        <h2 class="mb-4">Attach File</h2>
+
+        <form asp-action="Attach" method="post" enctype="multipart/form-data">
+            <input type="hidden" asp-for="NoteId" />
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+            <div class="mb-3">
+                <label asp-for="File" class="form-label">Select File</label>
+                <input asp-for="File" type="file" class="form-control" />
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Upload</button>
+                <a asp-action="Details" asp-route-id="@Model.NoteId" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>

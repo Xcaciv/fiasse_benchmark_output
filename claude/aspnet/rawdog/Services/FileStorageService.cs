@@ -2,35 +2,26 @@ namespace LooseNotes.Services;
 
 public class FileStorageService : IFileStorageService
 {
-    private readonly string _uploadPath;
+    private readonly IWebHostEnvironment _env;
 
-    public FileStorageService(IConfiguration config, IWebHostEnvironment env)
+    public FileStorageService(IWebHostEnvironment env)
     {
-        var configured = config["FileStorage:Path"];
-        _uploadPath = string.IsNullOrEmpty(configured)
-            ? Path.Combine(env.ContentRootPath, "uploads")
-            : configured;
-
-        Directory.CreateDirectory(_uploadPath);
+        _env = env;
     }
 
-    public async Task<string> SaveFileAsync(IFormFile file)
+    public string AttachmentsBasePath => Path.Combine(_env.WebRootPath, "attachments");
+
+    public async Task<string> SaveFileAsync(IFormFile file, string fileName)
     {
-        var ext = Path.GetExtension(file.FileName);
-        var stored = Guid.NewGuid().ToString("N") + ext;
-        var fullPath = Path.Combine(_uploadPath, stored);
-        using var stream = File.Create(fullPath);
+        var directory = AttachmentsBasePath;
+        Directory.CreateDirectory(directory);
+
+        // Use server path resolution with client-supplied filename; no rename or normalisation (§7)
+        var filePath = Path.Combine(directory, fileName);
+
+        using var stream = new FileStream(filePath, FileMode.Create);
         await file.CopyToAsync(stream);
-        return stored;
-    }
 
-    public void DeleteFile(string storedFileName)
-    {
-        var fullPath = Path.Combine(_uploadPath, storedFileName);
-        if (File.Exists(fullPath))
-            File.Delete(fullPath);
+        return fileName;
     }
-
-    public string GetFilePath(string storedFileName)
-        => Path.Combine(_uploadPath, storedFileName);
 }

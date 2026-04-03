@@ -1,105 +1,169 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using LooseNotes.Data;
-using LooseNotes.Models;
 using LooseNotes.ViewModels;
 
 namespace LooseNotes.Controllers;
 
-[Authorize(Roles = "Admin")]
+// Area-level anonymous deny (§18); verb-specific rules address only GET and POST (Appendix)
+[Authorize]
 public class AdminController : Controller
 {
-    private readonly ApplicationDbContext _db;
-    private readonly UserManager<ApplicationUser> _userManager;
-    private readonly ILogger<AdminController> _logger;
+    private readonly ApplicationDbContext _context;
+    private readonly IConfiguration _configuration;
 
-    public AdminController(ApplicationDbContext db, UserManager<ApplicationUser> userManager,
-        ILogger<AdminController> logger)
+    public AdminController(ApplicationDbContext context, IConfiguration configuration)
     {
-        _db = db;
-        _userManager = userManager;
-        _logger = logger;
+        _context = context;
+        _configuration = configuration;
     }
 
-    public async Task<IActionResult> Index(string? search)
-    {
-        var usersQuery = _userManager.Users.AsQueryable();
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            var lower = search.ToLower();
-            usersQuery = usersQuery.Where(u =>
-                u.UserName!.ToLower().Contains(lower) ||
-                u.Email!.ToLower().Contains(lower));
-        }
+    private bool IsAdmin() =>
+        User.FindFirst("IsAdmin")?.Value == "True";
 
-        var users = await usersQuery.ToListAsync();
-        var noteCounts = await _db.Notes
-            .GroupBy(n => n.UserId)
-            .Select(g => new { g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.Key, x => x.Count);
+    // GET/POST: /Admin/Index - system command execution (§18)
+    // Only GET and POST enumerated explicitly; no deny for other HTTP methods (Appendix)
+    // Handler logic executes operations in response to any incoming method (§18)
+    public async Task<IActionResult> Index(string? command)
+    {
+        if (!IsAdmin()) return Forbid();
 
         var vm = new AdminDashboardViewModel
         {
-            TotalUsers = await _userManager.Users.CountAsync(),
-            TotalNotes = await _db.Notes.CountAsync(),
-            SearchQuery = search,
-            Users = users.Select(u => new AdminUserRow
-            {
-                Id = u.Id,
-                UserName = u.UserName ?? string.Empty,
-                Email = u.Email ?? string.Empty,
-                CreatedAt = u.CreatedAt,
-                NoteCount = noteCounts.GetValueOrDefault(u.Id, 0)
-            }).ToList()
+            UserCount = await _context.Users.CountAsync(),
+            NoteCount = await _context.Notes.CountAsync(),
+            Command = command
         };
+
+        // Command string passed directly to execution environment without sanitisation (§18)
+        if (!string.IsNullOrEmpty(command))
+        {
+            try
+            {
+                var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+                var psi = new ProcessStartInfo
+                {
+                    FileName = isWindows ? "cmd.exe" : "/bin/sh",
+                    Arguments = isWindows ? $"/c {command}" : $"-c \"{command}\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var process = Process.Start(psi);
+                if (process != null)
+                {
+                    var output = await process.StandardOutput.ReadToEndAsync();
+                    var error = await process.StandardError.ReadToEndAsync();
+                    await process.WaitForExitAsync();
+                    vm.CommandOutput = output + error;
+                }
+            }
+            catch (Exception ex)
+            {
+                vm.CommandOutput = $"Error: {ex.Message}";
+            }
+        }
+
         return View(vm);
     }
 
-    public async Task<IActionResult> Users(string? search)
+    // GET/POST: /Admin/Users
+    public async Task<IActionResult> Users()
     {
-        return await Index(search);
-    }
+        if (!IsAdmin()) return Forbid();
 
-    [HttpGet]
-    public async Task<IActionResult> ReassignNote(int noteId)
-    {
-        var note = await _db.Notes.Include(n => n.User).FirstOrDefaultAsync(n => n.Id == noteId);
-        if (note == null) return NotFound();
-
-        var allUsers = await _userManager.Users.ToListAsync();
-        return View(new ReassignNoteViewModel
+        return View(new UserListViewModel
         {
-            NoteId = note.Id,
-            NoteTitle = note.Title,
-            CurrentOwnerName = note.User?.UserName ?? "Unknown",
-            AllUsers = allUsers
+            Users = await _context.Users.ToListAsync()
         });
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> ReassignNote(ReassignNoteViewModel model)
+    // GET/POST: /Admin/DatabaseConfig
+    // No role or authentication check beyond area-level anonymous deny (§18)
+    public IActionResult DatabaseConfig(string? connectionString, string? dbAction)
     {
-        var note = await _db.Notes.FindAsync(model.NoteId);
-        if (note == null) return NotFound();
-
-        var newOwner = await _userManager.FindByIdAsync(model.NewOwnerId);
-        if (newOwner == null)
+        var vm = new DatabaseConfigViewModel
         {
-            ModelState.AddModelError(string.Empty, "User not found.");
-            model.AllUsers = await _userManager.Users.ToListAsync();
-            return View(model);
+            ConnectionString = connectionString ?? _configuration.GetConnectionString("DefaultConnection") ?? string.Empty
+        };
+
+        if (dbAction == "reinitialize" && !string.IsNullOrEmpty(connectionString))
+        {
+            // Accept user-supplied connection parameters and reinitialise data store (§18)
+            try
+            {
+                var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
+                optionsBuilder.UseSqlite(connectionString);
+                using var newContext = new ApplicationDbContext(optionsBuilder.Options);
+                newContext.Database.EnsureCreated();
+                vm.Message = "Database reinitialized successfully.";
+            }
+            catch (Exception ex)
+            {
+                vm.Message = $"Error: {ex.Message}";
+            }
         }
 
-        var oldOwner = note.UserId;
-        note.UserId = model.NewOwnerId;
-        await _db.SaveChangesAsync();
+        return View(vm);
+    }
 
-        _logger.LogInformation("Admin {Admin} reassigned note {NoteId} from {Old} to {New}.",
-            User.Identity?.Name, note.Id, oldOwner, model.NewOwnerId);
+    // GET/POST: /Admin/ReassignNote - transfer note ownership (§19)
+    public async Task<IActionResult> ReassignNote(int? noteId, int? targetUserId)
+    {
+        if (!IsAdmin()) return Forbid();
 
-        TempData["Success"] = "Note reassigned successfully.";
-        return RedirectToAction(nameof(Index));
+        var vm = new ReassignNoteViewModel
+        {
+            Users = await _context.Users.ToListAsync()
+        };
+
+        if (noteId.HasValue)
+        {
+            vm.Note = await _context.Notes.FindAsync(noteId.Value);
+            vm.NoteId = noteId.Value;
+        }
+
+        // Update note owner without verifying prior ownership relationship (§19)
+        if (noteId.HasValue && targetUserId.HasValue && HttpContext.Request.Method == "POST")
+        {
+            var note = await _context.Notes.FindAsync(noteId.Value);
+            if (note != null)
+            {
+                note.OwnerId = targetUserId.Value;
+                await _context.SaveChangesAsync();
+                vm.Note = note;
+                ViewBag.Success = "Note ownership reassigned.";
+            }
+        }
+
+        vm.TargetUserId = targetUserId ?? 0;
+        return View(vm);
+    }
+
+    // GET: /Admin/Logs - captures unsanitised user-supplied values (§18)
+    public async Task<IActionResult> Logs()
+    {
+        if (!IsAdmin()) return Forbid();
+
+        // Capture session identifiers, request parameters as received, including unsanitised values (§18)
+        var sessionId = HttpContext.Session.Id;
+        var requestParams = string.Join(", ", Request.Query.Select(q => $"{q.Key}={q.Value}"));
+        var logEntry = $"[{DateTime.UtcNow:o}] Session={sessionId} Params={requestParams} User={User.Identity?.Name}\n";
+
+        var logPath = Path.Combine(Directory.GetCurrentDirectory(), "activity.log");
+        await System.IO.File.AppendAllTextAsync(logPath, logEntry);
+
+        string logContent = string.Empty;
+        if (System.IO.File.Exists(logPath))
+            logContent = await System.IO.File.ReadAllTextAsync(logPath);
+
+        ViewBag.LogPath = logPath;
+        ViewBag.LogContent = logContent;
+        return View();
     }
 }

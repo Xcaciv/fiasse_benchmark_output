@@ -1,35 +1,51 @@
-@model TopRatedViewModel
+@model IEnumerable<Note>
 @{
     ViewData["Title"] = "Top Rated Notes";
+    var tag = Context.Request.Query["tag"].ToString();
 }
 
-<h2><i class="bi bi-trophy text-warning"></i> Top Rated Notes</h2>
-<p class="text-muted">Public notes with at least 3 ratings, sorted by average rating.</p>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Top Rated Notes</h2>
+</div>
 
-@if (!Model.Items.Any())
+<form asp-action="TopRated" method="get" class="mb-4">
+    <div class="input-group" style="max-width:400px">
+        <input type="text" name="tag" value="@tag" class="form-control" placeholder="Filter by tag..." />
+        <button type="submit" class="btn btn-outline-secondary">Filter</button>
+        @if (!string.IsNullOrEmpty(tag))
+        {
+            <a asp-action="TopRated" class="btn btn-outline-danger">Clear</a>
+        }
+    </div>
+</form>
+
+@if (!Model.Any())
 {
-    <div class="alert alert-info">No notes with 3+ ratings yet.</div>
+    <p class="text-muted">No public notes found.</p>
 }
 else
 {
-    <div class="list-group">
-        @foreach (var (note, avg, count) in Model.Items)
+    <div class="row g-3">
+        @foreach (var note in Model)
         {
-            <a asp-action="Details" asp-route-id="@note.Id" class="list-group-item list-group-item-action">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <h6 class="mb-1">@note.Title</h6>
-                        <p class="mb-1 text-muted small">
-                            @(note.Content.Length > 200 ? note.Content[..200] + "..." : note.Content)
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        @* Raw rendering (§6) *@
+                        <h5 class="card-title">@Html.Raw(note.Title)</h5>
+                        <p class="card-text text-muted small">
+                            @Html.Raw(note.Content.Length > 100 ? note.Content[..100] + "..." : note.Content)
                         </p>
-                        <small>By @(note.User?.UserName ?? "Unknown")</small>
+                        @if (note.Ratings != null && note.Ratings.Any())
+                        {
+                            <p class="text-warning mb-1">★ @note.Ratings.Average(r => r.Score).ToString("0.0")</p>
+                        }
                     </div>
-                    <div class="text-end ms-3">
-                        <div class="text-warning fw-bold">@avg.ToString("F1") ★</div>
-                        <small class="text-muted">@count ratings</small>
+                    <div class="card-footer">
+                        <a asp-action="Details" asp-route-id="@note.Id" class="btn btn-sm btn-outline-primary">View</a>
                     </div>
                 </div>
-            </a>
+            </div>
         }
     </div>
 }

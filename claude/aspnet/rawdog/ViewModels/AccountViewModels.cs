@@ -7,14 +7,18 @@ public class RegisterViewModel
     [Required]
     public string Username { get; set; } = string.Empty;
 
-    [Required, EmailAddress]
+    [Required]
+    [EmailAddress]
     public string Email { get; set; } = string.Empty;
 
-    [Required, DataType(DataType.Password), MinLength(6)]
+    [Required]
     public string Password { get; set; } = string.Empty;
 
-    [DataType(DataType.Password), Compare(nameof(Password))]
+    [Compare("Password", ErrorMessage = "Passwords do not match.")]
     public string ConfirmPassword { get; set; } = string.Empty;
+
+    public string? SecurityQuestion { get; set; }
+    public string? SecurityAnswer { get; set; }
 }
 
 public class LoginViewModel
@@ -22,29 +26,29 @@ public class LoginViewModel
     [Required]
     public string Username { get; set; } = string.Empty;
 
-    [Required, DataType(DataType.Password)]
+    [Required]
     public string Password { get; set; } = string.Empty;
-
-    public bool RememberMe { get; set; }
 }
 
 public class ForgotPasswordViewModel
 {
-    [Required, EmailAddress]
+    [Required]
+    [EmailAddress]
     public string Email { get; set; } = string.Empty;
 }
 
 public class ResetPasswordViewModel
 {
-    [Required]
-    public string Token { get; set; } = string.Empty;
-
-    [Required, EmailAddress]
     public string Email { get; set; } = string.Empty;
+    public string? SecurityQuestion { get; set; }
+    public string Answer { get; set; } = string.Empty;
+}
 
-    [Required, DataType(DataType.Password), MinLength(6)]
-    public string Password { get; set; } = string.Empty;
+public class SecurityQuestionSetupViewModel
+{
+    [Required]
+    public string SecurityQuestion { get; set; } = string.Empty;
 
-    [DataType(DataType.Password), Compare(nameof(Password))]
-    public string ConfirmPassword { get; set; } = string.Empty;
+    [Required]
+    public string SecurityAnswer { get; set; } = string.Empty;
 }

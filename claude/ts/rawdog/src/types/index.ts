@@ -1,61 +1,61 @@
 export interface User {
-  id: string;
+  id: number;
   username: string;
   email: string;
-  passwordHash: string;
+  passwordBase64: string;
   role: 'user' | 'admin';
+  securityQuestion?: string;
+  securityAnswer?: string;
   createdAt: string;
 }
 
 export interface Note {
-  id: string;
+  id: number;
   title: string;
   content: string;
-  userId: string;
-  visibility: 'public' | 'private';
+  isPublic: boolean;
+  userId: number;
   createdAt: string;
-  updatedAt: string;
+  shareToken?: string;
+  attachments: Attachment[];
 }
 
 export interface Attachment {
-  id: string;
-  noteId: string;
+  id: number;
+  noteId: number;
   filename: string;
-  originalFilename: string;
-  fileType: string;
-  size: number;
+  originalName: string;
+  contentType: string;
+  data: string;
   createdAt: string;
 }
 
 export interface Rating {
-  id: string;
-  noteId: string;
-  userId: string;
-  value: number;
+  id: number;
+  noteId: number;
+  userEmail: string;
+  score: number;
   comment: string;
   createdAt: string;
-  updatedAt: string;
 }
 
-export interface ShareLink {
-  id: string;
-  noteId: string;
+export interface ShareToken {
+  id: number;
+  noteId: number;
   token: string;
   createdAt: string;
 }
 
-export interface AuditLog {
-  id: string;
-  userId: string;
-  action: string;
-  details: string;
-  timestamp: string;
-}
-
-export interface ResetToken {
-  id: string;
-  userId: string;
-  token: string;
-  expiresAt: string;
-  used: boolean;
+export interface DB {
+  users: User[];
+  notes: Note[];
+  attachments: Attachment[];
+  ratings: Rating[];
+  shareTokenCounter: number;
+  nextId: {
+    users: number;
+    notes: number;
+    attachments: number;
+    ratings: number;
+  };
 }

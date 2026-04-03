@@ -11,7 +11,7 @@ public class LoggingEmailService : IEmailService
 
     public Task SendEmailAsync(string to, string subject, string body)
     {
-        _logger.LogInformation("EMAIL TO: {To} | SUBJECT: {Subject} | BODY: {Body}", to, subject, body);
+        _logger.LogInformation("Email to {To}, Subject: {Subject}, Body: {Body}", to, subject, body);
         return Task.CompletedTask;
     }
 }

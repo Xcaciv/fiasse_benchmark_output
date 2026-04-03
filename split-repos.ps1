@@ -133,6 +133,10 @@ $ExcludeFiles = @("*.db", "*.db-shm", "*.db-wal")
 function Get-RepoDescription {
     param([string]$SourcePath)
     $parts = $SourcePath -split "/"
+    if ($parts.Count -lt 3) {
+        return "Loose Notes - $SourcePath snapshot"
+    }
+
     $tool = $parts[0]
     $lang = $parts[1]
     $variant = $parts[2]
@@ -230,6 +234,8 @@ $total = $Repos.Count
 $succeeded = 0
 $failed = 0
 $skipped = 0
+$createdRepos = @()
+$changedRepos = @()
 
 for ($i = 0; $i -lt $total; $i++) {
     $num = $i + 1
@@ -418,6 +424,7 @@ for ($i = 0; $i -lt $total; $i++) {
                 if ($LASTEXITCODE -ne 0) {
                     throw "git push failed"
                 }
+                $changedRepos += $repoFullName
                 Pop-Location
                 Write-Host " pushed updates." -ForegroundColor Green
             } else {
@@ -455,6 +462,7 @@ for ($i = 0; $i -lt $total; $i++) {
                 throw "git push failed"
             }
 
+            $createdRepos += $repoFullName
             Pop-Location
             Write-Host " done." -ForegroundColor Green
             $succeeded++
@@ -479,6 +487,24 @@ Write-Host "  Total:     $total"
 Write-Host "  Succeeded: $succeeded" -ForegroundColor Green
 Write-Host "  Failed:    $failed" -ForegroundColor $(if ($failed -gt 0) { "Red" } else { "Green" })
 Write-Host "  Skipped:   $skipped" -ForegroundColor $(if ($skipped -gt 0) { "Yellow" } else { "Green" })
+
+Write-Host "`nCreated repositories:" -ForegroundColor Cyan
+if ($createdRepos.Count -gt 0) {
+    foreach ($repo in $createdRepos) {
+        Write-Host "  - $repo"
+    }
+} else {
+    Write-Host "  (none)"
+}
+
+Write-Host "`nRepositories with changes:" -ForegroundColor Cyan
+if ($changedRepos.Count -gt 0) {
+    foreach ($repo in $changedRepos) {
+        Write-Host "  - $repo"
+    }
+} else {
+    Write-Host "  (none)"
+}
 
 if (-not $DryRun -and $succeeded -gt 0) {
     Write-Host "`nVerify with:" -ForegroundColor Cyan

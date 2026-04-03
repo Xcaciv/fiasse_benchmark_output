@@ -7,3 +7,41 @@
     @apply text-gray-900 antialiased;
   }
 }
+
+.prose {
+  @apply text-gray-700 leading-relaxed;
+}
+
+.prose h1, .prose h2, .prose h3 {
+  @apply font-semibold text-gray-800;
+}
+
+.prose p {
+  @apply mb-3;
+}
+
+.prose ul, .prose ol {
+  @apply pl-5 mb-3;
+}
+
+.prose ul {
+  @apply list-disc;
+}
+
+.prose ol {
+  @apply list-decimal;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

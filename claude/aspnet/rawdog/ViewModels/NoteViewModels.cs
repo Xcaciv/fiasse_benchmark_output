@@ -3,7 +3,7 @@ using LooseNotes.Models;
 
 namespace LooseNotes.ViewModels;
 
-public class CreateNoteViewModel
+public class NoteCreateViewModel
 {
     [Required]
     public string Title { get; set; } = string.Empty;
@@ -11,12 +11,11 @@ public class CreateNoteViewModel
     [Required]
     public string Content { get; set; } = string.Empty;
 
-    public bool IsPublic { get; set; }
-
-    public List<IFormFile> Attachments { get; set; } = new();
+    public bool IsPublic { get; set; } = false;
+    public string? Tags { get; set; }
 }
 
-public class EditNoteViewModel
+public class NoteEditViewModel
 {
     public int Id { get; set; }
 
@@ -27,37 +26,36 @@ public class EditNoteViewModel
     public string Content { get; set; } = string.Empty;
 
     public bool IsPublic { get; set; }
-
-    public List<IFormFile> NewAttachments { get; set; } = new();
-
-    public List<Attachment> ExistingAttachments { get; set; } = new();
+    public string? Tags { get; set; }
 }
 
 public class NoteDetailsViewModel
 {
     public Note Note { get; set; } = null!;
-    public Rating? CurrentUserRating { get; set; }
-    public bool CanEdit { get; set; }
-    public string? ShareToken { get; set; }
+    public List<Rating> Ratings { get; set; } = new();
+    public RatingSubmitViewModel NewRating { get; set; } = new();
 }
 
-public class RatingViewModel
+public class RatingSubmitViewModel
 {
-    [Required, Range(1, 5)]
-    public int Stars { get; set; }
-
-    public string? Comment { get; set; }
-
     public int NoteId { get; set; }
+    public int Score { get; set; } = 3;
+    public string Comment { get; set; } = string.Empty;
 }
 
-public class SearchViewModel
+public class NoteSearchViewModel
 {
-    public string Query { get; set; } = string.Empty;
+    public string Keyword { get; set; } = string.Empty;
     public List<Note> Results { get; set; } = new();
 }
 
-public class TopRatedViewModel
+public class AttachFileViewModel
 {
-    public List<(Note Note, double Avg, int Count)> Items { get; set; } = new();
+    public int NoteId { get; set; }
+    public IFormFile? File { get; set; }
+}
+
+public class ImportViewModel
+{
+    public IFormFile? ZipFile { get; set; }
 }

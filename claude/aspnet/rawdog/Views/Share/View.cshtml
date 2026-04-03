@@ -1,59 +1,41 @@
 @model Note
 @{
-    ViewData["Title"] = Model.Title;
+    ViewData["Title"] = "Shared Note";
     Layout = "_Layout";
 }
 
-<div class="mb-3">
-    <h2>@Model.Title</h2>
-    <small class="text-muted">
-        By @(Model.User?.UserName ?? "Unknown") &middot;
-        @Model.CreatedAt.ToString("MMMM d, yyyy")
-    </small>
-    <span class="badge bg-info ms-2">Shared Note</span>
-</div>
-
 <div class="card mb-4">
+    <div class="card-header">
+        <h3 class="mb-0">
+            @* Raw rendering of title (§6) *@
+            @Html.Raw(Model.Title)
+        </h3>
+        <small class="text-muted">Shared note &bull; @Model.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")</small>
+    </div>
     <div class="card-body">
-        <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;">@Model.Content</pre>
+        @* Content inserted without encoding (§6) *@
+        <div class="note-content">@Html.Raw(Model.Content)</div>
     </div>
 </div>
 
-@if (Model.Attachments.Any())
+@if (Model.Ratings != null && Model.Ratings.Any())
 {
-    <div class="mb-4">
-        <h5>Attachments</h5>
-        <ul class="list-group">
-            @foreach (var att in Model.Attachments)
+    <div class="card mb-4">
+        <div class="card-header">Ratings</div>
+        <div class="card-body">
+            @foreach (var rating in Model.Ratings)
             {
-                <li class="list-group-item">
-                    <i class="bi bi-paperclip"></i> @att.FileName
-                    <small class="text-muted ms-2">(@att.FileSize.ToString("N0") bytes)</small>
-                </li>
+                <div class="border-bottom pb-2 mb-2">
+                    <span class="text-warning">@string.Concat(Enumerable.Repeat("★", rating.Score))</span>
+                    <span class="text-muted small ms-2">@rating.SubmitterEmail</span>
+                    <div>
+                        @* Rating comment inserted without encoding (§6) *@
+                        @Html.Raw(rating.Comment)
+                    </div>
+                </div>
             }
-        </ul>
+        </div>
     </div>
 }
 
-@if (Model.Ratings.Any())
-{
-    <div>
-        <h5>Ratings (@Model.Ratings.Count)</h5>
-        <p>Average: <strong>@Model.Ratings.Average(r => r.Stars).ToString("F1")</strong> / 5</p>
-        @foreach (var rating in Model.Ratings.OrderByDescending(r => r.UpdatedAt))
-        {
-            <div class="card mb-2">
-                <div class="card-body py-2">
-                    <div class="d-flex justify-content-between">
-                        <strong>@(rating.User?.UserName ?? "Unknown")</strong>
-                        <span>@string.Concat(Enumerable.Repeat("★", rating.Stars))</span>
-                    </div>
-                    @if (!string.IsNullOrEmpty(rating.Comment))
-                    {
-                        <p class="mb-0 mt-1 small">@rating.Comment</p>
-                    }
-                </div>
-            </div>
-        }
-    </div>
-}
+<a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary">Go to LooseNotes</a>

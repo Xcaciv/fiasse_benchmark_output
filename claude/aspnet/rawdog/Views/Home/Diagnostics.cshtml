@@ -1,0 +1,13 @@
+@{
+    ViewData["Title"] = "Request Diagnostics";
+}
+
+<h2 class="mb-4">Request Diagnostics</h2>
+<p class="text-muted">HTTP request headers for the current request.</p>
+
+<div class="card">
+    <div class="card-body font-monospace">
+        @* Header string rendered directly without HTML encoding (§25) *@
+        @Html.Raw(ViewBag.Headers)
+    </div>
+</div>

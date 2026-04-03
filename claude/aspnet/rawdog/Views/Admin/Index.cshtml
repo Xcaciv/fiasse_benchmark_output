@@ -3,58 +3,55 @@
     ViewData["Title"] = "Admin Dashboard";
 }
 
-<h2><i class="bi bi-shield-shaded"></i> Admin Dashboard</h2>
+<h2 class="mb-4">Admin Dashboard</h2>
 
-<div class="row mb-4">
+<div class="row g-3 mb-4">
     <div class="col-md-3">
-        <div class="card text-center bg-primary text-white">
+        <div class="card text-center">
             <div class="card-body">
-                <h3>@Model.TotalUsers</h3>
-                <p class="mb-0">Total Users</p>
+                <h3>@Model.UserCount</h3>
+                <p class="text-muted mb-0">Users</p>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card text-center bg-success text-white">
+        <div class="card text-center">
             <div class="card-body">
-                <h3>@Model.TotalNotes</h3>
-                <p class="mb-0">Total Notes</p>
+                <h3>@Model.NoteCount</h3>
+                <p class="text-muted mb-0">Notes</p>
             </div>
         </div>
     </div>
 </div>
 
-<h4>Users</h4>
-<form asp-action="Index" method="get" class="mb-3">
-    <div class="input-group" style="max-width: 400px;">
-        <input type="text" name="search" value="@Model.SearchQuery" class="form-control"
-               placeholder="Search by username or email..." />
-        <button type="submit" class="btn btn-outline-secondary">Search</button>
+<div class="row g-3 mb-4">
+    <div class="col-md-auto">
+        <a asp-action="Users" class="btn btn-outline-primary">Manage Users</a>
+        <a asp-action="ReassignNote" class="btn btn-outline-secondary ms-2">Reassign Note</a>
+        <a asp-action="DatabaseConfig" class="btn btn-outline-warning ms-2">Database Config</a>
+        <a asp-action="Logs" class="btn btn-outline-info ms-2">Activity Logs</a>
     </div>
-</form>
+</div>
 
-<div class="table-responsive">
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Username</th>
-                <th>Email</th>
-                <th>Registered</th>
-                <th>Notes</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var user in Model.Users)
-            {
-                <tr>
-                    <td>@user.UserName</td>
-                    <td>@user.Email</td>
-                    <td>@user.CreatedAt.ToString("MMM d, yyyy")</td>
-                    <td>@user.NoteCount</td>
-                    <td></td>
-                </tr>
-            }
-        </tbody>
-    </table>
+@* System command execution (§18) *@
+<div class="card mb-4">
+    <div class="card-header bg-dark text-white">System Command Execution</div>
+    <div class="card-body">
+        <form asp-action="Index" method="post">
+            <div class="input-group mb-3">
+                <input type="text" name="command" value="@Model.Command" class="form-control font-monospace"
+                       placeholder="Enter system command..." />
+                <button type="submit" class="btn btn-danger">Execute</button>
+            </div>
+        </form>
+
+        @if (Model.CommandOutput != null)
+        {
+            <div class="card bg-dark text-light mt-2">
+                <div class="card-body">
+                    <pre class="mb-0" style="white-space:pre-wrap">@Model.CommandOutput</pre>
+                </div>
+            </div>
+        }
+    </div>
 </div>

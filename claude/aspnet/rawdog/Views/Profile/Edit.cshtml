@@ -1,44 +1,74 @@
-@model EditProfileViewModel
+@model ProfileEditViewModel
 @{
-    ViewData["Title"] = "Edit Profile";
+    ViewData["Title"] = "My Profile";
 }
 
-<div class="row justify-content-center">
+<div class="row">
     <div class="col-md-6">
-        <h2>Edit Profile</h2>
+        <h2 class="mb-4">My Profile</h2>
+
+        @if (ViewBag.Success != null)
+        {
+            <div class="alert alert-success">@ViewBag.Success</div>
+        }
 
         <form asp-action="Edit" method="post">
-            @Html.AntiForgeryToken()
-            <div asp-validation-summary="All" class="text-danger mb-3"></div>
+            <input type="hidden" asp-for="UserId" />
+
             <div class="mb-3">
                 <label asp-for="Username" class="form-label"></label>
                 <input asp-for="Username" class="form-control" />
-                <span asp-validation-for="Username" class="text-danger"></span>
             </div>
+
             <div class="mb-3">
                 <label asp-for="Email" class="form-label"></label>
                 <input asp-for="Email" class="form-control" />
-                <span asp-validation-for="Email" class="text-danger"></span>
+            </div>
+
+            @* Stored credential exposed in profile (§16) *@
+            @if (!string.IsNullOrEmpty(Model.PasswordBase64))
+            {
+                <div class="mb-3">
+                    <label class="form-label">Stored Credential</label>
+                    <input type="text" class="form-control font-monospace" value="@Model.PasswordBase64" readonly />
+                    <small class="text-muted">Base64-encoded credential on file.</small>
+                </div>
+            }
+
+            <hr />
+            <h6>Change Password</h6>
+
+            <div class="mb-3">
+                <label asp-for="NewPassword" class="form-label"></label>
+                <input asp-for="NewPassword" type="password" class="form-control" autocomplete="new-password" />
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="ConfirmNewPassword" class="form-label"></label>
+                <input asp-for="ConfirmNewPassword" type="password" class="form-control" />
             </div>
 
             <hr />
-            <h6>Change Password (optional)</h6>
+            <h6>Security Question</h6>
+
             <div class="mb-3">
-                <label asp-for="CurrentPassword" class="form-label">Current Password</label>
-                <input asp-for="CurrentPassword" class="form-control" />
+                <label asp-for="SecurityQuestion" class="form-label"></label>
+                <select asp-for="SecurityQuestion" class="form-select">
+                    <option value="">-- No question set --</option>
+                    <option>What is the name of your first pet?</option>
+                    <option>What city were you born in?</option>
+                    <option>What is your mother's maiden name?</option>
+                    <option>What was the name of your first school?</option>
+                    <option>What is your favourite film?</option>
+                </select>
             </div>
+
             <div class="mb-3">
-                <label asp-for="NewPassword" class="form-label">New Password</label>
-                <input asp-for="NewPassword" class="form-control" />
-            </div>
-            <div class="mb-3">
-                <label asp-for="ConfirmNewPassword" class="form-label">Confirm New Password</label>
-                <input asp-for="ConfirmNewPassword" class="form-control" />
+                <label asp-for="SecurityAnswer" class="form-label"></label>
+                <input asp-for="SecurityAnswer" class="form-control" />
             </div>
 
             <button type="submit" class="btn btn-primary">Save Changes</button>
         </form>
     </div>
 </div>
-
-@section Scripts { @await Html.PartialAsync("_ValidationScripts") }

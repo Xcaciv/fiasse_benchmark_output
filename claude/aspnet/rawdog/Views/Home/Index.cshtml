@@ -1,36 +1,51 @@
 @{
-    ViewData["Title"] = "Welcome";
+    ViewData["Title"] = "Home";
 }
 
-<div class="jumbotron text-center py-5 bg-light rounded">
-    <h1 class="display-4"><i class="bi bi-journal-text"></i> Loose Notes</h1>
-    <p class="lead">Create, share, and discover notes with the community.</p>
+<div class="text-center py-5">
+    <h1 class="display-4 fw-bold">LooseNotes</h1>
+    <p class="lead text-muted">Create, share, and discover notes with the community.</p>
+
     @if (User.Identity?.IsAuthenticated == true)
     {
-        <a asp-controller="Notes" asp-action="Index" class="btn btn-primary btn-lg me-2">My Notes</a>
-        <a asp-controller="Notes" asp-action="Create" class="btn btn-success btn-lg">New Note</a>
+        <div class="mt-4">
+            <a asp-controller="Notes" asp-action="Create" class="btn btn-primary btn-lg me-2">New Note</a>
+            <a asp-controller="Notes" asp-action="Index" class="btn btn-outline-secondary btn-lg me-2">My Notes</a>
+            <a asp-controller="Notes" asp-action="TopRated" class="btn btn-outline-secondary btn-lg">Top Rated</a>
+        </div>
     }
     else
     {
-        <a asp-controller="Account" asp-action="Register" class="btn btn-primary btn-lg me-2">Get Started</a>
-        <a asp-controller="Account" asp-action="Login" class="btn btn-outline-primary btn-lg">Login</a>
+        <div class="mt-4">
+            <a asp-controller="Account" asp-action="Register" class="btn btn-primary btn-lg me-2">Get Started</a>
+            <a asp-controller="Account" asp-action="Login" class="btn btn-outline-primary btn-lg">Login</a>
+        </div>
     }
 </div>
 
-<div class="row mt-4">
-    <div class="col-md-4 text-center">
-        <i class="bi bi-pencil-square fs-1 text-primary"></i>
-        <h4>Create Notes</h4>
-        <p>Write and organize your notes with titles and rich content.</p>
+<div class="row mt-4 g-4">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <h5 class="card-title">Create Notes</h5>
+                <p class="card-text text-muted">Write and organise rich-text notes with file attachments.</p>
+            </div>
+        </div>
     </div>
-    <div class="col-md-4 text-center">
-        <i class="bi bi-share fs-1 text-success"></i>
-        <h4>Share Easily</h4>
-        <p>Generate share links to share notes with anyone.</p>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <h5 class="card-title">Share & Collaborate</h5>
+                <p class="card-text text-muted">Generate share links and allow anyone to view your notes.</p>
+            </div>
+        </div>
     </div>
-    <div class="col-md-4 text-center">
-        <i class="bi bi-star fs-1 text-warning"></i>
-        <h4>Rate & Discover</h4>
-        <p>Rate public notes and discover the best content.</p>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <h5 class="card-title">Rate & Discover</h5>
+                <p class="card-text text-muted">Rate community notes and explore top-rated content.</p>
+            </div>
+        </div>
     </div>
 </div>

@@ -1,64 +1,104 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
-import { Layout } from './components/layout/Layout';
-import { ProtectedRoute } from './components/layout/ProtectedRoute';
+import Layout from './components/Layout';
+import ProtectedRoute from './components/ProtectedRoute';
 
-import { HomePage } from './pages/HomePage';
-import { LoginPage } from './pages/auth/LoginPage';
-import { RegisterPage } from './pages/auth/RegisterPage';
-import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
-import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
-import { NotesListPage } from './pages/notes/NotesListPage';
-import { NoteCreatePage } from './pages/notes/NoteCreatePage';
-import { NoteDetailPage } from './pages/notes/NoteDetailPage';
-import { NoteEditPage } from './pages/notes/NoteEditPage';
-import { SearchPage } from './pages/notes/SearchPage';
-import { TopRatedPage } from './pages/notes/TopRatedPage';
-import { ShareViewPage } from './pages/share/ShareViewPage';
-import { ProfilePage } from './pages/profile/ProfilePage';
-import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
-import { AdminUsersPage } from './pages/admin/AdminUsersPage';
-import { AdminReassignPage } from './pages/admin/AdminReassignPage';
-import { initializeSeedData } from './utils/storage';
+import Home from './pages/Home';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import NoteList from './pages/Notes/NoteList';
+import NoteCreate from './pages/Notes/NoteCreate';
+import NoteEdit from './pages/Notes/NoteEdit';
+import NoteDetail from './pages/Notes/NoteDetail';
+import NoteDelete from './pages/Notes/NoteDelete';
+import Profile from './pages/Profile';
+import Search from './pages/Search';
+import TopRated from './pages/TopRated';
+import Share from './pages/Share';
+import Diagnostics from './pages/Diagnostics';
+import ExportImport from './pages/ExportImport';
+import XmlProcessor from './pages/XmlProcessor';
+import RatingManagement from './pages/RatingManagement';
+import AdminDashboard from './pages/Admin/Dashboard';
+import AdminUsers from './pages/Admin/Users';
+import ReassignNote from './pages/Admin/ReassignNote';
 
-// Initialize seed data once
-initializeSeedData();
-
-function App() {
+export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Layout>
-          <Routes>
+        <Routes>
+          <Route element={<Layout />}>
             {/* Public routes */}
-            <Route path="/" element={<HomePage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
-            <Route path="/search" element={<SearchPage />} />
-            <Route path="/top-rated" element={<TopRatedPage />} />
-            <Route path="/share/:token" element={<ShareViewPage />} />
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/search" element={<Search />} />
+            <Route path="/top-rated" element={<TopRated />} />
+            <Route path="/share/:token" element={<Share />} />
 
-            {/* Protected routes */}
-            <Route path="/notes" element={<ProtectedRoute><NotesListPage /></ProtectedRoute>} />
-            <Route path="/notes/create" element={<ProtectedRoute><NoteCreatePage /></ProtectedRoute>} />
-            <Route path="/notes/:id" element={<NoteDetailPage />} />
-            <Route path="/notes/:id/edit" element={<ProtectedRoute><NoteEditPage /></ProtectedRoute>} />
-            <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+            {/* Authenticated routes */}
+            <Route
+              path="/notes"
+              element={<ProtectedRoute><NoteList /></ProtectedRoute>}
+            />
+            <Route
+              path="/notes/create"
+              element={<ProtectedRoute><NoteCreate /></ProtectedRoute>}
+            />
+            <Route
+              path="/notes/:id"
+              element={<ProtectedRoute><NoteDetail /></ProtectedRoute>}
+            />
+            <Route
+              path="/notes/:id/edit"
+              element={<ProtectedRoute><NoteEdit /></ProtectedRoute>}
+            />
+            <Route
+              path="/notes/:id/delete"
+              element={<ProtectedRoute><NoteDelete /></ProtectedRoute>}
+            />
+            <Route
+              path="/profile"
+              element={<ProtectedRoute><Profile /></ProtectedRoute>}
+            />
+            <Route
+              path="/diagnostics"
+              element={<ProtectedRoute><Diagnostics /></ProtectedRoute>}
+            />
+            <Route
+              path="/export-import"
+              element={<ProtectedRoute><ExportImport /></ProtectedRoute>}
+            />
+            <Route
+              path="/xml"
+              element={<ProtectedRoute><XmlProcessor /></ProtectedRoute>}
+            />
+            <Route
+              path="/ratings"
+              element={<ProtectedRoute><RatingManagement /></ProtectedRoute>}
+            />
 
             {/* Admin routes */}
-            <Route path="/admin" element={<ProtectedRoute adminOnly><AdminDashboardPage /></ProtectedRoute>} />
-            <Route path="/admin/users" element={<ProtectedRoute adminOnly><AdminUsersPage /></ProtectedRoute>} />
-            <Route path="/admin/reassign" element={<ProtectedRoute adminOnly><AdminReassignPage /></ProtectedRoute>} />
+            <Route
+              path="/admin"
+              element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>}
+            />
+            <Route
+              path="/admin/users"
+              element={<ProtectedRoute adminOnly><AdminUsers /></ProtectedRoute>}
+            />
+            <Route
+              path="/admin/reassign"
+              element={<ProtectedRoute adminOnly><ReassignNote /></ProtectedRoute>}
+            />
 
-            {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Layout>
+          </Route>
+        </Routes>
       </AuthProvider>
     </BrowserRouter>
   );
 }
-
-export default App;

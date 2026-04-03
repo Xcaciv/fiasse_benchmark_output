@@ -1,0 +1,33 @@
+@model DatabaseConfigViewModel
+@{
+    ViewData["Title"] = "Database Configuration";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Database Configuration</h2>
+    <a asp-action="Index" class="btn btn-outline-secondary btn-sm">&larr; Dashboard</a>
+</div>
+
+@if (Model.Message != null)
+{
+    <div class="alert @(Model.Message.StartsWith("Error") ? "alert-danger" : "alert-success")">@Model.Message</div>
+}
+
+<div class="row">
+    <div class="col-md-7">
+        <div class="card border-warning">
+            <div class="card-header bg-warning">Reinitialise Database</div>
+            <div class="card-body">
+                <form asp-action="DatabaseConfig" method="post">
+                    <div class="mb-3">
+                        <label class="form-label">Connection String</label>
+                        <input type="text" name="connectionString" value="@Model.ConnectionString"
+                               class="form-control font-monospace" />
+                    </div>
+                    <input type="hidden" name="dbAction" value="reinitialize" />
+                    <button type="submit" class="btn btn-warning">Reinitialise</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
